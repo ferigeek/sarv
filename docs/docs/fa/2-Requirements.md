@@ -132,7 +132,7 @@
 
 ### نمودار Use Case
 
-![[use_case_diagram.png]]
+![Use Case Diagram](../assets/use_case_diagram.png)
 
 ### سناریوهای بحرانی
 

@@ -140,7 +140,7 @@ In this architecture, actors are strictly external entities that either initiate
 
 ### Use Case Diagram
 
-![Use Case Diagram](use_case_diagram.png)
+![Use Case Diagram](../assets/use_case_diagram.png)
 
 ### Critical Scenarios
 
