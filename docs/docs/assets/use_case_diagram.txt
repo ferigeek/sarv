@@ -1,0 +1,75 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor "User" as User
+actor "Admin" as Admin
+
+' Secondary External Actors (Right Side)
+actor "File Storage Service" as FileStorage
+actor "Monitoring System" as Monitoring
+
+rectangle "Social Network System" {
+
+  package "Account Management" {
+    usecase "Register" as UC1
+    usecase "Login" as UC2
+    usecase "Manage Profile" as UC3
+  }
+
+  package "Content & Interactions" {
+    usecase "Create New Post" as UC4
+    usecase "View Post" as UC5
+    usecase "Edit/Delete Post" as UC6
+    usecase "Comment on Post" as UC7
+    usecase "Like/Dislike Post" as UC8
+    usecase "Follow Users" as UC9
+    usecase "Upload Media File" as UC20
+  }
+
+  package "Feed & Intelligence" {
+    usecase "Get Chronological Feed" as UC11
+    usecase "Get Smart Feed" as UC12
+    usecase "Rank & Personalize Content" as UC13
+    usecase "Record User Behavior Log" as UC15
+  }
+
+  package "Management & Analytics" {
+    usecase "Manage Users" as UC19
+    usecase "Analyze Behavior & Generate Reports" as UC16
+  }
+
+  usecase "Monitor System Status" as UC18
+}
+
+' Primary User Interactions
+User --> UC1
+User --> UC2
+User --> UC3
+User --> UC5
+User --> UC6
+User --> UC8
+User --> UC9
+User --> UC11
+
+' Advanced Content & Media Flows
+User --> UC4
+UC4 ..> UC20 : <<include>> : If media attached
+UC20 --> FileStorage
+
+User --> UC7
+UC7 ..> UC4 : <<extend>> : Comment is a type of post
+
+' Smart Feed & Interaction Logging Flows
+User --> UC12
+UC12 ..> UC13 : <<include>>
+UC12 ..> UC15 : <<include>>
+UC8 ..> UC15 : <<include>>
+
+' Admin Interactions
+Admin --> UC19
+Admin --> UC16
+
+' Infrastructure Flows
+UC18 --> Monitoring
+@enduml
