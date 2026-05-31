@@ -53,7 +53,7 @@ Communication with the Analytics Subsystem is performed asynchronously. User beh
 
 The Monitoring Subsystem operates outside the primary request-processing path and continuously collects operational metrics from the various services.
 
-![Sequence Diagram](https://chatgpt.com/assets/sequence_diagram.png)
+![Sequence Diagram](../assets/sequence_diagram.png)
 
 ---
 ## Core Backend
