@@ -39,7 +39,7 @@ plugins:
             direction: rtl
           nav:
             - خانه: index.md
-            - پیشنهادیه: 1-Proposal.md
+            - پیشنهاده: 1-Proposal.md
             - نیازمندی‌ها: 2-Requirements.md
             - معماری: 3-Architecture.md
             - پایگاه داده: 4-Database.md

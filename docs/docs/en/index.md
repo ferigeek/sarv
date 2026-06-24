@@ -1,18 +1,15 @@
-# Welcome to MkDocs
+# 🌳 Sarv (سرو)
 
-For full documentation visit [mkdocs.org](https://www.mkdocs.org).
+| Link | Value |
+|------|-------|
+| GitHub Repository | https://github.com/ferigeek/sarv |
+| Documentation | https://ferigeek.github.io/UndergraduateProject/ |
 
-## Commands
+## Table of Contents
 
-* `mkdocs new [dir-name]` - Create a new project.
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
-* `mkdocs -h` - Print help message and exit.
-
-## Project layout
-
-    mkdocs.yml    # The configuration file.
-    docs/
-        index.md  # The documentation homepage.
-        ...       # Other markdown pages, images and other files.
-
+| Section | Description |
+|---------|-------------|
+| [Proposal](1-Proposal.md) | Project idea and overview |
+| [Requirements](2-Requirements.md) | Functional and non-functional requirements |
+| [Architecture](3-Architecture.md) | System design and components |
+| [Database](4-Database.md) | Database design and schema |

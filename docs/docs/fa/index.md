@@ -1,18 +1,15 @@
-# Welcome to MkDocs
+# 🌳 سرو (Sarv)
 
-For full documentation visit [mkdocs.org](https://www.mkdocs.org).
+| لینک | مقدار |
+|------|--------|
+| مخزن گیت‌هاب | https://github.com/ferigeek/sarv |
+| مستندات | https://ferigeek.github.io/UndergraduateProject/ |
 
-## Commands
+## فهرست مطالب
 
-* `mkdocs new [dir-name]` - Create a new project.
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
-* `mkdocs -h` - Print help message and exit.
-
-## Project layout
-
-    mkdocs.yml    # The configuration file.
-    docs/
-        index.md  # The documentation homepage.
-        ...       # Other markdown pages, images and other files.
-
+| بخش | توضیحات |
+|-----|----------|
+| [پیشنهاد پروژه](1-Proposal.md) | ایده و معرفی پروژه |
+| [نیازمندی‌ها](2-Requirements.md) | نیازمندی‌های کاربردی و غیرکاربردی |
+| [معماری](3-Architecture.md) | طراحی و ساختار کلی سیستم |
+| [پایگاه داده](4-Database.md) | طراحی پایگاه داده و اسکیمـا |
