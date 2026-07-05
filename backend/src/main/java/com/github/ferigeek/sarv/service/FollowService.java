@@ -8,16 +8,17 @@ import com.github.ferigeek.sarv.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Service
-public class FollowerService {
+public class FollowService {
 
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
 
     @Autowired
-    public FollowerService(UserRepository userRepository, FollowRepository followRepository) {
+    public FollowService(UserRepository userRepository, FollowRepository followRepository) {
         this.userRepository = userRepository;
         this.followRepository = followRepository;
     }
@@ -40,5 +41,30 @@ public class FollowerService {
                 .map(Follow::getFollowed)
                 .map(UserSummaryResponse::new)
                 .toList();
+    }
+
+    public void followUser(String username, Long userId) {
+        User follower = userRepository.findByUsername(username);
+        User followed = userRepository.findById(userId).orElse(null);
+
+        if (follower != null && followed != null) {
+            Follow follow = new Follow();
+            follow.setFollower(follower);
+            follow.setFollowed(followed);
+            follow.setCreatedAt(OffsetDateTime.now());
+            followRepository.save(follow);
+        }
+    }
+
+    public void unfollowUser(String username, Long userId) {
+        User follower = userRepository.findByUsername(username);
+        User followed = userRepository.findById(userId).orElse(null);
+
+        if (follower != null && followed != null) {
+            Follow follow = followRepository.findByFollowerAndFollowed(follower, followed);
+            if (follow != null) {
+                followRepository.delete(follow);
+            }
+        }
     }
 }

@@ -20,4 +20,9 @@ public class UserService {
         User user = userRepository.findById(id).orElse(null);
         return new UserResponse(user);
     }
+
+    public UserResponse getUserByUsername(String username) {
+        User user = userRepository.findByUsername(username);
+        return new UserResponse(user);
+    }
 }
