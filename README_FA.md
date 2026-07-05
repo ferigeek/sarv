@@ -33,4 +33,4 @@ Analytics --> DB
 
 مستندات کامل پروژه، شامل جزئیات معماری، طراحی پایگاه داده و جریان‌های سیستم، در GitHub Pages در دسترس است:
 
-https://ferigeek.github.io/UndergraduateProject/
+https://ferigeek.github.io/sarv/
