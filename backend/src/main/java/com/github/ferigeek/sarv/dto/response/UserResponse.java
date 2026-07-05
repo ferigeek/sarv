@@ -22,6 +22,8 @@ public class UserResponse {
         this.bio = user.getBio();
         this.gender = user.getGender().name();
         this.location = user.getLocation();
-        this.profilePictureId = user.getProfilePicture().getId();
+        if (user.getProfilePicture() != null) {
+            this.profilePictureId = user.getProfilePicture().getId();
+        }
     }
 }

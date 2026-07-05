@@ -8,6 +8,8 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 
@@ -44,14 +46,16 @@ public class User {
     private String bio;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "gender")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "gender", columnDefinition = "gender_enum")
     private Gender gender;
 
     @Column(name = "location", length = 30)
     private String location;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "status", columnDefinition = "user_status")
     private UserStatus status = UserStatus.ACTIVE;
 
     @ManyToOne(fetch = FetchType.LAZY)
