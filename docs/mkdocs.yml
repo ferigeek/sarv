@@ -2,6 +2,8 @@ site_name: 🌳 Sarv (سرو)
 site_url: https://ferigeek.github.io/sarv/
 docs_dir: docs
 site_dir: site
+repo_url: https://github.com/ferigeek/sarv
+repo_name: ferigeek/sarv
 
 theme:
   name: material
@@ -20,6 +22,8 @@ theme:
 
     # Palette toggle for light mode
     - media: "(prefers-color-scheme: light)"
+      primary: light green
+      accent: red
       scheme: default 
       toggle:
         icon: material/brightness-7
@@ -27,10 +31,15 @@ theme:
 
     # Palette toggle for dark mode
     - media: "(prefers-color-scheme: dark)"
+      primary: light green
+      accent: red
       scheme: slate
       toggle:
         icon: material/brightness-4
         name: Switch to system preference
+
+  icon:
+    repo: material/git
 
 plugins:
   - search

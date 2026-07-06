@@ -33,4 +33,4 @@ Analytics --> DB
 
 The full documentation, including architecture details, database design, and system workflows, is available on GitHub Pages:
 
-https://ferigeek.github.io/UndergraduateProject/
+https://ferigeek.github.io/sarv/
