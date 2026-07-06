@@ -4,7 +4,6 @@ import com.github.ferigeek.sarv.dto.request.UserLoginRequest;
 import com.github.ferigeek.sarv.dto.request.UserRegisterRequest;
 import com.github.ferigeek.sarv.dto.response.UserRegisterResponse;
 import com.github.ferigeek.sarv.entity.User;
-import com.github.ferigeek.sarv.entity.type.Gender;
 import com.github.ferigeek.sarv.repository.UserRepository;
 import com.github.ferigeek.sarv.security.JwtUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -32,8 +31,7 @@ public class AuthService {
             AuthenticationManager authenticationManager,
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            JwtUtil jwtUtil
-    ) {
+            JwtUtil jwtUtil) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -62,7 +60,7 @@ public class AuthService {
             user.setUsername(userRegisterRequest.getUsername());
             user.setEmail(userRegisterRequest.getEmail());
             user.setPasswordHash(passwordEncoder.encode(userRegisterRequest.getPassword()));
-            user.setGender(Gender.valueOf(userRegisterRequest.getGender().toUpperCase()));
+            user.setGender(userRegisterRequest.getGender());
             user.setDisplayName(userRegisterRequest.getDisplayName());
             user.setCreatedAt(OffsetDateTime.now());
 
@@ -79,7 +77,10 @@ public class AuthService {
         userRegisterResponse.setEmail(user.getEmail());
 
         try {
-            String token = login(new UserLoginRequest(userRegisterRequest.getUsername(), userRegisterRequest.getPassword()));
+            String token = login(new UserLoginRequest(
+                    userRegisterRequest.getUsername(),
+                    userRegisterRequest.getPassword())
+            );
             userRegisterResponse.setToken(token);
         } catch (Exception e) {
             log.error("Error while generating token: {}", e.getMessage());
