@@ -1,5 +1,6 @@
 package com.github.ferigeek.sarv.controller;
 
+import com.github.ferigeek.sarv.dto.request.UserUpdateRequest;
 import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.dto.response.UserResponse;
 import com.github.ferigeek.sarv.service.FollowService;
@@ -55,5 +56,12 @@ public class UserController {
     @GetMapping("/me")
     public UserResponse getCurrentUserProfile(@AuthenticationPrincipal UserDetails userDetails) {
         return userService.getUserByUsername(userDetails.getUsername());
+    }
+
+    @PatchMapping("/me")
+    public UserResponse updateCurrentUserProfile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody UserUpdateRequest userUpdateRequest) {
+        return userService.updateUser(userDetails.getUsername(), userUpdateRequest);
     }
 }
