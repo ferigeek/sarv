@@ -2,11 +2,14 @@ package com.github.ferigeek.sarv.controller;
 
 import com.github.ferigeek.sarv.dto.request.UserUpdateRequest;
 import com.github.ferigeek.sarv.dto.response.UserResponse;
+import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
@@ -34,5 +37,10 @@ public class UserController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody UserUpdateRequest userUpdateRequest) {
         return userService.updateUser(userDetails.getUsername(), userUpdateRequest);
+    }
+
+    @GetMapping
+    public List<UserSummaryResponse> searchUser(@RequestParam String query) {
+        return userService.searchUsers(query);
     }
 }

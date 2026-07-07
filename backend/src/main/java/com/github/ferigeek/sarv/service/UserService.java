@@ -2,12 +2,15 @@ package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.request.UserUpdateRequest;
 import com.github.ferigeek.sarv.dto.response.UserResponse;
+import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 public class UserService {
@@ -46,5 +49,13 @@ public class UserService {
         }
         userRepository.save(user);
         return new UserResponse(user);
+    }
+
+    public List<UserSummaryResponse> searchUsers(String query) {
+        return userRepository
+                .searchUsers(query)
+                .stream()
+                .map(UserSummaryResponse::new)
+                .toList();
     }
 }
