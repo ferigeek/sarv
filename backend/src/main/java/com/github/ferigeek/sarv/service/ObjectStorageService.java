@@ -2,11 +2,10 @@ package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.response.StoredObject;
 import org.springframework.core.io.Resource;
-import org.springframework.web.multipart.MultipartFile;
 
 public interface ObjectStorageService {
 
-    StoredObject uploadObject(MultipartFile file);
+    StoredObject uploadObject(byte[] bytes, String mimeType);
     Resource download(String objectKey);
     void delete(String objectKey);
 }

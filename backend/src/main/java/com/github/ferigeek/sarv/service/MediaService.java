@@ -2,15 +2,17 @@ package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.response.MediaMetadataResponse;
 import com.github.ferigeek.sarv.dto.response.MediaResponse;
-import com.github.ferigeek.sarv.dto.response.StoredObject;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.User;
+import com.github.ferigeek.sarv.exception.MediaNotFoundException;
+import com.github.ferigeek.sarv.exception.StorageException;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.OffsetDateTime;
 
 @Service
@@ -27,26 +29,41 @@ public class MediaService {
     }
 
     public MediaResponse uploadMedia(MultipartFile file, String username) {
-        StoredObject storedObject = objectStorageService.uploadObject(file);
-        Media media = new Media();
+        try {
+            byte[] bytes = file.getBytes();
+            String mimeType = file.getContentType();
+            String originalName = file.getOriginalFilename();
 
-        media.setCreatedAt(OffsetDateTime.now());
-        media.setName(file.getOriginalFilename());
-        media.setMimeType(storedObject.mimeType());
+            var stored = objectStorageService.uploadObject(bytes, mimeType);
+            User owner = userRepository.findByUsername(username);
 
-        User user = userRepository.findByUsername(username);
-        media.setOwner(user);
+            Media media = new Media();
+            media.setSize(stored.size());
+            media.setName(originalName != null ? originalName : "unknown");
+            media.setMimeType(mimeType != null ? mimeType : "application/octet-stream");
+            media.setSha256(stored.sha256());
+            media.setCreatedAt(OffsetDateTime.now());
+            media.setOwner(owner);
 
-        return new MediaResponse(mediaRepository.save(media).getId(), storedObject.objectKey());
+            media = mediaRepository.save(media);
+            return new MediaResponse(media.getId(), "/api/media/" + media.getId());
+        } catch (IOException e) {
+            throw new StorageException("Failed to read uploaded file", e);
+        }
     }
 
-    public Resource getMedia(String mediaId) {
-        Media media = mediaRepository.findById(Long.parseLong(mediaId)).orElseThrow();
-        return objectStorageService.download(media.getName());
+    public Resource downloadMedia(Long mediaId) {
+        Media media = getMediaEntity(mediaId);
+        return objectStorageService.download(media.getSha256());
     }
 
-    public MediaMetadataResponse getMediaMetadata(String mediaId) {
-        Media media = mediaRepository.findById(Long.parseLong(mediaId)).orElseThrow();
+    public Media getMediaEntity(Long mediaId) {
+        return mediaRepository.findById(mediaId)
+                .orElseThrow(() -> new MediaNotFoundException(mediaId));
+    }
+
+    public MediaMetadataResponse getMediaMetadata(Long mediaId) {
+        Media media = getMediaEntity(mediaId);
         return new MediaMetadataResponse(media);
     }
 }
