@@ -19,10 +19,13 @@ public class PostResponse {
     private Long mediaId;
     private Long repostOfId;
     private Long parentId;
+    private Long viewCount;
+    private Long likeCount;
+    private Long dislikeCount;
 
     public PostResponse(Post post) {
         this.id = post.getId();
-        this.userId = post.getId();
+        this.userId = post.getUser().getId();
         this.postCategory = post.getPostCategory().name();
         this.content = (post.getContent() != null) ? post.getContent() : "";
         this.createdAt = post.getCreatedAt();
@@ -30,5 +33,8 @@ public class PostResponse {
         this.mediaId = (post.getMedia() != null) ? post.getMedia().getId() : null;
         this.repostOfId = (post.getRepostOf() != null) ? post.getRepostOf().getId() : null;
         this.parentId = (post.getParent() != null) ? post.getParent().getId() : null;
+        this.viewCount = post.getViewCount();
+        this.likeCount = post.getLikeCount();
+        this.dislikeCount = post.getDislikeCount();
     }
 }
