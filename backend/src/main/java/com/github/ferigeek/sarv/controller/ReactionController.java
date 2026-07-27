@@ -1,7 +1,9 @@
 package com.github.ferigeek.sarv.controller;
 
+import com.github.ferigeek.sarv.aspect.LogEvent;
 import com.github.ferigeek.sarv.dto.request.ReactionRequest;
 import com.github.ferigeek.sarv.dto.response.ReactionResponse;
+import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.ReactionService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,6 +21,7 @@ public class ReactionController {
     }
 
     @PostMapping
+    @LogEvent(EventType.LIKE_POST)
     public ReactionResponse addReaction(
             @PathVariable Long postId,
             @RequestBody ReactionRequest reactionRequest,

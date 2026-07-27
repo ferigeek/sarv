@@ -1,7 +1,9 @@
 package com.github.ferigeek.sarv.controller;
 
+import com.github.ferigeek.sarv.aspect.LogEvent;
 import com.github.ferigeek.sarv.dto.request.PostRequest;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
+import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.PostService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,11 +23,13 @@ public class PostController {
     }
 
     @GetMapping("/{postId}")
+    @LogEvent(EventType.VIEW_POST)
     public PostResponse getPost(@PathVariable Long postId) {
         return postService.getPost(postId);
     }
 
     @PostMapping
+    @LogEvent(EventType.CREATE_POST)
     public ResponseEntity<?> createPost(
             @RequestBody PostRequest postRequest,
             @AuthenticationPrincipal UserDetails userDetails) {

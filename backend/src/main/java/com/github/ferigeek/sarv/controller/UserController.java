@@ -1,8 +1,10 @@
 package com.github.ferigeek.sarv.controller;
 
+import com.github.ferigeek.sarv.aspect.LogEvent;
 import com.github.ferigeek.sarv.dto.request.UserUpdateRequest;
 import com.github.ferigeek.sarv.dto.response.UserResponse;
 import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
+import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,11 +25,13 @@ public class UserController {
     }
 
     @GetMapping("/{userId}")
+    @LogEvent(EventType.VIEW_PROFILE)
     public UserResponse getUser(@PathVariable Long userId) {
         return userService.getUser(userId);
     }
 
     @GetMapping("/me")
+    @LogEvent(EventType.VIEW_PROFILE)
     public UserResponse getCurrentUserProfile(@AuthenticationPrincipal UserDetails userDetails) {
         return userService.getUserByUsername(userDetails.getUsername());
     }
