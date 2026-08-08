@@ -1,6 +1,8 @@
-def main():
-    print("Hello from recommendation!")
+from fastapi import FastAPI
 
+app = FastAPI()
 
-if __name__ == "__main__":
-    main()
+@app.get("/feed")
+async def get_feed():
+    # Logic to generate and return the feed
+    return {"message": "This is the feed endpoint"}
