@@ -42,18 +42,41 @@ public class UserService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException("User not found with Username: <%s>".formatted(username)));
 
-        user.setDisplayName(userUpdateRequest.getDisplayName());
-        user.setBio(userUpdateRequest.getBio());
-        user.setGender(userUpdateRequest.getGender());
-        user.setLocation(userUpdateRequest.getLocation());
-        if (userUpdateRequest.getProfilePictureId() != null) {
-            if (user.getProfilePicture().getId().equals(userUpdateRequest.getProfilePictureId())) {
-                Media newProfilePicture = mediaRepository.findById(userUpdateRequest.getProfilePictureId()).orElse(null);
-                user.setProfilePicture(newProfilePicture);
-            }
+        if (userUpdateRequest.getDisplayName() == null || userUpdateRequest.getDisplayName().isBlank()) {
+            throw new IllegalArgumentException("Display name can not be empty");
         }
-        userRepository.save(user);
-        return new UserResponse(user);
+        user.setDisplayName(userUpdateRequest.getDisplayName());
+
+        // If bio and location are given as null or empty string, they will be deleted.
+
+        if (userUpdateRequest.getBio() == null || userUpdateRequest.getBio().isBlank()) {
+            user.setBio(null);
+        } else {
+            user.setBio(userUpdateRequest.getBio().trim());
+        }
+
+        if (userUpdateRequest.getLocation() == null || userUpdateRequest.getLocation().isBlank()) {
+            user.setLocation(null);
+        } else {
+            user.setLocation(userUpdateRequest.getLocation().trim());
+        }
+
+        // Gender can not be null, instead it can be `RATHER_NOT_TO_SAY`.
+        if (userUpdateRequest.getGender() == null) {
+            throw new IllegalArgumentException("Gender can not be empty");
+        }
+        user.setGender(userUpdateRequest.getGender());
+
+
+        if (userUpdateRequest.getProfilePictureId() == null) {
+            user.setProfilePicture(null);
+        } else {
+            Media picture = mediaRepository.findById(userUpdateRequest.getProfilePictureId())
+                    .orElseThrow(() -> new MediaNotFoundException(userUpdateRequest.getProfilePictureId()));
+            user.setProfilePicture(picture);
+        }
+
+        return new UserResponse(userRepository.save(user));
     }
 
     public List<UserSummaryResponse> searchUsers(String query) {

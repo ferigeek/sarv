@@ -36,7 +36,7 @@ public class UserController {
         return userService.getUserByUsername(userDetails.getUsername());
     }
 
-    @PatchMapping("/me")
+    @PutMapping("/me")
     public UserResponse updateCurrentUserProfile(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody UserUpdateRequest userUpdateRequest) {
