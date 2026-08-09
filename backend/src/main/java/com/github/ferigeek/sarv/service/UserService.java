@@ -5,6 +5,8 @@ import com.github.ferigeek.sarv.dto.response.UserResponse;
 import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.User;
+import com.github.ferigeek.sarv.exception.MediaNotFoundException;
+import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,17 +27,20 @@ public class UserService {
     }
 
     public UserResponse getUser(Long id) {
-        User user = userRepository.findById(id).orElse(null);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: <%d>".formatted(id)));
         return new UserResponse(user);
     }
 
     public UserResponse getUserByUsername(String username) {
-        User user = userRepository.findByUsername(username);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException("User not found with username: <%s>".formatted(username)));
         return new UserResponse(user);
     }
 
     public UserResponse updateUser(String username, UserUpdateRequest userUpdateRequest) {
-        User user = userRepository.findByUsername(username);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException("User not found with Username: <%s>".formatted(username)));
 
         user.setDisplayName(userUpdateRequest.getDisplayName());
         user.setBio(userUpdateRequest.getBio());

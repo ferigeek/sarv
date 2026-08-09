@@ -6,6 +6,7 @@ import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.exception.MediaNotFoundException;
 import com.github.ferigeek.sarv.exception.StorageException;
+import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,7 +38,10 @@ public class MediaService {
             String originalName = file.getOriginalFilename();
 
             var stored = objectStorageService.uploadObject(bytes, mimeType);
-            User owner = userRepository.findByUsername(username);
+            User owner = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new UserNotFoundException(
+                            "Owner not found with username: <%s>".formatted(username))
+                    );
 
             Media media = new Media();
             media.setSize(stored.size());

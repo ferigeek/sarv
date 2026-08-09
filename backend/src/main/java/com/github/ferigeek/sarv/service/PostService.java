@@ -5,6 +5,7 @@ import com.github.ferigeek.sarv.dto.response.PostResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.Post;
 import com.github.ferigeek.sarv.entity.User;
+import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.PostRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
@@ -36,7 +37,10 @@ public class PostService {
     }
 
     public PostResponse createPost(PostRequest postRequest, String username) {
-        User user = userRepository.findByUsername(username);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException(
+                        "User not found with username: <%s>".formatted(username))
+                );
         Post post = new Post();
 
         post.setUser(user);
@@ -63,7 +67,12 @@ public class PostService {
     public void deletePost(Long postId, String username) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
-        User user = userRepository.findByUsername(username);
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException(
+                        "User not found with username: <%s>".formatted(username))
+                );
+
         if (post.getUser() != user) {
             throw new RuntimeException("You are not the owner of this post");
         }
@@ -75,7 +84,12 @@ public class PostService {
     public PostResponse updatePost(Long postId, PostRequest postRequest, String username) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
-        User user = userRepository.findByUsername(username);
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException(
+                        "User not found with username: <%s>".formatted(username))
+                );
+
         if (post.getUser() != user) {
             throw new RuntimeException("You are not the owner of this post");
         }
