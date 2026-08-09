@@ -5,6 +5,7 @@ import com.github.ferigeek.sarv.entity.EventLog;
 import com.github.ferigeek.sarv.entity.Post;
 import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.entity.type.EventType;
+import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.EventLogRepository;
 import com.github.ferigeek.sarv.repository.PostRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
@@ -98,7 +99,10 @@ public class EventLoggingAspect {
         } else {
             username = principal.toString();
         }
-        return userRepository.findByUsername(username);
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException(
+                        "User not found with username: <%s>".formatted(username)
+                ));
     }
 
     private Map<String, String> getPathVariables() {
