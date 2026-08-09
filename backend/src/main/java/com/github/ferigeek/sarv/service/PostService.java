@@ -8,6 +8,7 @@ import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.PostRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -19,6 +20,7 @@ public class PostService {
     private final UserRepository userRepository;
     private final MediaRepository mediaRepository;
 
+    @Autowired
     public PostService(PostRepository postRepository, UserRepository userRepository, MediaRepository mediaRepository) {
         this.postRepository = postRepository;
         this.userRepository = userRepository;

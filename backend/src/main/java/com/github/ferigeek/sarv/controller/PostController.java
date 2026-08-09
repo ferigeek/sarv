@@ -5,6 +5,7 @@ import com.github.ferigeek.sarv.dto.request.PostRequest;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
 import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.PostService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -18,6 +19,7 @@ public class PostController {
 
     private final PostService postService;
 
+    @Autowired
     public PostController(PostService postService) {
         this.postService = postService;
     }

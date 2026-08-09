@@ -4,6 +4,7 @@ import com.github.ferigeek.sarv.aspect.LogEvent;
 import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.FollowService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,6 +18,7 @@ public class FollowController {
 
     private final FollowService followService;
 
+    @Autowired
     public FollowController(FollowService followService) {
         this.followService = followService;
     }

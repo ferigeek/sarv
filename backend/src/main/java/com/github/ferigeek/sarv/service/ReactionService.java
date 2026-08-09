@@ -9,6 +9,7 @@ import com.github.ferigeek.sarv.exception.PostNotFoundException;
 import com.github.ferigeek.sarv.repository.PostRepository;
 import com.github.ferigeek.sarv.repository.ReactionRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -20,6 +21,7 @@ public class ReactionService {
     private final PostRepository postRepository;
     private final UserRepository userRepository;
 
+    @Autowired
     public ReactionService(
             ReactionRepository reactionRepository,
             PostRepository postRepository,

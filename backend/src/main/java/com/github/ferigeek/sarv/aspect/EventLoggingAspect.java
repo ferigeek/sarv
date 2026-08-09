@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Aspect;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
@@ -29,6 +30,7 @@ public class EventLoggingAspect {
     private final UserRepository userRepository;
     private final PostRepository postRepository;
 
+    @Autowired
     public EventLoggingAspect(EventLogRepository eventLogRepository, UserRepository userRepository, PostRepository postRepository) {
         this.eventLogRepository = eventLogRepository;
         this.userRepository = userRepository;

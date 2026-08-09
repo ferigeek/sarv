@@ -8,6 +8,7 @@ import com.github.ferigeek.sarv.exception.MediaNotFoundException;
 import com.github.ferigeek.sarv.exception.StorageException;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +23,7 @@ public class MediaService {
     private final ObjectStorageService objectStorageService;
     private final UserRepository userRepository;
 
+    @Autowired
     public MediaService(MediaRepository mediaRepository, ObjectStorageService objectStorageService, UserRepository userRepository) {
         this.mediaRepository = mediaRepository;
         this.objectStorageService = objectStorageService;

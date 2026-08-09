@@ -4,6 +4,7 @@ import com.github.ferigeek.sarv.dto.response.MediaMetadataResponse;
 import com.github.ferigeek.sarv.dto.response.MediaResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.service.MediaService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ public class MediaController {
 
     private final MediaService mediaService;
 
+    @Autowired
     public MediaController(MediaService mediaService) {
         this.mediaService = mediaService;
     }
