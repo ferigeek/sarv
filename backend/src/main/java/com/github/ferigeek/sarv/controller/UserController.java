@@ -6,6 +6,8 @@ import com.github.ferigeek.sarv.dto.response.UserResponse;
 import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.UserService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -26,7 +28,7 @@ public class UserController {
 
     @GetMapping("/{userId}")
     @LogEvent(EventType.VIEW_PROFILE)
-    public UserResponse getUser(@PathVariable Long userId) {
+    public UserResponse getUser(@Positive @PathVariable Long userId) {
         return userService.getUser(userId);
     }
 
@@ -39,7 +41,7 @@ public class UserController {
     @PutMapping("/me")
     public UserResponse updateCurrentUserProfile(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestBody UserUpdateRequest userUpdateRequest) {
+            @Valid @RequestBody UserUpdateRequest userUpdateRequest) {
         return userService.updateUser(userDetails.getUsername(), userUpdateRequest);
     }
 

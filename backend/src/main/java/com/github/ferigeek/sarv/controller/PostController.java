@@ -6,6 +6,7 @@ import com.github.ferigeek.sarv.dto.response.PostResponse;
 import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.PostService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,7 +29,7 @@ public class PostController {
 
     @GetMapping("/{postId}")
     @LogEvent(EventType.VIEW_POST)
-    public PostResponse getPost(@PathVariable Long postId) {
+    public PostResponse getPost(@Positive @PathVariable Long postId) {
         return postService.getPost(postId);
     }
 
@@ -44,14 +45,14 @@ public class PostController {
     @DeleteMapping("/{postId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deletePost(
-            @PathVariable Long postId,
+            @Positive @PathVariable Long postId,
             @AuthenticationPrincipal UserDetails userDetails) {
         postService.deletePost(postId, userDetails.getUsername());
     }
 
     @PatchMapping("/{postId}")
     public PostResponse updatePost(
-            @PathVariable Long postId,
+            @Positive @PathVariable Long postId,
             @Valid @RequestBody PostRequest postRequest,
             @AuthenticationPrincipal UserDetails userDetails) {
         return postService.updatePost(postId, postRequest, userDetails.getUsername());
