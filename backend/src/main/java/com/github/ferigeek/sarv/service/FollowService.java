@@ -26,7 +26,8 @@ public class FollowService {
     }
 
     public List<UserSummaryResponse> getFollowers(Long userId) {
-        User user = userRepository.findById(userId).orElse(null);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: <%d>".formatted(userId)));
         List<Follow> follows = followRepository.findByFollowed(user);
 
         return follows.stream()
@@ -35,8 +36,9 @@ public class FollowService {
                 .toList();
     }
 
-    public List<UserSummaryResponse> getFollowings(Long userId) {
-        User user = userRepository.findById(userId).orElse(null);
+    public List<UserSummaryResponse> getFollowing(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: <%d>".formatted(userId)));
         List<Follow> follows = followRepository.findByFollower(user);
 
         return follows.stream()
