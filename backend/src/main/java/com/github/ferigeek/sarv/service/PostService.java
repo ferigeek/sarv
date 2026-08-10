@@ -1,15 +1,13 @@
 package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.request.PostRequest;
+import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.Post;
 import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.entity.type.PostCategory;
-import com.github.ferigeek.sarv.exception.MediaNotFoundException;
-import com.github.ferigeek.sarv.exception.PostNotFoundException;
-import com.github.ferigeek.sarv.exception.PostNotValidException;
-import com.github.ferigeek.sarv.exception.UserNotFoundException;
+import com.github.ferigeek.sarv.exception.*;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.PostRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
@@ -179,9 +177,9 @@ public class PostService {
         postRepository.save(post);
     }
 
-    public PostResponse updatePost(Long postId, PostRequest postRequest, String username) {
+    public PostResponse updatePost(Long postId, PostUpdateRequest postUpdateRequest, String username) {
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new RuntimeException("Post not found"));
+                .orElseThrow(() -> new PostNotFoundException(postId));
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(
@@ -189,14 +187,32 @@ public class PostService {
                 );
 
         if (post.getUser() != user) {
-            throw new RuntimeException("You are not the owner of this post");
+            throw new UnAuthorizedUpdateException(
+                    "User with ID: <%d> is not the owner of post with ID: <%d>".formatted(user.getId(), post.getId())
+            );
         }
-        post.setContent(postRequest.getContent());
-        if (post.getMedia() != null && !post.getMedia().getId().equals(postRequest.getMediaId())) {
-            Media media = mediaRepository.findById(postRequest.getMediaId())
-                    .orElseThrow(() -> new RuntimeException("Media not found"));
+
+        if ((postUpdateRequest.getContent() == null || postUpdateRequest.getContent().isBlank())
+                && postUpdateRequest.getMediaId() == null) {
+            throw new PostNotValidException(
+                    "Updating post should have at least text or media attached to it"
+            );
+        }
+
+        if (postUpdateRequest.getContent() == null || postUpdateRequest.getContent().isBlank()) {
+            post.setContent(null);
+        } else {
+            post.setContent(postUpdateRequest.getContent());
+        }
+
+        if (postUpdateRequest.getMediaId() == null) {
+            post.setMedia(null);
+        } else {
+            Media media = mediaRepository.findById(postUpdateRequest.getMediaId())
+                    .orElseThrow(() -> new MediaNotFoundException(postUpdateRequest.getMediaId()));
             post.setMedia(media);
         }
+
         return new PostResponse(postRepository.save(post));
     }
 }

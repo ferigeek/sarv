@@ -2,6 +2,7 @@ package com.github.ferigeek.sarv.controller;
 
 import com.github.ferigeek.sarv.aspect.LogEvent;
 import com.github.ferigeek.sarv.dto.request.PostRequest;
+import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
 import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.PostService;
@@ -50,11 +51,21 @@ public class PostController {
         postService.deletePost(postId, userDetails.getUsername());
     }
 
-    @PatchMapping("/{postId}")
+    /*
+    `PUT` method is used instead of `PATCH` method for editing a post; Because
+    otherwise if you check the request object and see that an attribute is null,
+    you can't distinguish between if the attribute is set to null
+    in the JSON request to delete, or the attribute is not mentioned
+    in the request to keep it without change.
+    Thus, `PUT` is used so that if the user wants the data the bo untouched,
+    data is set to its previous value, and if it's needed to be deleted,
+    it is set to null.
+     */
+    @PutMapping("/{postId}")
     public PostResponse updatePost(
             @Positive @PathVariable Long postId,
-            @Valid @RequestBody PostRequest postRequest,
+            @Valid @RequestBody PostUpdateRequest postUpdateRequest,
             @AuthenticationPrincipal UserDetails userDetails) {
-        return postService.updatePost(postId, postRequest, userDetails.getUsername());
+        return postService.updatePost(postId, postUpdateRequest, userDetails.getUsername());
     }
 }

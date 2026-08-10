@@ -38,6 +38,16 @@ public class UserController {
         return userService.getUserByUsername(userDetails.getUsername());
     }
 
+    /*
+    `PUT` method is used instead of `PATCH` method for editing a post; Because
+    otherwise if you check the request object and see that an attribute is null,
+    you can't distinguish between if the attribute is set to null
+    in the JSON request to delete, or the attribute is not mentioned
+    in the request to keep it without change.
+    Thus, `PUT` is used so that if the user wants the data the bo untouched,
+    data is set to its previous value, and if it's needed to be deleted,
+    it is set to null.
+     */
     @PutMapping("/me")
     public UserResponse updateCurrentUserProfile(
             @AuthenticationPrincipal UserDetails userDetails,
