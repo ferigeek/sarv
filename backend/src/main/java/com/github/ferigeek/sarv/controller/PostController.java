@@ -5,7 +5,9 @@ import com.github.ferigeek.sarv.dto.request.PostRequest;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
 import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.PostService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -33,24 +35,24 @@ public class PostController {
     @PostMapping
     @LogEvent(EventType.CREATE_POST)
     public ResponseEntity<?> createPost(
-            @RequestBody PostRequest postRequest,
+            @Valid @RequestBody PostRequest postRequest,
             @AuthenticationPrincipal UserDetails userDetails) {
         PostResponse postResponse = postService.createPost(postRequest, userDetails.getUsername());
-        return ResponseEntity.created(URI.create("/api/posts/" + postResponse.getId())).build();
+        return ResponseEntity.created(URI.create("/api/posts/" + postResponse.getId())).body(postResponse);
     }
 
     @DeleteMapping("/{postId}")
-    public ResponseEntity<?> deletePost(
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deletePost(
             @PathVariable Long postId,
             @AuthenticationPrincipal UserDetails userDetails) {
         postService.deletePost(postId, userDetails.getUsername());
-        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{postId}")
     public PostResponse updatePost(
             @PathVariable Long postId,
-            @RequestBody PostRequest postRequest,
+            @Valid @RequestBody PostRequest postRequest,
             @AuthenticationPrincipal UserDetails userDetails) {
         return postService.updatePost(postId, postRequest, userDetails.getUsername());
     }

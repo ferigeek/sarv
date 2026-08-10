@@ -1,6 +1,7 @@
 package com.github.ferigeek.sarv.dto.request;
 
 import com.github.ferigeek.sarv.entity.type.PostCategory;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,6 +11,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class PostRequest {
 
+    @NotNull
     private PostCategory postCategory;
     private String content;
     private Long mediaId;

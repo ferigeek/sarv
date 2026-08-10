@@ -5,6 +5,10 @@ import com.github.ferigeek.sarv.dto.response.PostResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.Post;
 import com.github.ferigeek.sarv.entity.User;
+import com.github.ferigeek.sarv.entity.type.PostCategory;
+import com.github.ferigeek.sarv.exception.MediaNotFoundException;
+import com.github.ferigeek.sarv.exception.PostNotFoundException;
+import com.github.ferigeek.sarv.exception.PostNotValidException;
 import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.PostRepository;
@@ -30,7 +34,7 @@ public class PostService {
 
     public PostResponse getPost(Long postId) {
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new RuntimeException("Post not found"));
+                .orElseThrow(() -> new PostNotFoundException(postId));
         post.setViewCount(post.getViewCount() + 1);
         postRepository.save(post);
         return new PostResponse(post);
@@ -41,26 +45,120 @@ public class PostService {
                 .orElseThrow(() -> new UserNotFoundException(
                         "User not found with username: <%s>".formatted(username))
                 );
+
         Post post = new Post();
 
         post.setUser(user);
-        post.setPostCategory(postRequest.getPostCategory());
         post.setCreatedAt(OffsetDateTime.now());
+        PostCategory postCategory = postRequest.getPostCategory();
+
+        switch (postCategory) {
+            case NORMAL:
+                if ((postRequest.getContent() == null || postRequest.getContent().isBlank())
+                        && postRequest.getMediaId() == null) {
+                    throw new PostNotValidException(
+                            "Post with category NORMAL should have at least text or media attached to it"
+                    );
+                }
+
+                if (postRequest.getParentId() != null) {
+                    throw new PostNotValidException(
+                            "Post with category NORMAL cannot have a parent"
+                    );
+                }
+
+                if (postRequest.getRepostOfId() != null) {
+                    throw new PostNotValidException(
+                            "Post with category NORMAL cannot be a repost"
+                    );
+                }
+
+                break;
+
+            case COMMENT:
+                if ((postRequest.getContent() == null || postRequest.getContent().isBlank())
+                        && postRequest.getMediaId() == null) {
+                    throw new PostNotValidException(
+                            "Post with category COMMENT should have at least text or media attached to it"
+                    );
+                }
+
+                if (postRequest.getParentId() == null) {
+                    throw new PostNotValidException(
+                            "Post with category COMMENT should have a parent post"
+                    );
+                }
+
+                /*
+                If the `repostOfId` is not null, then the comment is a quote
+                sent as a comment. But a repost as a comment is not permitted.
+                 */
+
+                break;
+
+            case QUOTE:
+                if ((postRequest.getContent() == null || postRequest.getContent().isBlank())
+                        && postRequest.getMediaId() == null) {
+                    throw new PostNotValidException(
+                            "Post with category QUOTE should have at least text or media attached to it"
+                    );
+                }
+
+                if (postRequest.getRepostOfId() == null) {
+                    throw new PostNotValidException(
+                            "Post with category QUOTE should reference a post"
+                    );
+                }
+
+                if (postRequest.getParentId() != null) {
+                    throw new  PostNotValidException(
+                            "Post with category QUOTE cannot have a parent"
+                    );
+                }
+
+                break;
+
+            case REPOST:
+                if ((postRequest.getContent() != null && !postRequest.getContent().isBlank())
+                        || postRequest.getMediaId() != null) {
+                    throw new PostNotValidException(
+                            "Post with category REPOST cannot have text or media attached to it"
+                    );
+                }
+
+                if (postRequest.getRepostOfId() == null) {
+                    throw new PostNotValidException(
+                            "Post with category REPOST should reference a post"
+                    );
+                }
+
+                if (postRequest.getParentId() != null) {
+                    throw new  PostNotValidException(
+                            "Post with category REPOST cannot have a parent"
+                    );
+                }
+
+                break;
+        }
+
         if (postRequest.getMediaId() != null) {
             Media media = mediaRepository.findById(postRequest.getMediaId())
-                    .orElseThrow(() -> new RuntimeException("Media not found"));
+                    .orElseThrow(() -> new MediaNotFoundException(postRequest.getMediaId()));
             post.setMedia(media);
         }
+
         if (postRequest.getParentId() != null) {
             Post parentPost = postRepository.findById(postRequest.getParentId())
-                    .orElseThrow(() -> new RuntimeException("Parent post not found"));
+                    .orElseThrow(() -> new PostNotFoundException(postRequest.getParentId()));
             post.setParent(parentPost);
         }
+
         if (postRequest.getRepostOfId() != null) {
             Post repostOfPost = postRepository.findById(postRequest.getRepostOfId())
-                    .orElseThrow(() -> new RuntimeException("Repost of post not found"));
+                    .orElseThrow(() -> new PostNotFoundException(postRequest.getRepostOfId()));
             post.setRepostOf(repostOfPost);
         }
+
         return new PostResponse(postRepository.save(post));
     }
 
