@@ -4,6 +4,7 @@ import com.github.ferigeek.sarv.dto.response.MediaMetadataResponse;
 import com.github.ferigeek.sarv.dto.response.MediaResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.service.MediaService;
+import jakarta.validation.constraints.Positive;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
@@ -35,7 +36,7 @@ public class MediaController {
     }
 
     @GetMapping("/{mediaId}")
-    public ResponseEntity<Resource> getMedia(@PathVariable Long mediaId) {
+    public ResponseEntity<Resource> getMedia(@Positive @PathVariable Long mediaId) {
         Media media = mediaService.getMediaEntity(mediaId);
         Resource resource = mediaService.downloadMedia(mediaId);
         return ResponseEntity.ok()
@@ -44,7 +45,7 @@ public class MediaController {
     }
 
     @GetMapping("/{mediaId}/metadata")
-    public MediaMetadataResponse getMediaMetadata(@PathVariable Long mediaId) {
+    public MediaMetadataResponse getMediaMetadata(@Positive @PathVariable Long mediaId) {
         return mediaService.getMediaMetadata(mediaId);
     }
 }
