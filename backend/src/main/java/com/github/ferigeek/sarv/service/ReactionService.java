@@ -51,7 +51,11 @@ public class ReactionService {
                 existing.setReactionType(reactionRequest.getReactionType());
                 reactionRepository.save(existing);
                 adjustCount(post, oldType, reactionRequest.getReactionType());
-                return new ReactionResponse(post.getLikeCount(), post.getDislikeCount(), reactionRequest.getReactionType());
+                return new ReactionResponse(
+                        post.getLikeCount(),
+                        post.getDislikeCount(),
+                        reactionRequest.getReactionType()
+                );
             }
         }
 
