@@ -4,6 +4,7 @@ import com.github.ferigeek.sarv.dto.request.UserLoginRequest;
 import com.github.ferigeek.sarv.dto.request.UserRegisterRequest;
 import com.github.ferigeek.sarv.dto.response.UserRegisterResponse;
 import com.github.ferigeek.sarv.entity.User;
+import com.github.ferigeek.sarv.exception.UsernameAlreadyExistsException;
 import com.github.ferigeek.sarv.repository.UserRepository;
 import com.github.ferigeek.sarv.security.JwtUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -47,12 +48,12 @@ public class AuthService {
         );
 
         final UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        return jwtUtil.generateToken(userDetails != null ? userDetails.getUsername() : null);
+        return jwtUtil.generateToken(userDetails.getUsername());
     }
 
     public UserRegisterResponse register(UserRegisterRequest userRegisterRequest) {
         if (userRepository.existsByUsername(userRegisterRequest.getUsername())) {
-            throw new RuntimeException("Username is already taken");
+            throw new UsernameAlreadyExistsException();
         }
 
         User user = new User();
@@ -70,23 +71,16 @@ public class AuthService {
             throw new RuntimeException("Error while registering user");
         }
 
-        UserRegisterResponse userRegisterResponse = new UserRegisterResponse();
-        userRegisterResponse.setId(user.getId());
-        userRegisterResponse.setUsername(user.getUsername());
-        userRegisterResponse.setDisplayName(user.getDisplayName());
-        userRegisterResponse.setEmail(user.getEmail());
 
         try {
             String token = login(new UserLoginRequest(
                     userRegisterRequest.getUsername(),
                     userRegisterRequest.getPassword())
             );
-            userRegisterResponse.setToken(token);
+            return new UserRegisterResponse(user, token);
         } catch (Exception e) {
             log.error("Error while generating token: {}", e.getMessage());
             throw new RuntimeException("Error while generating token");
         }
-
-        return userRegisterResponse;
     }
 }

@@ -2,6 +2,7 @@ package com.github.ferigeek.sarv.dto.request;
 
 import com.github.ferigeek.sarv.entity.type.Gender;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -14,6 +15,7 @@ import lombok.NoArgsConstructor;
 public class UserUpdateRequest {
 
     @NotBlank
+    @Size(min = 2)
     private String displayName;
 
     @Size(min = 2, max = 255)
@@ -25,5 +27,6 @@ public class UserUpdateRequest {
     @Positive
     private Long profilePictureId;
 
+    @NotNull
     private Gender gender;
 }
