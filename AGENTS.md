@@ -30,6 +30,8 @@ intelligence/
 docs/    Docs in `.md` files and mkdocs to serve them
 ```
 
+Schema of the database can be found at `backend/src/main/resources/db/migration/`
+
 # Rules
 
 - Git commits should be only in one specific topic.
