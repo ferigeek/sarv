@@ -6,9 +6,11 @@ import com.github.ferigeek.sarv.entity.Post;
 import com.github.ferigeek.sarv.entity.Reaction;
 import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.exception.PostNotFoundException;
+import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.PostRepository;
 import com.github.ferigeek.sarv.repository.ReactionRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -20,6 +22,7 @@ public class ReactionService {
     private final PostRepository postRepository;
     private final UserRepository userRepository;
 
+    @Autowired
     public ReactionService(
             ReactionRepository reactionRepository,
             PostRepository postRepository,
@@ -32,7 +35,11 @@ public class ReactionService {
     public ReactionResponse addReaction(Long postId, ReactionRequest reactionRequest, String username) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new PostNotFoundException(postId));
-        User user = userRepository.findByUsername(username);
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException(
+                        "User not found with username: <%s>".formatted(username))
+                );
 
         Reaction existing = reactionRepository.findByPostAndUser(post, user).orElse(null);
 
@@ -44,7 +51,11 @@ public class ReactionService {
                 existing.setReactionType(reactionRequest.getReactionType());
                 reactionRepository.save(existing);
                 adjustCount(post, oldType, reactionRequest.getReactionType());
-                return new ReactionResponse(post.getLikeCount(), post.getDislikeCount(), reactionRequest.getReactionType());
+                return new ReactionResponse(
+                        post.getLikeCount(),
+                        post.getDislikeCount(),
+                        reactionRequest.getReactionType()
+                );
             }
         }
 
@@ -61,7 +72,11 @@ public class ReactionService {
     public void removeReaction(Long postId, String username) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new PostNotFoundException(postId));
-        User user = userRepository.findByUsername(username);
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException(
+                        "User not found with username: <%s>".formatted(username))
+                );
 
         Reaction existing = reactionRepository.findByPostAndUser(post, user).orElse(null);
         if (existing != null) {
@@ -73,17 +88,18 @@ public class ReactionService {
     public ReactionResponse getReactionCounts(Long postId, String username) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new PostNotFoundException(postId));
-        User user = userRepository.findByUsername(username);
-        Short userReaction = null;
-        if (user != null) {
-            Reaction r = reactionRepository.findByPostAndUser(post, user).orElse(null);
-            if (r != null) {
-                userReaction = r.getReactionType();
-            }
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException(
+                        "User not found with username: <%s>".formatted(username))
+                );
+
+        Short userReaction = 0;
+        Reaction r = reactionRepository.findByPostAndUser(post, user).orElse(null);
+        if (r != null) {
+            userReaction = r.getReactionType();
         }
-        if (userReaction == null) {
-            userReaction = 0;
-        }
+
         return new ReactionResponse(post.getLikeCount(), post.getDislikeCount(), userReaction);
     }
 

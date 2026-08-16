@@ -1,12 +1,14 @@
 package com.github.ferigeek.sarv.dto.response;
 
 import com.github.ferigeek.sarv.entity.User;
+import com.github.ferigeek.sarv.entity.type.UserStatus;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 public class UserResponse {
+
     private Long id;
     private String username;
     private String displayName;
@@ -14,6 +16,7 @@ public class UserResponse {
     private String gender;
     private String location;
     private Long profilePictureId;
+    private UserStatus status;
 
     public UserResponse(User user) {
         this.id = user.getId();
@@ -22,8 +25,7 @@ public class UserResponse {
         this.bio = user.getBio();
         this.gender = user.getGender().name();
         this.location = user.getLocation();
-        if (user.getProfilePicture() != null) {
-            this.profilePictureId = user.getProfilePicture().getId();
-        }
+        this.profilePictureId = user.getProfilePicture() != null ? user.getProfilePicture().getId() : null;
+        this.status = user.getStatus();
     }
 }

@@ -4,7 +4,8 @@ import com.github.ferigeek.sarv.aspect.LogEvent;
 import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.FollowService;
-import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +18,7 @@ public class FollowController {
 
     private final FollowService followService;
 
+    @Autowired
     public FollowController(FollowService followService) {
         this.followService = followService;
     }
@@ -28,20 +30,20 @@ public class FollowController {
 
     @GetMapping("/{userId}/following")
     public List<UserSummaryResponse> getFollowings(@PathVariable Long userId) {
-        return followService.getFollowings(userId);
+        return followService.getFollowing(userId);
     }
 
     @PostMapping("/{userId}/followers")
+    @ResponseStatus(HttpStatus.CREATED)
     @LogEvent(EventType.FOLLOW_USER)
-    public ResponseEntity<?> followUser(@PathVariable Long userId, @AuthenticationPrincipal UserDetails userDetails) {
+    public void followUser(@PathVariable Long userId, @AuthenticationPrincipal UserDetails userDetails) {
         followService.followUser(userDetails.getUsername(), userId);
-        return ResponseEntity.created(null).build();
     }
 
     @DeleteMapping("/{userId}/followers")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     @LogEvent(EventType.UNFOLLOW_USER)
-    public ResponseEntity<?> unfollowUser(@PathVariable Long userId, @AuthenticationPrincipal UserDetails userDetails) {
+    public void unfollowUser(@PathVariable Long userId, @AuthenticationPrincipal UserDetails userDetails) {
         followService.unfollowUser(userDetails.getUsername(), userId);
-        return ResponseEntity.ok().build();
     }
 }

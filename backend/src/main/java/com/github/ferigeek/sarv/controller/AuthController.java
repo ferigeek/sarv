@@ -6,6 +6,7 @@ import com.github.ferigeek.sarv.dto.request.UserRegisterRequest;
 import com.github.ferigeek.sarv.dto.response.UserRegisterResponse;
 import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.AuthService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,12 +26,12 @@ public class AuthController {
 
     @PostMapping("/login")
     @LogEvent(EventType.LOGIN)
-    public String login(@RequestBody UserLoginRequest userLoginRequest) {
+    public String login(@Valid @RequestBody UserLoginRequest userLoginRequest) {
         return authService.login(userLoginRequest);
     }
 
     @PostMapping("/register")
-    public UserRegisterResponse register(@RequestBody UserRegisterRequest userRegisterRequest) {
+    public UserRegisterResponse register(@Valid @RequestBody UserRegisterRequest userRegisterRequest) {
         return authService.register(userRegisterRequest);
     }
 }

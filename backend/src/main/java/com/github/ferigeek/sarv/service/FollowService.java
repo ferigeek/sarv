@@ -3,6 +3,8 @@ package com.github.ferigeek.sarv.service;
 import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.entity.Follow;
 import com.github.ferigeek.sarv.entity.User;
+import com.github.ferigeek.sarv.exception.FollowException;
+import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.FollowRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,7 +26,8 @@ public class FollowService {
     }
 
     public List<UserSummaryResponse> getFollowers(Long userId) {
-        User user = userRepository.findById(userId).orElse(null);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: <%d>".formatted(userId)));
         List<Follow> follows = followRepository.findByFollowed(user);
 
         return follows.stream()
@@ -33,8 +36,9 @@ public class FollowService {
                 .toList();
     }
 
-    public List<UserSummaryResponse> getFollowings(Long userId) {
-        User user = userRepository.findById(userId).orElse(null);
+    public List<UserSummaryResponse> getFollowing(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: <%d>".formatted(userId)));
         List<Follow> follows = followRepository.findByFollower(user);
 
         return follows.stream()
@@ -44,27 +48,37 @@ public class FollowService {
     }
 
     public void followUser(String username, Long userId) {
-        User follower = userRepository.findByUsername(username);
-        User followed = userRepository.findById(userId).orElse(null);
+        User follower = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException(
+                        "Follower user not found with username: <%s>".formatted(username))
+                );
+        User followed = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(
+                        "Followed user not found with ID: <%d>".formatted(userId))
+                );
 
-        if (follower != null && followed != null) {
-            Follow follow = new Follow();
-            follow.setFollower(follower);
-            follow.setFollowed(followed);
-            follow.setCreatedAt(OffsetDateTime.now());
-            followRepository.save(follow);
-        }
+        Follow follow = new Follow();
+        follow.setFollower(follower);
+        follow.setFollowed(followed);
+        follow.setCreatedAt(OffsetDateTime.now());
+        followRepository.save(follow);
     }
 
     public void unfollowUser(String username, Long userId) {
-        User follower = userRepository.findByUsername(username);
-        User followed = userRepository.findById(userId).orElse(null);
+        User follower = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException(
+                        "Follower user not found with username: <%s>".formatted(username))
+                );
+        User followed = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(
+                        "Followed user not found with ID: <%d>".formatted(userId))
+                );
 
-        if (follower != null && followed != null) {
-            Follow follow = followRepository.findByFollowerAndFollowed(follower, followed);
-            if (follow != null) {
-                followRepository.delete(follow);
-            }
-        }
+        Follow follow = followRepository.findByFollowerAndFollowed(follower, followed)
+                .orElseThrow(() -> new FollowException(
+                        "A follow from user with ID: <%d>, following user with ID: <%d>, doesn't exist"
+                                .formatted(follower.getId(), followed.getId()))
+                );
+        followRepository.delete(follow);
     }
 }
