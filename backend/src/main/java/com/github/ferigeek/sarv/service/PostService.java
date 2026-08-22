@@ -49,6 +49,8 @@ public class PostService {
         post.setUser(user);
         post.setCreatedAt(OffsetDateTime.now());
         PostCategory postCategory = postRequest.getPostCategory();
+        post.setPostCategory(postCategory);
+        post.setContent(postRequest.getContent());
 
         switch (postCategory) {
             case NORMAL:
@@ -169,7 +171,7 @@ public class PostService {
                         "User not found with username: <%s>".formatted(username))
                 );
 
-        if (post.getUser() != user) {
+        if (!post.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("You are not the owner of this post");
         }
         post.setDeletedAt(OffsetDateTime.now());
@@ -186,7 +188,7 @@ public class PostService {
                         "User not found with username: <%s>".formatted(username))
                 );
 
-        if (post.getUser() != user) {
+        if (!post.getUser().getId().equals(user.getId())) {
             throw new UnAuthorizedUpdateException(
                     "User with ID: <%d> is not the owner of post with ID: <%d>".formatted(user.getId(), post.getId())
             );
