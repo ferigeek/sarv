@@ -47,6 +47,7 @@ Schema of the database can be found at `backend/src/main/resources/db/migration/
 - Dependencies should be only managed by the developer.
 - Do not remove or weaken existing tests merely to make them pass.
 - New or modified behavior should include appropriate tests, covering as much cases as possible.
+- Tests should examine behavior and expected outcomes, not implementation details. They should verify what the code is supposed to do from the user's or caller's perspective.
 
 # Run
 
