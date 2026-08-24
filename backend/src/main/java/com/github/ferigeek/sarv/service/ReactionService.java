@@ -44,7 +44,7 @@ public class ReactionService {
         Reaction existing = reactionRepository.findByPostAndUser(post, user).orElse(null);
 
         if (existing != null) {
-            if (existing.getReactionType() == reactionRequest.getReactionType()) {
+            if (existing.getReactionType().equals(reactionRequest.getReactionType())) {
                 return new ReactionResponse(post.getLikeCount(), post.getDislikeCount(), existing.getReactionType());
             } else {
                 short oldType = existing.getReactionType();
