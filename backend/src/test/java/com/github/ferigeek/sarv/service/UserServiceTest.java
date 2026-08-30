@@ -20,6 +20,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.time.OffsetDateTime;
 import java.util.Collections;
@@ -560,41 +564,46 @@ class UserServiceTest {
     class SearchUsers {
 
         @Test
-        @DisplayName("should return mapped UserSummaryResponse list")
-        void shouldReturnMappedList() {
+        @DisplayName("should return mapped UserSummaryResponse page")
+        void shouldReturnMappedPage() {
             User u1 = createUser(1L, "alice", "Alice Wonderland", Gender.FEMALE, null);
             User u2 = createUser(2L, "bob", "Bob Builder", Gender.MALE, baseMedia);
-            when(userRepository.searchUsers("ali")).thenReturn(List.of(u1, u2));
+            when(userRepository.searchUsers("ali", PageRequest.of(0, 20)))
+                    .thenReturn(new PageImpl<>(List.of(u1, u2), PageRequest.of(0, 20), 2));
 
-            List<UserSummaryResponse> result = userService.searchUsers("ali");
+            Page<UserSummaryResponse> result = userService.searchUsers("ali", PageRequest.of(0, 20));
 
-            assertThat(result).hasSize(2);
-            assertThat(result.getFirst().getId()).isEqualTo(1L);
-            assertThat(result.getFirst().getUsername()).isEqualTo("alice");
-            assertThat(result.get(0).getDisplayName()).isEqualTo("Alice Wonderland");
-            assertThat(result.get(0).getProfilePictureId()).isNull();
-            assertThat(result.get(1).getProfilePictureId()).isEqualTo(100L);
-            assertThat(result.get(1).getUsername()).isEqualTo("bob");
+            assertThat(result.getContent()).hasSize(2);
+            assertThat(result.getTotalElements()).isEqualTo(2);
+            assertThat(result.getContent().getFirst().getId()).isEqualTo(1L);
+            assertThat(result.getContent().getFirst().getUsername()).isEqualTo("alice");
+            assertThat(result.getContent().get(0).getDisplayName()).isEqualTo("Alice Wonderland");
+            assertThat(result.getContent().get(0).getProfilePictureId()).isNull();
+            assertThat(result.getContent().get(1).getProfilePictureId()).isEqualTo(100L);
+            assertThat(result.getContent().get(1).getUsername()).isEqualTo("bob");
         }
 
         @Test
-        @DisplayName("should return empty list when no users found")
+        @DisplayName("should return empty page when no users found")
         void shouldReturnEmptyWhenNone() {
-            when(userRepository.searchUsers("nonexistent")).thenReturn(Collections.emptyList());
+            when(userRepository.searchUsers("nonexistent", PageRequest.of(0, 20)))
+                    .thenReturn(Page.empty());
 
-            List<UserSummaryResponse> result = userService.searchUsers("nonexistent");
+            Page<UserSummaryResponse> result = userService.searchUsers("nonexistent", PageRequest.of(0, 20));
 
             assertThat(result).isEmpty();
+            assertThat(result.getTotalElements()).isZero();
         }
 
         @Test
-        @DisplayName("should delegate query to repository")
-        void shouldDelegateQuery() {
-            when(userRepository.searchUsers("testQuery")).thenReturn(Collections.emptyList());
+        @DisplayName("should delegate query and pageable to repository")
+        void shouldDelegateQueryAndPageable() {
+            Pageable pageable = PageRequest.of(2, 5);
+            when(userRepository.searchUsers("testQuery", pageable)).thenReturn(Page.empty());
 
-            userService.searchUsers("testQuery");
+            userService.searchUsers("testQuery", pageable);
 
-            verify(userRepository).searchUsers("testQuery");
+            verify(userRepository).searchUsers("testQuery", pageable);
         }
 
         @Test
@@ -607,11 +616,12 @@ class UserServiceTest {
             User u1 = createUser(1L, "u1", "U One", Gender.MALE, m1);
             User u2 = createUser(2L, "u2", "U Two", Gender.MALE, null);
             User u3 = createUser(3L, "u3", "U Three", Gender.MALE, m2);
-            when(userRepository.searchUsers("u")).thenReturn(List.of(u1, u2, u3));
+            when(userRepository.searchUsers("u", Pageable.unpaged()))
+                    .thenReturn(new PageImpl<>(List.of(u1, u2, u3)));
 
-            List<UserSummaryResponse> result = userService.searchUsers("u");
+            Page<UserSummaryResponse> result = userService.searchUsers("u", Pageable.unpaged());
 
-            assertThat(result).extracting(UserSummaryResponse::getProfilePictureId)
+            assertThat(result.getContent()).extracting(UserSummaryResponse::getProfilePictureId)
                     .containsExactly(10L, null, 20L);
         }
 
@@ -619,44 +629,60 @@ class UserServiceTest {
         @DisplayName("should handle single result")
         void shouldHandleSingleResult() {
             User u = createUser(5L, "single", "Single User", Gender.FEMALE, null);
-            when(userRepository.searchUsers("single")).thenReturn(List.of(u));
+            when(userRepository.searchUsers("single", PageRequest.of(0, 20)))
+                    .thenReturn(new PageImpl<>(List.of(u)));
 
-            List<UserSummaryResponse> result = userService.searchUsers("single");
+            Page<UserSummaryResponse> result = userService.searchUsers("single", PageRequest.of(0, 20));
 
-            assertThat(result).hasSize(1);
-            assertThat(result.getFirst().getUsername()).isEqualTo("single");
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent().getFirst().getUsername()).isEqualTo("single");
         }
 
         @Test
         @DisplayName("should propagate query exactly as given (no trimming at service layer)")
         void shouldPropagateQueryExactly() {
-            when(userRepository.searchUsers("  spaced  ")).thenReturn(Collections.emptyList());
+            when(userRepository.searchUsers("  spaced  ", PageRequest.of(0, 20))).thenReturn(Page.empty());
 
-            userService.searchUsers("  spaced  ");
+            userService.searchUsers("  spaced  ", PageRequest.of(0, 20));
 
-            verify(userRepository).searchUsers("  spaced  ");
+            verify(userRepository).searchUsers("  spaced  ", PageRequest.of(0, 20));
         }
 
         @Test
-        @DisplayName("should return list that preserves repository order")
+        @DisplayName("should return page that preserves repository order")
         void shouldPreserveOrder() {
             User u1 = createUser(3L, "charlie", "Charlie", Gender.MALE, null);
             User u2 = createUser(1L, "alice", "Alice", Gender.FEMALE, null);
             User u3 = createUser(2L, "bob", "Bob", Gender.MALE, null);
-            when(userRepository.searchUsers("a")).thenReturn(List.of(u1, u2, u3));
+            when(userRepository.searchUsers("a", PageRequest.of(0, 20)))
+                    .thenReturn(new PageImpl<>(List.of(u1, u2, u3)));
 
-            List<UserSummaryResponse> result = userService.searchUsers("a");
+            Page<UserSummaryResponse> result = userService.searchUsers("a", PageRequest.of(0, 20));
 
-            assertThat(result).extracting(UserSummaryResponse::getId)
+            assertThat(result.getContent()).extracting(UserSummaryResponse::getId)
                     .containsExactly(3L, 1L, 2L);
+        }
+
+        @Test
+        @DisplayName("should keep pagination metadata of the repository page")
+        void shouldKeepPaginationMetadata() {
+            User u = createUser(1L, "alice", "Alice", Gender.FEMALE, null);
+            Page<User> page = new PageImpl<>(List.of(u), PageRequest.of(1, 10), 25);
+            when(userRepository.searchUsers("a", PageRequest.of(1, 10))).thenReturn(page);
+
+            Page<UserSummaryResponse> result = userService.searchUsers("a", PageRequest.of(1, 10));
+
+            assertThat(result.getNumber()).isEqualTo(1);
+            assertThat(result.getSize()).isEqualTo(10);
+            assertThat(result.getTotalPages()).isEqualTo(3);
         }
 
         @Test
         @DisplayName("should not interact with mediaRepository")
         void shouldNotInteractWithMediaRepository() {
-            when(userRepository.searchUsers("any")).thenReturn(Collections.emptyList());
+            when(userRepository.searchUsers("any", PageRequest.of(0, 20))).thenReturn(Page.empty());
 
-            userService.searchUsers("any");
+            userService.searchUsers("any", PageRequest.of(0, 20));
 
             verifyNoInteractions(mediaRepository);
         }

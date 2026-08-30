@@ -10,6 +10,8 @@ import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -79,11 +81,7 @@ public class UserService {
         return new UserResponse(userRepository.save(user));
     }
 
-    public List<UserSummaryResponse> searchUsers(String query) {
-        return userRepository
-                .searchUsers(query)
-                .stream()
-                .map(UserSummaryResponse::new)
-                .toList();
+    public Page<UserSummaryResponse> searchUsers(String query, Pageable pageable) {
+        return userRepository.searchUsers(query, pageable).map(UserSummaryResponse::new);
     }
 }

@@ -21,11 +21,17 @@ import com.github.ferigeek.sarv.service.UserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -34,8 +40,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -692,38 +700,45 @@ class UserControllerTest {
     class SearchUsers {
 
         @Test
-        @DisplayName("should return 200 with list of UserSummaryResponse")
-        void shouldReturnList() throws Exception {
+        @DisplayName("should return 200 with page of UserSummaryResponse")
+        void shouldReturnPage() throws Exception {
             UserSummaryResponse u1 = userSummary(1L, "alice", "Alice", 10L);
             UserSummaryResponse u2 = userSummary(2L, "bob", "Bob", null);
-            when(userService.searchUsers("ali")).thenReturn(List.of(u1, u2));
+            when(userService.searchUsers(eq("ali"), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(u1, u2), PageRequest.of(0, 20), 2));
 
             mockMvc.perform(get("/api/users")
                             .param("query", "ali")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isOk())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$.length()").value(2))
-                    .andExpect(jsonPath("$[0].id").value(1))
-                    .andExpect(jsonPath("$[0].username").value("alice"))
-                    .andExpect(jsonPath("$[0].displayName").value("Alice"))
-                    .andExpect(jsonPath("$[0].profilePictureId").value(10))
-                    .andExpect(jsonPath("$[1].username").value("bob"))
-                    .andExpect(jsonPath("$[1].profilePictureId").doesNotExist());
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(2))
+                    .andExpect(jsonPath("$.content[0].id").value(1))
+                    .andExpect(jsonPath("$.content[0].username").value("alice"))
+                    .andExpect(jsonPath("$.content[0].displayName").value("Alice"))
+                    .andExpect(jsonPath("$.content[0].profilePictureId").value(10))
+                    .andExpect(jsonPath("$.content[1].username").value("bob"))
+                    .andExpect(jsonPath("$.content[1].profilePictureId").doesNotExist())
+                    .andExpect(jsonPath("$.page.size").value(20))
+                    .andExpect(jsonPath("$.page.number").value(0))
+                    .andExpect(jsonPath("$.page.totalElements").value(2))
+                    .andExpect(jsonPath("$.page.totalPages").value(1));
         }
 
         @Test
-        @DisplayName("should return 200 with empty list when no matches")
+        @DisplayName("should return 200 with empty page when no matches")
         void shouldReturnEmpty() throws Exception {
-            when(userService.searchUsers("nonexistent")).thenReturn(List.of());
+            when(userService.searchUsers(eq("nonexistent"), any(Pageable.class)))
+                    .thenReturn(Page.empty());
 
             mockMvc.perform(get("/api/users")
                             .param("query", "nonexistent")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$.length()").value(0));
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(0))
+                    .andExpect(jsonPath("$.page.totalElements").value(0));
         }
 
         @Test
@@ -745,7 +760,7 @@ class UserControllerTest {
         @Test
         @DisplayName("should handle query with spaces and special chars")
         void shouldHandleSpecialQuery() throws Exception {
-            when(userService.searchUsers("a b")).thenReturn(List.of());
+            when(userService.searchUsers(eq("a b"), any(Pageable.class))).thenReturn(Page.empty());
 
             mockMvc.perform(get("/api/users")
                             .param("query", "a b")
@@ -756,7 +771,7 @@ class UserControllerTest {
         @Test
         @DisplayName("should return 500 when service throws unexpected")
         void shouldReturn500() throws Exception {
-            when(userService.searchUsers(any())).thenThrow(new RuntimeException("fail"));
+            when(userService.searchUsers(any(), any(Pageable.class))).thenThrow(new RuntimeException("fail"));
 
             mockMvc.perform(get("/api/users")
                             .param("query", "test")
@@ -776,12 +791,48 @@ class UserControllerTest {
         @Test
         @DisplayName("should return 200 even when query is empty string (service handles)")
         void shouldHandleEmptyQuery() throws Exception {
-            when(userService.searchUsers("")).thenReturn(List.of());
+            when(userService.searchUsers(eq(""), any(Pageable.class))).thenReturn(Page.empty());
 
             mockMvc.perform(get("/api/users")
                             .param("query", "")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isOk());
+        }
+
+        @Test
+        @DisplayName("should use default page=0, size=20 and sort by username when no paging params given")
+        void shouldUseDefaultPageable() throws Exception {
+            when(userService.searchUsers(eq("ali"), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users")
+                            .param("query", "ali")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+            verify(userService).searchUsers(eq("ali"), pageableCaptor.capture());
+            Pageable pageable = pageableCaptor.getValue();
+            assertThat(pageable.getPageNumber()).isZero();
+            assertThat(pageable.getPageSize()).isEqualTo(20);
+            assertThat(pageable.getSort()).isEqualTo(Sort.by("username"));
+        }
+
+        @Test
+        @DisplayName("should pass requested page and size to the service")
+        void shouldPassRequestedPageAndSize() throws Exception {
+            when(userService.searchUsers(eq("ali"), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users")
+                            .param("query", "ali")
+                            .param("page", "3")
+                            .param("size", "5")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+            verify(userService).searchUsers(eq("ali"), pageableCaptor.capture());
+            assertThat(pageableCaptor.getValue())
+                    .isEqualTo(PageRequest.of(3, 5, Sort.by("username")));
         }
     }
 
