@@ -8,6 +8,8 @@ import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.FollowRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -25,15 +27,12 @@ public class FollowService {
         this.followRepository = followRepository;
     }
 
-    public List<UserSummaryResponse> getFollowers(Long userId) {
+    public Page<UserSummaryResponse> getFollowers(Long userId, Pageable pageable) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found with ID: <%d>".formatted(userId)));
-        List<Follow> follows = followRepository.findByFollowed(user);
-
-        return follows.stream()
+        return followRepository.findByFollowed(user, pageable)
                 .map(Follow::getFollower)
-                .map(UserSummaryResponse::new)
-                .toList();
+                .map(UserSummaryResponse::new);
     }
 
     public List<UserSummaryResponse> getFollowing(Long userId) {

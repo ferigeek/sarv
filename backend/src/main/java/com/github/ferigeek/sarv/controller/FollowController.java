@@ -5,6 +5,9 @@ import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.FollowService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -24,8 +27,10 @@ public class FollowController {
     }
 
     @GetMapping("/{userId}/followers")
-    public List<UserSummaryResponse> getFollowers(@PathVariable Long userId) {
-        return followService.getFollowers(userId);
+    public Page<UserSummaryResponse> getFollowers(
+            @PathVariable Long userId,
+            @PageableDefault(size = 20, sort = "follower.username") Pageable pageable) {
+        return followService.getFollowers(userId, pageable);
     }
 
     @GetMapping("/{userId}/following")
