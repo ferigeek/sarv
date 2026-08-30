@@ -35,15 +35,12 @@ public class FollowService {
                 .map(UserSummaryResponse::new);
     }
 
-    public List<UserSummaryResponse> getFollowing(Long userId) {
+    public Page<UserSummaryResponse> getFollowing(Long userId, Pageable pageable) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found with ID: <%d>".formatted(userId)));
-        List<Follow> follows = followRepository.findByFollower(user);
-
-        return follows.stream()
+        return followRepository.findByFollower(user, pageable)
                 .map(Follow::getFollowed)
-                .map(UserSummaryResponse::new)
-                .toList();
+                .map(UserSummaryResponse::new);
     }
 
     public void followUser(String username, Long userId) {

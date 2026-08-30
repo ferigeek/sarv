@@ -34,8 +34,10 @@ public class FollowController {
     }
 
     @GetMapping("/{userId}/following")
-    public List<UserSummaryResponse> getFollowings(@PathVariable Long userId) {
-        return followService.getFollowing(userId);
+    public Page<UserSummaryResponse> getFollowings(
+            @PathVariable Long userId,
+            @PageableDefault(size = 20, sort = "followed.username") Pageable pageable) {
+        return followService.getFollowing(userId, pageable);
     }
 
     @PostMapping("/{userId}/followers")

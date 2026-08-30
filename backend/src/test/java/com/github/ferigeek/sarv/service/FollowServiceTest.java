@@ -178,7 +178,7 @@ class FollowServiceTest {
 
             verify(userRepository).findById(1L);
             verify(followRepository).findByFollowed(target, pageable);
-            verify(followRepository, never()).findByFollower(any());
+            verify(followRepository, never()).findByFollower(any(), any());
         }
 
         @Test
@@ -225,34 +225,38 @@ class FollowServiceTest {
     class GetFollowing {
 
         @Test
-        @DisplayName("should return mapped following")
+        @DisplayName("should return mapped following page")
         void shouldReturnMappedFollowing() {
             User source = alice;
             Follow f1 = follow(source, bob);
             Follow f2 = follow(source, charlie);
+            Pageable pageable = PageRequest.of(0, 20);
             when(userRepository.findById(1L)).thenReturn(Optional.of(source));
-            when(followRepository.findByFollower(source)).thenReturn(List.of(f1, f2));
+            when(followRepository.findByFollower(source, pageable))
+                    .thenReturn(new PageImpl<>(List.of(f1, f2), pageable, 2));
 
-            List<UserSummaryResponse> res = followService.getFollowing(1L);
+            Page<UserSummaryResponse> res = followService.getFollowing(1L, pageable);
 
-            assertThat(res).hasSize(2);
-            assertThat(res.get(0).getId()).isEqualTo(2L);
-            assertThat(res.get(0).getUsername()).isEqualTo("bob");
-            assertThat(res.get(0).getProfilePictureId()).isNull();
-            assertThat(res.get(1).getId()).isEqualTo(3L);
-            assertThat(res.get(1).getProfilePictureId()).isEqualTo(10L);
+            assertThat(res.getContent()).hasSize(2);
+            assertThat(res.getTotalElements()).isEqualTo(2);
+            assertThat(res.getContent().get(0).getId()).isEqualTo(2L);
+            assertThat(res.getContent().get(0).getUsername()).isEqualTo("bob");
+            assertThat(res.getContent().get(0).getProfilePictureId()).isNull();
+            assertThat(res.getContent().get(1).getId()).isEqualTo(3L);
+            assertThat(res.getContent().get(1).getProfilePictureId()).isEqualTo(10L);
         }
 
         @Test
-        @DisplayName("should return empty when not following anyone")
+        @DisplayName("should return empty page when not following anyone")
         void shouldReturnEmptyWhenNone() {
             User source = alice;
             when(userRepository.findById(1L)).thenReturn(Optional.of(source));
-            when(followRepository.findByFollower(source)).thenReturn(Collections.emptyList());
+            when(followRepository.findByFollower(source, PageRequest.of(0, 20))).thenReturn(Page.empty());
 
-            List<UserSummaryResponse> res = followService.getFollowing(1L);
+            Page<UserSummaryResponse> res = followService.getFollowing(1L, PageRequest.of(0, 20));
 
             assertThat(res).isEmpty();
+            assertThat(res.getTotalElements()).isZero();
         }
 
         @Test
@@ -260,20 +264,39 @@ class FollowServiceTest {
         void shouldThrowWhenUserNotFound() {
             when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
-            assertThrows(UserNotFoundException.class, () -> followService.getFollowing(99L));
-            verify(followRepository, never()).findByFollower(any());
+            assertThrows(UserNotFoundException.class, () -> followService.getFollowing(99L, PageRequest.of(0, 20)));
+            verify(followRepository, never()).findByFollower(any(), any());
         }
 
         @Test
-        @DisplayName("should delegate with correct user")
+        @DisplayName("should delegate with correct user and pageable")
         void shouldDelegate() {
             User source = bob;
+            Pageable pageable = PageRequest.of(1, 5);
             when(userRepository.findById(2L)).thenReturn(Optional.of(source));
-            when(followRepository.findByFollower(source)).thenReturn(Collections.emptyList());
+            when(followRepository.findByFollower(source, pageable)).thenReturn(Page.empty());
 
-            followService.getFollowing(2L);
+            followService.getFollowing(2L, pageable);
 
-            verify(followRepository).findByFollower(source);
+            verify(followRepository).findByFollower(source, pageable);
+        }
+
+        @Test
+        @DisplayName("should keep pagination metadata of the repository page")
+        void shouldKeepPaginationMetadata() {
+            User source = alice;
+            Follow f = follow(source, bob);
+            Pageable pageable = PageRequest.of(2, 5);
+            when(userRepository.findById(1L)).thenReturn(Optional.of(source));
+            when(followRepository.findByFollower(source, pageable))
+                    .thenReturn(new PageImpl<>(List.of(f), PageRequest.of(2, 5), 17));
+
+            Page<UserSummaryResponse> res = followService.getFollowing(1L, pageable);
+
+            assertThat(res.getNumber()).isEqualTo(2);
+            assertThat(res.getSize()).isEqualTo(5);
+            assertThat(res.getTotalElements()).isEqualTo(17);
+            assertThat(res.getTotalPages()).isEqualTo(4);
         }
     }
 

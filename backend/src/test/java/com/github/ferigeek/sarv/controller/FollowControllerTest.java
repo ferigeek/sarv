@@ -237,34 +237,42 @@ class FollowControllerTest {
     class GetFollowing {
 
         @Test
-        @DisplayName("should return 200 with list")
+        @DisplayName("should return 200 with page")
         void shouldReturn200() throws Exception {
             UserSummaryResponse u1 = summary(2L, "bob", "Bob", null);
-            when(followService.getFollowing(1L)).thenReturn(List.of(u1));
+            when(followService.getFollowing(eq(1L), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(u1), PageRequest.of(0, 20), 1));
 
             mockMvc.perform(get("/api/users/1/following")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray())
-                    .andExpect(jsonPath("$.length()").value(1))
-                    .andExpect(jsonPath("$[0].username").value("bob"));
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(1))
+                    .andExpect(jsonPath("$.content[0].username").value("bob"))
+                    .andExpect(jsonPath("$.page.size").value(20))
+                    .andExpect(jsonPath("$.page.number").value(0))
+                    .andExpect(jsonPath("$.page.totalElements").value(1))
+                    .andExpect(jsonPath("$.page.totalPages").value(1));
         }
 
         @Test
-        @DisplayName("should return empty when none")
+        @DisplayName("should return empty page when none")
         void shouldReturnEmpty() throws Exception {
-            when(followService.getFollowing(1L)).thenReturn(List.of());
+            when(followService.getFollowing(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
 
             mockMvc.perform(get("/api/users/1/following")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.length()").value(0));
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(0))
+                    .andExpect(jsonPath("$.page.totalElements").value(0));
         }
 
         @Test
         @DisplayName("should return 404 when user not found")
         void shouldReturn404() throws Exception {
-            when(followService.getFollowing(99L)).thenThrow(new UserNotFoundException("User not found with ID: <99>"));
+            when(followService.getFollowing(eq(99L), any(Pageable.class)))
+                    .thenThrow(new UserNotFoundException("User not found with ID: <99>"));
 
             mockMvc.perform(get("/api/users/99/following")
                             .with(user(testUser("alice"))))
@@ -290,11 +298,45 @@ class FollowControllerTest {
         @Test
         @DisplayName("should return 500 for unexpected")
         void shouldReturn500() throws Exception {
-            when(followService.getFollowing(1L)).thenThrow(new RuntimeException("x"));
+            when(followService.getFollowing(eq(1L), any(Pageable.class))).thenThrow(new RuntimeException("x"));
 
             mockMvc.perform(get("/api/users/1/following")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isInternalServerError());
+        }
+
+        @Test
+        @DisplayName("should use default page=0, size=20 and sort by followed.username when no paging params given")
+        void shouldUseDefaultPageable() throws Exception {
+            when(followService.getFollowing(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users/1/following")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+            verify(followService).getFollowing(eq(1L), pageableCaptor.capture());
+            Pageable pageable = pageableCaptor.getValue();
+            assertThat(pageable.getPageNumber()).isZero();
+            assertThat(pageable.getPageSize()).isEqualTo(20);
+            assertThat(pageable.getSort()).isEqualTo(Sort.by("followed.username"));
+        }
+
+        @Test
+        @DisplayName("should pass requested page and size to the service")
+        void shouldPassRequestedPageAndSize() throws Exception {
+            when(followService.getFollowing(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users/1/following")
+                            .param("page", "4")
+                            .param("size", "2")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+            verify(followService).getFollowing(eq(1L), pageableCaptor.capture());
+            assertThat(pageableCaptor.getValue())
+                    .isEqualTo(PageRequest.of(4, 2, Sort.by("followed.username")));
         }
     }
 
