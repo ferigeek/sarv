@@ -50,8 +50,9 @@ In this architecture, actors are strictly external entities that either initiate
 
 * **User:** The primary actor who interacts with the platform to create posts, like content, follow other users, and fetch their feed.
 * **Admin:** The primary administrative actor responsible for monitoring overall system behavior, receiving high-level reports, and moderating/blocking violating users.
-* **File Storage Service:** A secondary, external actor (such as an independent Object Storage service) that the system connects to for storing and retrieving media assets.
 * **Monitoring System:** A secondary, external actor (such as Prometheus/Grafana) that collects and monitors critical system metrics.
+
+> **Note on media storage:** the original design assumed an external File Storage Service (e.g., object storage). In the current implementation, media files are stored on the Core Backend's local filesystem, so file storage is an internal component rather than an external actor.
 
 ### Use Case Categorization
 
@@ -68,7 +69,7 @@ In this architecture, actors are strictly external entities that either initiate
 | **UC-01** | Register                   | User                    | Creates a new user account in the system.                           |
 | **UC-02** | Login                      | User                    | Authenticates the user and issues an access token (JWT).            |
 | **UC-03** | Manage Profile             | User                    | Views and updates personal profile information.                     |
-| **UC-04** | Create New Post            | User / File Storage     | Publishes new textual or media content.                             |
+| **UC-04** | Create New Post            | User                    | Publishes new textual or media content.                             |
 | **UC-05** | View Post                  | User                    | Displays the content of a specific post.                            |
 | **UC-06** | Edit/Delete Post           | User                    | Modifies or removes posts owned by the user.                        |
 | **UC-07** | Comment on Post            | User                    | Submits a reply or comment on another post.                         |
@@ -81,7 +82,7 @@ In this architecture, actors are strictly external entities that either initiate
 | **UC-16** | Analyze Behavior & Reports | Admin                   | Processes offline logs and displays analytics to the admin.         |
 | **UC-18** | Monitor System Status      | Monitoring System       | Continuously tracks system health, errors, and resources.           |
 | **UC-19** | Manage Users               | Admin                   | Allows the admin to block or restrict user accounts.                |
-| **UC-20** | Upload Media File          | User / File Storage     | Intermediary process to transfer images/videos to external storage. |
+| **UC-20** | Upload Media File          | User                    | Uploads an image or video through the media API; stored on the backend's local filesystem. |
 
 ### Key Scenarios
 
@@ -101,16 +102,16 @@ In this architecture, actors are strictly external entities that either initiate
 
 #### 2. Create New Post
 
-* **Actors:** User, File Storage Service (Secondary)
+* **Actors:** User
 * **Preconditions:** The user is authenticated.
 * **Main Flow:**
     1. The user submits textual content along with a media file (if applicable).
-    2. The system validates the file format and size limits.
-    3. The system uploads the file to the external File Storage Service and receives a secure, unique asset URL.
-    4. The post's metadata and text are saved in the PostgreSQL database along with the media URL.
+    2. The system validates the file format and size limits (up to 50 MB).
+    3. The system stores the file on its local filesystem, addressed by its SHA-256 hash, and records the media metadata in the database.
+    4. The post's metadata and text are saved in the PostgreSQL database along with the media reference.
     5. A success confirmation is sent back to the user.
 * **Alternative Flow:**
-    * If the connection to the external File Storage Service fails, the entire transaction is rolled back, the post is not created, and an upload error message is returned to the user.
+    * If storing the media file fails, the post is not created and an error message is returned to the user.
 
 #### 3. Like/Dislike Post
 
@@ -215,7 +216,7 @@ The interface follows REST architectural principles, featuring deterministic end
 
 All core system entities—including user credentials, posts, social graphs, and analytical data—are persistently managed across optimized data stores. The system enforces relational integrity across structural schemas.
 
-Structured operational data (users, posts, relations) is stored in a relational database engine. Conversely, heavy unstructured blobs (images, video files) are handled out-of-band via specialized asset management storage configurations. The underlying schemas are explicitly designed for backward-compatible migrations.
+Structured operational data (users, posts, relations) is stored in a relational database engine. Conversely, heavy unstructured blobs (images, video files) are stored on the Core Backend's local filesystem, with only metadata and references kept in the database; a dedicated storage service can replace this in the future without changing the rest of the system. The underlying schemas are explicitly designed for backward-compatible migrations.
 
 ## Non-Functional Requirements
 

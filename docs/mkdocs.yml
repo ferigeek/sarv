@@ -56,6 +56,7 @@ plugins:
             - Requirements: 2-Requirements.md
             - Architecture: 3-Architecture.md
             - Database: 4-Database.md
+            - Backend: 5-Backend.md
         - locale: fa
           name: فارسی
           build: true
@@ -68,6 +69,7 @@ plugins:
             - نیازمندی‌ها: 2-Requirements.md
             - معماری: 3-Architecture.md
             - پایگاه داده: 4-Database.md
+            - بک‌اند: 5-Backend.md
 
 
 extra:

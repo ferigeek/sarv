@@ -6,7 +6,6 @@ actor "User" as User
 actor "Admin" as Admin
 
 ' Secondary External Actors (Right Side)
-actor "File Storage Service" as FileStorage
 actor "Monitoring System" as Monitoring
 
 rectangle "Social Network System" {
@@ -55,7 +54,6 @@ User --> UC11
 ' Advanced Content & Media Flows
 User --> UC4
 UC4 ..> UC20 : <<include>> : If media attached
-UC20 --> FileStorage
 
 User --> UC7
 UC7 ..> UC4 : <<extend>> : Comment is a type of post

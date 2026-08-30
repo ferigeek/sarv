@@ -10,6 +10,8 @@ The database is designed to support users, posts, interactions, media, and event
 
 ![ERD](../assets/erd.png)
 
+> **Note:** the ERD image above is outdated — it does not include the changes from migrations V3 (post counters), V4 (event log session/metadata), and V5 (indexes). It needs to be regenerated from the current schema.
+
 ---
 ## Core Entities
 
@@ -36,6 +38,11 @@ Supports multiple content types:
 
 Each post belongs to a user.
 
+Posts also carry aggregate counters that are maintained by the backend:
+
+- view_count (incremented on every post view)
+- like_count / dislike_count (adjusted when reactions are added, removed, or switched)
+
 ### Reactions
 Stores user reactions to posts.
 
@@ -49,15 +56,16 @@ Represents follower-following relationships between users.
 
 - follower_id → user who follows
 - followed_id → user being followed
-- prevents duplicate follows
+- prevents duplicate follows (unique constraint on follower_id + followed_id)
+- self-following is rejected by a CHECK constraint (follower_id <> followed_id)
 
 ### Media
-Stores metadata for uploaded files.
+Stores metadata for uploaded files. The file itself is stored on the backend's local filesystem, addressed by its SHA-256 hash; the database only holds metadata.
 
 Includes:
 - file size
 - MIME type
-- SHA-256 hash (for deduplication)
+- SHA-256 hash (unique; also used as the storage key, enabling deduplication)
 - owner reference
 
 ### Event Logs
@@ -77,6 +85,11 @@ Examples of events:
 - REQUEST_FEED
 
 User ID is nullable to allow anonymization.
+
+Additional fields (added in V4):
+
+- session_id (UUID) — groups the actions of one usage session; unrelated to JWT authentication
+- metadata (JSONB) — extra event-specific information that does not deserve its own column
 
 ---
 ## Enums
@@ -132,16 +145,18 @@ User ID is nullable to allow anonymization.
 - Event logs: user reference is set to NULL (for analytics preservation)
 
 ---
-## Indexing Strategy (planned)
+## Indexing Strategy (implemented)
 
-Indexes should be added for performance on:
+PostgreSQL does not index foreign key columns automatically, and the existing unique constraints do not cover every lookup pattern. The following indexes are created by migration `V5`:
 
-- posts.user_id
-- reactions.post_id
-- reactions.user_id
-- follows.follower_id
-- follows.followed_id
-- event_logs.user_id
+- follows (followed_id) — follower listings
+- posts (user_id, created_at) — user timelines / feed lookups, newest first
+- posts (parent_id) — comment tree navigation
+- posts (repost_of_id) — repost navigation
+- reactions (user_id) — per-user reaction history (complements the unique post_id + user_id constraint)
+- event_logs (user_id, created_at) — per-user activity timelines for analytics
+- event_logs (type, created_at) — hot-topic / peak-usage aggregations
+- event_logs (post_id), event_logs (target_user_id) — entity-scoped analytics queries
 
 ---
 ## Notes
