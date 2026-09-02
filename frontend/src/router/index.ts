@@ -10,6 +10,12 @@ export const routes = [
     meta: { public: true },
   },
   {
+    path: '/register',
+    name: 'register',
+    component: () => import('@/views/RegisterView.vue'),
+    meta: { public: true },
+  },
+  {
     path: '/',
     component: () => import('@/views/AppShell.vue'),
     meta: { requiresAuth: true },

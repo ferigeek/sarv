@@ -91,4 +91,17 @@ describe('router auth guard', () => {
     expect(logoutSpy).toHaveBeenCalledOnce()
     expect(router.currentRoute.value.name).toBe('login')
   })
+
+  it('allows unauthenticated users to visit register', async () => {
+    const router = createAppRouter(createMemoryHistory())
+    await router.push('/register')
+    expect(router.currentRoute.value.name).toBe('register')
+  })
+
+  it('allows authenticated users to stay on register for the optional step', async () => {
+    setAuth(true)
+    const router = createAppRouter(createMemoryHistory())
+    await router.push('/register')
+    expect(router.currentRoute.value.name).toBe('register')
+  })
 })
