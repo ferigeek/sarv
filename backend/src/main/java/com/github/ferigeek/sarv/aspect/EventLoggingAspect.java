@@ -79,6 +79,31 @@ public class EventLoggingAspect {
             }
             case LOGIN -> {
             }
+            case REQUEST_FEED -> {
+                // Distinguish chronological vs recommended via method name; store page metadata for analytics
+                try {
+                    String methodName = joinPoint.getSignature().getName();
+                    String feedType = methodName.toLowerCase().contains("recommended") ? "recommended" : "chronological";
+                    java.util.HashMap<String, Object> meta = new java.util.HashMap<>();
+                    meta.put("feed_type", feedType);
+                    if (result instanceof org.springframework.data.domain.Page<?> page) {
+                        meta.put("page", page.getNumber());
+                        meta.put("size", page.getSize());
+                        meta.put("total_elements", page.getTotalElements());
+                        meta.put("returned", page.getNumberOfElements());
+                    }
+                    // capture requested page/size from Pageable arg if available
+                    for (Object arg : joinPoint.getArgs()) {
+                        if (arg instanceof org.springframework.data.domain.Pageable pageable) {
+                            meta.put("requested_page", pageable.getPageNumber());
+                            meta.put("requested_size", pageable.getPageSize());
+                            break;
+                        }
+                    }
+                    eventLog.setMetadata(meta.isEmpty() ? null : meta);
+                } catch (Exception ignored) {
+                }
+            }
             default -> {
             }
         }

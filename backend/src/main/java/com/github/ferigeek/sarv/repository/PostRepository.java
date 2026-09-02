@@ -15,4 +15,12 @@ public interface PostRepository extends JpaRepository<Post, Long> {
         ORDER BY post.createdAt DESC
     """)
     Page<Post> findChronologicalFeed(Pageable pageable);
+
+    @Query("""
+        SELECT post
+        FROM Post post
+        WHERE post.id IN :ids
+          AND post.deletedAt IS NULL
+    """)
+    java.util.List<Post> findAllByIdsFiltered(@org.springframework.data.repository.query.Param("ids") java.util.List<Long> ids);
 }
