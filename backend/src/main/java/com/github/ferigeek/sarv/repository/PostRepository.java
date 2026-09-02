@@ -11,6 +11,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Query("""
         SELECT post
         FROM Post post
+        WHERE post.deletedAt IS NULL
         ORDER BY post.createdAt DESC
     """)
     Page<Post> findChronologicalFeed(Pageable pageable);
