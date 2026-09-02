@@ -2,6 +2,8 @@
 import { useAttrs } from 'vue'
 import { Icon } from '@iconify/vue/offline'
 
+defineOptions({ inheritAttrs: false })
+
 withDefaults(defineProps<{ name: string; size?: number | string }>(), {
   size: 24,
 })
