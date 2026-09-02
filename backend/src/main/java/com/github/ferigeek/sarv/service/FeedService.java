@@ -7,8 +7,7 @@ import com.github.ferigeek.sarv.entity.Post;
 import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.PostRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -16,13 +15,13 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class FeedService {
-
-    private static final Logger log = LoggerFactory.getLogger(FeedService.class);
 
     private final PostRepository postRepository;
     private final UserRepository userRepository;
@@ -91,7 +90,7 @@ public class FeedService {
                         return null;
                     }
                 })
-                .filter(id -> id != null)
+                .filter(Objects::nonNull)
                 .toList();
     }
 }

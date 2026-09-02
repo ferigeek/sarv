@@ -6,6 +6,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import org.springframework.data.repository.query.Param;
+
+import java.util.List;
+
 public interface PostRepository extends JpaRepository<Post, Long> {
 
     @Query("""
@@ -22,5 +26,5 @@ public interface PostRepository extends JpaRepository<Post, Long> {
         WHERE post.id IN :ids
           AND post.deletedAt IS NULL
     """)
-    java.util.List<Post> findAllByIdsFiltered(@org.springframework.data.repository.query.Param("ids") java.util.List<Long> ids);
+    List<Post> findAllByIdsFiltered(@Param("ids") List<Long> ids);
 }
