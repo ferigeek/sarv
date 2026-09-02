@@ -12,7 +12,7 @@ COPY pyproject.toml uv.lock ./
 
 RUN uv sync --frozen --no-install-project
 
-COPY main.py .
+COPY main.py candidate.py scoring.py database.py ./
 
 RUN uv sync --frozen
 
@@ -27,6 +27,9 @@ RUN useradd --create-home --shell /usr/sbin/nologin appuser
 COPY --from=build --chown=appuser:appuser /app/.venv /app/.venv
 
 COPY --from=build --chown=appuser:appuser /app/main.py /app/main.py
+COPY --from=build --chown=appuser:appuser /app/candidate.py /app/candidate.py
+COPY --from=build --chown=appuser:appuser /app/scoring.py /app/scoring.py
+COPY --from=build --chown=appuser:appuser /app/database.py /app/database.py
 
 ENV PATH="/app/.venv/bin:$PATH"
 

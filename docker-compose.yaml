@@ -11,6 +11,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION}
       STORAGE_DIR: /app/uploads
+      RECOMMENDATION_URL: ${RECOMMENDATION_URL:-http://recommendation:8000}
     ports:
       - "8080:8080"
     volumes:
@@ -36,6 +37,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request, sys; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read() or sys.exit(1)\""]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
 
