@@ -87,8 +87,13 @@ describe('LoginView', () => {
     await wrapper.find('[data-testid="login-password"]').setValue('secret12')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    await new Promise((r) => setTimeout(r, 60))
-    await flushPromises()
+
+    // Router navigation after login is async (store + fetchMe + push)
+    const start = Date.now()
+    while (router.currentRoute.value.name !== 'feed' && Date.now() - start < 1000) {
+      await new Promise((r) => setTimeout(r, 20))
+      await flushPromises()
+    }
 
     expect(mockedLogin).toHaveBeenCalledWith({ username: 'alice', password: 'secret12' })
     expect(router.currentRoute.value.name).toBe('feed')

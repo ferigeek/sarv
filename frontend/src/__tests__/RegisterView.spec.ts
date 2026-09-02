@@ -147,8 +147,13 @@ describe('RegisterView', () => {
 
     await wrapper.find('[data-testid="register-skip"]').trigger('click')
     await flushPromises()
-    await new Promise((r) => setTimeout(r, 60))
-    await flushPromises()
+    {
+      const start = Date.now()
+      while (router.currentRoute.value.name !== 'feed' && Date.now() - start < 1000) {
+        await new Promise((r) => setTimeout(r, 20))
+        await flushPromises()
+      }
+    }
 
     expect(router.currentRoute.value.name).toBe('feed')
     expect(mockedUpdateMe).not.toHaveBeenCalled()
@@ -169,15 +174,20 @@ describe('RegisterView', () => {
     await wrapper.find('[data-testid="register-displayName"]').setValue('Alice')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 60))
     await flushPromises()
 
     await wrapper.find('[data-testid="register-bio"]').setValue('hello')
     await wrapper.find('[data-testid="register-location"]').setValue('Tehran')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    await new Promise((r) => setTimeout(r, 0))
-    await flushPromises()
+    {
+      const start = Date.now()
+      while (router.currentRoute.value.name !== 'feed' && Date.now() - start < 1000) {
+        await new Promise((r) => setTimeout(r, 20))
+        await flushPromises()
+      }
+    }
 
     expect(mockedUpdateMe).toHaveBeenCalledWith(
       expect.objectContaining({ bio: 'hello', location: 'Tehran' }),
@@ -201,7 +211,7 @@ describe('RegisterView', () => {
     await wrapper.find('[data-testid="register-displayName"]').setValue('Alice')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 60))
     await flushPromises()
 
     const file = new File(['img'], 'avatar.png', { type: 'image/png' })
@@ -215,8 +225,13 @@ describe('RegisterView', () => {
 
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    await new Promise((r) => setTimeout(r, 0))
-    await flushPromises()
+    {
+      const start = Date.now()
+      while (router.currentRoute.value.name !== 'feed' && Date.now() - start < 1000) {
+        await new Promise((r) => setTimeout(r, 20))
+        await flushPromises()
+      }
+    }
 
     expect(mockedUploadMedia).toHaveBeenCalledOnce()
     expect(mockedUpdateMe).toHaveBeenCalledWith(expect.objectContaining({ profilePictureId: 42 }))
