@@ -9,11 +9,12 @@ This application is a social media platform, similar to X (formerly Twitter). Th
 
 The project is separated by responsibility, subject and proper tools.
 
-There are three main services:
+There are four main services:
 
 - Core Backend: Handles the core business logic, and manages data, posts, users, and authentication. This is the service that communicates with the clients, created with Spring Boot and Java.
 - Recommendation: Generates the feed and recommends posts to the users. Created using FastAPI and Python.
 - Analytics: Gives reports of the usage of the platform, like number of active users, hot topics, influencial people, peak usage, ... . Planned to build in Python.
+- Frontend: The web client for the platform, created with Vue 3, TypeScript, and Vite. The design of the frontend for the agent is written at `/frontend/Design.md`.
 
 ## Other components
 - PostgreSQL: Main database of the system.
@@ -24,6 +25,7 @@ There are three main services:
 
 ```
 backend/
+frontend/
 intelligence/ 
     recommendation/
     analytics/
@@ -32,11 +34,13 @@ docs/    Docs in `.md` files and mkdocs to serve them
 
 Schema of the database can be found at `backend/src/main/resources/db/migration/`
 
+Design of the frontend can be found at `frontend/Design.md`.
+
 # Rules
 
 - Git commits should be only in one specific topic.
 - Git commit messages should have this structure:
-    1. Type of the change(feat, fix, ...) + The conceptual section of the project in paranthesis(backend/intelligence) + Short informful summary of the change
+    1. Type of the change(feat, fix, ...) + The conceptual section of the project in paranthesis(backend/intelligence/frontend) + Short informful summary of the change
         - e.g. feat(backend): Add JWT authentication
     2. Explanation of what has changes, why, and what is different now
     3. Things to consider or noticable if any exists
