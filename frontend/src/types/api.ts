@@ -81,6 +81,11 @@ export interface Page<T> {
   }
 }
 
+export interface Pageable {
+  page?: number
+  size?: number
+}
+
 /* RFC 9457 ProblemDetail returned by the backend for handled errors. */
 export interface ProblemDetail {
   type: string
