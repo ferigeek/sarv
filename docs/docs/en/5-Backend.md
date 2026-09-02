@@ -14,7 +14,7 @@ The Core Backend is a server-side application written in Java with Spring Boot. 
 - Posts and user interactions (reactions, comments, reposts, quotes, follows)
 - Media upload and serving
 - Recording user behavior events for analytics and recommendation purposes
-- Communication with the Recommendation Service (planned, see [Implementation Status](#implementation-status))
+- Communication with the Recommendation Service (feed ranking with graceful degradation)
 
 All requests are served through a REST API and secured with JWT-based authentication.
 
@@ -41,8 +41,8 @@ All requests are served through a REST API and secured with JWT-based authentica
 The backend follows a layered architecture. The source root is `backend/src/main/java/com/github/ferigeek/sarv/`:
 
 ```
-controller/   REST endpoints (Auth, User, Follow, Post, Reaction, Media)
-service/      Business logic (Auth, User, Follow, Post, Reaction, Media,
+controller/   REST endpoints (Auth, User, Follow, Post, Reaction, Media, Feed)
+service/      Business logic (Auth, User, Follow, Post, Reaction, Media, Feed,
               CustomUserDetails, LocalStorage, ObjectStorage interface)
 repository/   Spring Data JPA repositories
 entity/       JPA entities (User, Post, Media, Follow, Reaction, EventLog)
@@ -51,6 +51,8 @@ dto/          request/ and response/ data transfer objects
 security/     SecurityConfig, JwtUtil, JwtAuthFilter, OpenApiConfig
 aspect/       LogEvent annotation + EventLoggingAspect
 exception/    Custom exceptions + GlobalExceptionHandler
+client/       RecommendationClient + RecommendationResponse (feed ranking)
+config/       RestClientConfig (recommendation HTTP client)
 ```
 
 Incoming HTTP requests are handled in the controller layer, where authentication, validation, and access control happen. Business logic lives in the service layer, and persistence is handled through the repository layer.
@@ -122,6 +124,53 @@ Invalid combinations are rejected with `400 Bad Request` (`PostNotValidException
 
 A user can have at most one reaction per post (unique constraint on `post_id + user_id`). Adding a reaction of the opposite type switches it, and the post's `like_count` / `dislike_count` counters are adjusted accordingly. The `LIKE_POST` event is recorded for both likes and dislikes in the current implementation; removing a reaction is not logged.
 
+### Feed (`/api/feed`)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/feed/chronological` | bearer | Chronological feed — `deletedAt IS NULL` ordered `createdAt DESC`. Default `page=0,size=20,sort=createdAt,DESC` (`@PageableDefault`); client `sort` honored |
+| GET | `/api/feed/recommended` | bearer | Personalized ranked feed — forwards `page/size` to `GET http://recommendation:8000/feed?user_id=&page=&size=` ( `RecommendationClient`, `RestClientConfig` timeout 1500 ms), `score desc` order, **ignores any `sort` param** (sanitized to unsorted `PageRequest`), graceful fallback to chronological on empty/timeout/5xx |
+
+Both endpoints require `Authorization: Bearer <token>` and return `Page<PostResponse>` with identical shape:
+
+```json
+{
+  "content": [
+    {
+      "id": 1,
+      "userId": 10,
+      "postCategory": "NORMAL",
+      "content": "hello world",
+      "createdAt": "2026-09-02T10:00:00+00:00",
+      "updatedAt": "2026-09-02T10:00:00+00:00",
+      "mediaId": 5,
+      "repostOfId": null,
+      "parentId": null,
+      "viewCount": 5,
+      "likeCount": 2,
+      "dislikeCount": 1
+    }
+  ],
+  "page": { "size": 20, "number": 0, "totalElements": 100, "totalPages": 5 }
+}
+```
+
+**Request:**
+`GET /api/feed/chronological?page=0&size=20&sort=createdAt,desc` and `GET /api/feed/recommended?page=1&size=10` (any `sort` on recommended is ignored; ranking is always server-side). Empty feed returns `content: []` with `totalElements: 0`.
+
+**Business rules:**
+- Soft-delete filter — both `findChronologicalFeed` and `findAllByIdsFiltered` filter `deletedAt IS NULL`.
+- Rank-order preservation — recommended hydrates via `findAllByIdsFiltered` and reorders in-memory to preserve `score desc` order; invalid `post_id` strings are skipped, deleted/missing posts are dropped but `total` still reflects recommendation `total` (may cause pagination holes on last page).
+- Pagination — chronological `total` = DB count; recommended `total` = recommendation `total` before filtering (fallback to `content.size()` if legacy).
+
+**Errors:**
+`403 Forbidden` when unauthenticated, `404 Not Found` `User not found with username: <ghost>` on recommended only (username lookup), `405 Method Not Allowed` for `POST/PUT/DELETE` on same path, `400 Bad Request` for `?page=abc` (`MethodArgumentTypeMismatchException`), `500 Internal Server Error` only if both recommendation and chronological fail. Recommendation timeout/5xx/empty body/parse failure never returns 5xx — it logs `WARN` and returns chronological page transparently.
+
+**Dependencies:**
+`recommendation.base-url` (`RECOMMENDATION_URL` env, default `http://recommendation:8000` via `RestClientConfig`) and `recommendation.timeout-ms` (`RECOMMENDATION_TIMEOUT_MS`, default `1500`, `500` in tests) with `SimpleClientHttpRequestFactory` connect/read timeout and `GET /health` polling (docker-compose `interval 10s`).
+
+Both endpoints log `REQUEST_FEED` with `metadata {feed_type: chronological|recommended, page,size,total_elements,returned,requested_page,requested_size}` for analytics; see [Event Logging](#event-logging).
+
 ### Media (`/api/media`)
 
 | Method | Path | Auth | Description |
@@ -163,9 +212,9 @@ User behavior is recorded through an AOP-based mechanism:
 
 - Controller methods annotated with `@LogEvent(EventType.XXX)` produce a row in `event_logs` after successful execution (`@AfterReturning`).
 - The `EventLoggingAspect` stores the acting user, event type, timestamp, and — depending on the event type — the affected post or target user.
-- The `event_logs` schema also includes `session_id` (groups actions of one usage session; unrelated to JWT) and `metadata` (JSONB, for event-specific information). These two fields are part of the schema but are not yet populated by the aspect.
+- The `event_logs` schema also includes `session_id` (groups actions of one usage session; unrelated to JWT) and `metadata` (JSONB, for event-specific information). For `REQUEST_FEED` the aspect now populates `metadata` with `{feed_type: chronological|recommended, page, size, total_elements, returned, requested_page, requested_size}`.
 
-Event types: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`. `REQUEST_FEED` is defined but not yet produced by any endpoint.
+Event types: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`. `REQUEST_FEED` is produced by both feed endpoints (`GET /api/feed/chronological` and `GET /api/feed/recommended`).
 
 ---
 
@@ -188,7 +237,7 @@ Each `ProblemDetail` includes `status`, `title`, `detail`, and `instance` (the r
 
 ## Pagination
 
-List endpoints return Spring Data `Page` objects with `page`, `size`, `totalElements`, and `totalPages`. Default page size is 20; sorting defaults: user search by `username`, followers by `follower.username`, following by `followed.username`. Clients can override with standard `page`, `size`, `sort` query parameters.
+List endpoints return Spring Data `Page` objects with `page`, `size`, `totalElements`, and `totalPages`. Default page size is 20; sorting defaults: user search by `username`, followers by `follower.username`, following by `followed.username`, chronological feed by `createdAt DESC`; recommended feed is **unsorted** (ranking by `score desc` server-side, any client `sort` is ignored). Clients can override with standard `page`, `size`, `sort` query parameters; recommended forwards `page/size` to the recommendation service (`size` 1–100) and uses its `total` for page metadata.
 
 ---
 
@@ -212,6 +261,8 @@ Required environment variables (see `.env.example` at the repository root):
 | `JWT_SECRET` | JWT signing secret (min 32 bytes) |
 | `JWT_EXPIRATION` | Token lifetime in milliseconds |
 | `STORAGE_DIR` | Media storage directory (default `uploads`) |
+| `RECOMMENDATION_URL` | Base URL of recommendation service (default `http://recommendation:8000`; `http://localhost:8000` locally) |
+| `RECOMMENDATION_TIMEOUT_MS` | HTTP timeout for recommendation calls in ms (default `1500`; `500` in tests) |
 
 File uploads are limited to 50 MB per request (`spring.servlet.multipart`).
 
@@ -221,9 +272,9 @@ File uploads are limited to 50 MB per request (`spring.servlet.multipart`).
 
 The test suite covers:
 
-- **Controller tests** with MockMvc for all six controllers (happy paths, validation, authorization, not-found cases).
-- **Service unit tests** for Auth, User, Follow, Post, Reaction, Media, and `CustomUserDetailsService`.
-- H2 is used as the test database (runtime scope); Flyway migrations run against it.
+- **Controller tests** with MockMvc for all controllers including `FeedController` (chronological 13 cases and recommended 13 cases: pagination, auth, 404, 405, identical `Page<PostResponse>` shape, sort-ignored).
+- **Service unit tests** for Auth, User, Follow, Post, Reaction, Media, `Feed` (chronological 8 cases and recommended 10 cases: rank-order hydration, empty/exception fallback to chronological, invalid `post_id` skip, deleted filtering, `UserNotFound` propagation, total metadata), and `CustomUserDetailsService`.
+- H2 is used as the test database (runtime scope); Flyway migrations are disabled and `recommendation.base-url=http://localhost:8000` is stubbed in `src/test/resources/application.properties`.
 
 Run the tests from the `backend/` directory:
 
@@ -247,9 +298,9 @@ This starts PostgreSQL, the Core Backend (port `8080`), and the Recommendation S
 
 ## Implementation Status
 
-The following components are **designed but not yet implemented** in the Core Backend:
+The following components remain **designed but not yet implemented** in the Core Backend:
 
-- **Feed generation:** there is no feed endpoint yet (neither chronological nor smart). The `REQUEST_FEED` event type and the feed design exist, but no `FeedController`/`FeedService` is present.
-- **Recommendation integration:** the backend does not yet call the Recommendation Service. The service exists and is running, but the HTTP integration from the backend is not built.
+- **Feed generation:** ✅ Implemented — `GET /api/feed/chronological` (`deletedAt IS NULL ORDER BY createdAt DESC`) and `GET /api/feed/recommended` (`RecommendationClient` → `GET /feed?user_id=&page=&size=` → hydration via `findAllByIdsFiltered` preserving rank order, graceful fallback to chronological on empty/timeout, identical `Page<PostResponse>` shape) with `REQUEST_FEED` logging and `PageableDefault(size=20)`.
+- **Recommendation integration:** ✅ Implemented — `RestClientConfig` (`recommendation.base-url` / `RECOMMENDATION_URL`, 1500 ms timeout), `RecommendationClient`/`RecommendationResponse`/`RankedPost`, `docker-compose.yaml` healthcheck on `GET /health`; see [Recommendation Service](./6-Recommendation.md).
 - **Monitoring:** Spring Boot Actuator is included as a dependency, but no Prometheus/Grafana stack or metric export is wired up.
 - **Redis:** present in `docker-compose.yaml` but unused by the application so far.

@@ -57,6 +57,7 @@ plugins:
             - Architecture: 3-Architecture.md
             - Database: 4-Database.md
             - Backend: 5-Backend.md
+            - Recommendation: 6-Recommendation.md
         - locale: fa
           name: فارسی
           build: true
@@ -70,6 +71,7 @@ plugins:
             - معماری: 3-Architecture.md
             - پایگاه داده: 4-Database.md
             - بک‌اند: 5-Backend.md
+            - توصیه‌گر: 6-Recommendation.md
 
 
 extra:

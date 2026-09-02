@@ -14,7 +14,7 @@
 - پست‌ها و تعاملات کاربران (واکنش، کامنت، بازنشر، نقل‌قول، دنبال‌کردن)
 - آپلود و ارائه فایل‌های رسانه‌ای
 - ثبت رویدادهای رفتاری کاربران برای تحلیل و پیشنهاددهی
-- ارتباط با سرویس پیشنهاددهی (برنامه‌ریزی‌شده، به بخش «وضعیت پیاده‌سازی» مراجعه کنید)
+- ارتباط با سرویس پیشنهاددهی (رتبه‌بندی فید با تخریب مهربانانه)
 
 همه درخواست‌ها از طریق REST API ارائه می‌شوند و با احراز هویت مبتنی بر JWT محافظت می‌شوند.
 
@@ -41,8 +41,8 @@
 بک‌اند از معماری لایه‌ای پیروی می‌کند. ریشه سورس در `backend/src/main/java/com/github/ferigeek/sarv/` قرار دارد:
 
 ```
-controller/   نقاط پایانی REST (Auth, User, Follow, Post, Reaction, Media)
-service/      منطق کسب‌وکار (Auth, User, Follow, Post, Reaction, Media,
+controller/   نقاط پایانی REST (Auth, User, Follow, Post, Reaction, Media, Feed)
+service/      منطق کسب‌وکار (Auth, User, Follow, Post, Reaction, Media, Feed,
               CustomUserDetails, LocalStorage, واسط ObjectStorage)
 repository/   مخزن‌های Spring Data JPA
 entity/       موجودیت‌های JPA (User, Post, Media, Follow, Reaction, EventLog)
@@ -51,6 +51,8 @@ dto/          اشیای انتقال داده request/ و response/
 security/     SecurityConfig, JwtUtil, JwtAuthFilter, OpenApiConfig
 aspect/       annotation لاج ایونت + EventLoggingAspect
 exception/    استثناهای سفارشی + GlobalExceptionHandler
+client/       RecommendationClient + RecommendationResponse (رتبه‌بندی فید)
+config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 ```
 
 درخواست‌های HTTP ابتدا در لایه کنترلر پردازش می‌شوند؛ جایی که احراز هویت، اعتبارسنجی و کنترل دسترسی انجام می‌گیرد. منطق کسب‌وکار در لایه سرویس و ذخیره‌سازی و بازیابی داده‌ها از طریق لایه مخزن انجام می‌شود.
@@ -122,6 +124,53 @@ exception/    استثناهای سفارشی + GlobalExceptionHandler
 
 هر کاربر حداکثر یک واکنش برای هر پست دارد (محدودیت یکتا روی `post_id + user_id`). افزودن واکنش از نوع مخالف، واکنش قبلی را تغییر می‌دهد و شمارنده‌های `like_count` / `dislike_count` پست متناسباً به‌روزرسانی می‌شوند. در پیاده‌سازی فعلی رویداد `LIKE_POST` برای هر دو نوع لایک و دیسلایک ثبت می‌شود؛ حذف واکنش ثبت نمی‌شود.
 
+### فید (`/api/feed`)
+
+| متد | مسیر | احراز هویت | توضیح |
+|--------|------|------|-------------|
+| GET | `/api/feed/chronological` | bearer | فید زمانی — `deletedAt IS NULL` مرتب `createdAt DESC`. پیش‌فرض `page=0,size=20,sort=createdAt,DESC` (`@PageableDefault`)؛ پارامتر `sort` کلاینت اعمال می‌شود |
+| GET | `/api/feed/recommended` | bearer | فید شخصی‌سازی‌شده — ارسال `page/size` به `GET http://recommendation:8000/feed?user_id=&page=&size=` ( `RecommendationClient`، تایم‌اوت ۱۵۰۰ میلی‌ثانیه)، ترتیب `score desc`، **هر پارامتر `sort` نادیده گرفته می‌شود** (تبدیل به `PageRequest` بدون مرتب‌سازی)، تخریب مهربانانه به زمانی در صورت خالی/تایم‌اوت/خطای ۵۰۰ |
+
+هر دو نقطه پایانی به `Authorization: Bearer <token>` نیاز دارند و `Page<PostResponse>` با شکل یکسان برمی‌گردانند:
+
+```json
+{
+  "content": [
+    {
+      "id": 1,
+      "userId": 10,
+      "postCategory": "NORMAL",
+      "content": "hello world",
+      "createdAt": "2026-09-02T10:00:00+00:00",
+      "updatedAt": "2026-09-02T10:00:00+00:00",
+      "mediaId": 5,
+      "repostOfId": null,
+      "parentId": null,
+      "viewCount": 5,
+      "likeCount": 2,
+      "dislikeCount": 1
+    }
+  ],
+  "page": { "size": 20, "number": 0, "totalElements": 100, "totalPages": 5 }
+}
+```
+
+**درخواست:**
+`GET /api/feed/chronological?page=0&size=20&sort=createdAt,desc` و `GET /api/feed/recommended?page=1&size=10` (هر `sort` در recommended نادیده گرفته می‌شود؛ رتبه‌بندی همیشه سمت سرور). فید خالی `content: []` با `totalElements: 0` برمی‌گرداند.
+
+**قوانین کسب‌وکار:**
+- فیلتر حذف نرم — هر دو `findChronologicalFeed` و `findAllByIdsFiltered` روی `deletedAt IS NULL` فیلتر می‌کنند.
+- حفظ ترتیب رتبه — recommended از طریق `findAllByIdsFiltered` هیدراته و در حافظه به ترتیب `score desc` دوباره مرتب می‌شود؛ `post_id` نامعتبر نادیده گرفته می‌شود، پست‌های حذف‌شده/یافت‌نشده حذف می‌شوند اما `total` همچنان `total` توصیه‌گر را نشان می‌دهد (ممکن است در صفحه آخر حفره صفحه‌بندی ایجاد شود).
+- صفحه‌بندی — `total` زمانی = شمارش DB؛ `total` پیشنهادی = `total` سرویس توصیه‌گر قبل از فیلتر (در صورت قدیمی بودن به `content.size()` می‌افتد).
+
+**خطاها:**
+`403 Forbidden` بدون احراز هویت، `404 Not Found` `User not found with username: <ghost>` فقط در recommended (جست‌وجوی نام کاربری)، `405 Method Not Allowed` برای `POST/PUT/DELETE` روی همان مسیر، `400 Bad Request` برای `?page=abc` (`MethodArgumentTypeMismatchException`)، `500 Internal Server Error` فقط وقتی هم recommended و هم fallback زمانی خطا دهند. تایم‌اوت/۵۰۰/بدنه خالی/خطای تجزیه توصیه‌گر هیچ‌وقت ۵۰۰ برنمی‌گرداند — `WARN` ثبت کرده و صفحه زمانی را شفاف برمی‌گرداند.
+
+**وابستگی‌ها:**
+`recommendation.base-url` (متغیر `RECOMMENDATION_URL`، پیش‌فرض `http://recommendation:8000` از طریق `RestClientConfig`) و `recommendation.timeout-ms` (`RECOMMENDATION_TIMEOUT_MS`، پیش‌فرض `1500`، در تست `500`) با `SimpleClientHttpRequestFactory` برای تایم‌اوت connect/read و بررسی سلامت `GET /health` (docker-compose `interval 10s`).
+
+هر دو نقطه پایانی `REQUEST_FEED` را با `metadata {feed_type: chronological|recommended, page,size,total_elements,returned,requested_page,requested_size}` برای تحلیل ثبت می‌کنند؛ به بخش ثبت رویداد مراجعه کنید.
+
 ### رسانه (`/api/media`)
 
 | متد | مسیر | احراز هویت | توضیح |
@@ -163,9 +212,9 @@ exception/    استثناهای سفارشی + GlobalExceptionHandler
 
 - متدهای کنترلر که با `@LogEvent(EventType.XXX)` علامت‌گذاری شده‌اند، پس از اجرای موفق (`@AfterReturning`) یک ردیف در `event_logs` ایجاد می‌کنند.
 - `EventLoggingAspect` کاربر عامل، نوع رویداد، زمان و — بسته به نوع رویداد — پست یا کاربر هدف را ذخیره می‌کند.
-- اسکیمای `event_logs` شامل `session_id` (گروه‌بندی کنش‌های یک نشست کاربری؛ بی‌رابطه با JWT) و `metadata` (JSONB، برای اطلاعات خاص هر رویداد) نیز هست. این دو فیلد بخشی از اسکیما هستند اما هنوز توسط aspect پر نمی‌شوند.
+- اسکیمای `event_logs` شامل `session_id` (گروه‌بندی کنش‌های یک نشست کاربری؛ بی‌رابطه با JWT) و `metadata` (JSONB، برای اطلاعات خاص هر رویداد) نیز هست. برای `REQUEST_FEED` اکنون aspect مقدار `metadata` را با `{feed_type: chronological|recommended, page, size, total_elements, returned, requested_page, requested_size}` پر می‌کند.
 
-انواع رویداد: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`. `REQUEST_FEED` تعریف شده است ولی هنوز توسط هیچ نقطه پایانی تولید نمی‌شود.
+انواع رویداد: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`. `REQUEST_FEED` توسط هر دو نقطه پایانی فید (`GET /api/feed/chronological` و `GET /api/feed/recommended`) تولید می‌شود.
 
 ---
 
@@ -188,7 +237,7 @@ exception/    استثناهای سفارشی + GlobalExceptionHandler
 
 ## صفحه‌بندی
 
-نقاط پایانی فهرستی، اشیای `Page` اسپرینگ دیتا را با `page`, `size`, `totalElements` و `totalPages` برمی‌گردانند. اندازه پیش‌فرض صفحه ۲۰ است؛ مرتب‌سازی پیش‌فرض: جست‌وجوی کاربران بر اساس `username`، دنبال‌کننده‌ها بر اساس `follower.username`، دنبال‌شونده‌ها بر اساس `followed.username`. کلاینت‌ها می‌توانند با پارامترهای استاندارد `page`, `size`, `sort` آن را تغییر دهند.
+نقاط پایانی فهرستی، اشیای `Page` اسپرینگ دیتا را با `page`, `size`, `totalElements` و `totalPages` برمی‌گردانند. اندازه پیش‌فرض صفحه ۲۰ است؛ مرتب‌سازی پیش‌فرض: جست‌وجوی کاربران بر اساس `username`، دنبال‌کننده‌ها بر اساس `follower.username`، دنبال‌شونده‌ها بر اساس `followed.username`، فید زمانی بر اساس `createdAt DESC`؛ فید پیشنهادی **بدون مرتب‌سازی** است (رتبه‌بندی بر اساس `score desc` سمت سرور، هر `sort` کلاینت نادیده گرفته می‌شود). کلاینت‌ها می‌توانند با پارامترهای استاندارد `page`, `size`, `sort` آن را تغییر دهند؛ recommended مقدار `page/size` را به سرویس توصیه‌گر (`size` ۱ تا ۱۰۰) ارسال کرده و `total` آن را برای فراداده صفحه استفاده می‌کند.
 
 ---
 
@@ -212,6 +261,8 @@ exception/    استثناهای سفارشی + GlobalExceptionHandler
 | `JWT_SECRET` | کلید امضای JWT (حداقل ۳۲ بایت) |
 | `JWT_EXPIRATION` | طول عمر توکن به میلی‌ثانیه |
 | `STORAGE_DIR` | دایرکتوری ذخیره‌سازی رسانه (پیش‌فرض `uploads`) |
+| `RECOMMENDATION_URL` | آدرس پایه سرویس توصیه‌گر (پیش‌فرض `http://recommendation:8000`؛ به‌صورت محلی `http://localhost:8000`) |
+| `RECOMMENDATION_TIMEOUT_MS` | تایم‌اوت HTTP فراخوانی توصیه‌گر به میلی‌ثانیه (پیش‌فرض `1500`؛ در تست `500`) |
 
 آپلود فایل به ۵۰ مگابایت در هر درخواست محدود شده است (`spring.servlet.multipart`).
 
@@ -221,9 +272,9 @@ exception/    استثناهای سفارشی + GlobalExceptionHandler
 
 مجموعه تست شامل موارد زیر است:
 
-- **تست‌های کنترلر** با MockMvc برای هر شش کنترلر (مسیرهای موفق، اعتبارسنجی، مجوز، حالت‌های یافت‌نشدن).
-- **تست‌های واحد سرویس** برای Auth, User, Follow, Post, Reaction, Media و `CustomUserDetailsService`.
-- از H2 به عنوان پایگاه داده تست استفاده می‌شود و مهاجرت‌های Flyway روی آن اجرا می‌شوند.
+- **تست‌های کنترلر** با MockMvc برای همه کنترلرها از جمله `FeedController` (زمانی ۱۳ مورد و پیشنهادی ۱۳ مورد: صفحه‌بندی، احراز هویت، ۴۰۴، ۴۰۵، شکل یکسان `Page<PostResponse>`، نادیده‌گرفتن sort).
+- **تست‌های واحد سرویس** برای Auth, User, Follow, Post, Reaction, Media، `Feed` (زمانی ۸ مورد و پیشنهادی ۱۰ مورد: هیدراته با حفظ ترتیب رتبه، fallback خالی/استثنا به زمانی، نادیده‌گرفتن `post_id` نامعتبر، فیلتر حذف‌شده، انتشار `UserNotFound`، فراداده total)، و `CustomUserDetailsService`.
+- از H2 به عنوان پایگاه داده تست استفاده می‌شود، Flyway غیرفعال است و `recommendation.base-url=http://localhost:8000` در `src/test/resources/application.properties` شبیه‌سازی شده است.
 
 اجرای تست‌ها از دایرکتوری `backend/`:
 
@@ -247,9 +298,9 @@ docker compose up --build
 
 ## وضعیت پیاده‌سازی
 
-اجزای زیر **طراحی شده‌اند ولی هنوز در بک‌اند اصلی پیاده‌سازی نشده‌اند**:
+اجزای زیر همچنان **طراحی شده ولی هنوز در بک‌اند اصلی پیاده‌سازی نشده‌اند**:
 
-- **تولید فید:** هنوز نقطه پایانی فید وجود ندارد (نه زمانی، نه هوشمند). نوع رویداد `REQUEST_FEED` و طراحی فید وجود دارد اما `FeedController`/`FeedService` پیاده‌سازی نشده است.
-- **یکپارچه‌سازی با سرویس پیشنهاددهی:** بک‌اند هنوز سرویس پیشنهاددهی را فراخوانی نمی‌کند. سرویس وجود دارد و در حال اجراست اما اتصال HTTP از سمت بک‌اند ساخته نشده است.
+- **تولید فید:** ✅ پیاده‌سازی‌شده — `GET /api/feed/chronological` (`deletedAt IS NULL ORDER BY createdAt DESC`) و `GET /api/feed/recommended` (`RecommendationClient` → `GET /feed?user_id=&page=&size=` → هیدراته از طریق `findAllByIdsFiltered` با حفظ ترتیب رتبه، تخریب مهربانانه به زمانی در صورت خالی/تایم‌اوت، شکل یکسان `Page<PostResponse>`) با ثبت `REQUEST_FEED` و `PageableDefault(size=20)`.
+- **یکپارچه‌سازی با سرویس پیشنهاددهی:** ✅ پیاده‌سازی‌شده — `RestClientConfig` (`recommendation.base-url` / `RECOMMENDATION_URL`، تایم‌اوت ۱۵۰۰ میلی‌ثانیه)، `RecommendationClient`/`RecommendationResponse`/`RankedPost`، `docker-compose.yaml` با بررسی سلامت `GET /health`؛ به [سرویس توصیه‌گر](./6-Recommendation.md) مراجعه کنید.
 - **مانیتورینگ:** Spring Boot Actuator به عنوان وابستگی وجود دارد اما پشته Prometheus/Grafana یا خروجی متریک متصل نشده است.
 - **Redis:** در `docker-compose.yaml` حضور دارد اما هنوز توسط برنامه استفاده نمی‌شود.

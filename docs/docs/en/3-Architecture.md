@@ -35,7 +35,7 @@ graph TD
     Backend -- Binary Read/Write --> LocalFileStorage
     Recommender -- SQL --> Postgres
 
-    Backend -. HTTP REST - planned .-> Recommender
+    Backend -- HTTP REST --> Recommender
     Backend -. Async Event Flow - planned .-> Analytics
     Backend -. Metrics - planned .-> Monitoring
 ```
@@ -49,7 +49,7 @@ All user requests first enter the Core Backend. The backend is responsible for r
 
 Whenever content ranking is required, the backend sends the necessary information to the Recommendation System and receives ranked results. This communication is performed synchronously because the ranking results are directly required to generate the final response returned to the user.
 
-> **Note:** the integration between the Core Backend and the Recommendation Service is designed but not yet implemented. The sequence diagram below depicts the planned smart-feed flow; currently no feed endpoint exists (see [Implementation Status](#implementation-status)).
+> **Note:** the integration between the Core Backend and the Recommendation Service is now implemented (`GET /api/feed/recommended` → `GET http://recommendation:8000/feed?user_id=&page=&size=` via `RestClient` with graceful fallback). The sequence diagram below depicts the smart-feed flow.
 
 Communication with the Analytics Subsystem is performed asynchronously. User behavior events are recorded during system operation, while analytical processing is executed later in separate workflows. This prevents analytical workloads from increasing request latency for end users.
 
@@ -72,24 +72,24 @@ The Core Backend is responsible for user management, profiles, posts, comments, 
 
 When a user creates a new post, the backend first validates the incoming request. If media files are attached, the files are written to the local filesystem (content-addressed by their SHA-256 hash) and only media metadata is stored in PostgreSQL.
 
-When generating a feed, the backend is designed to retrieve candidate content from the database and, when necessary, delegate ranking operations to the Recommendation System. This flow is planned; see [Implementation Status](#implementation-status).
+When generating a feed, the backend either serves a chronological feed (`GET /api/feed/chronological` with `PageableDefault(size=20, sort=createdAt,DESC)`) or a personalized feed (`GET /api/feed/recommended` with `@AuthenticationPrincipal` forwarding `page/size` to the Recommendation Service and hydrating via `findAllByIdsFiltered` preserving rank order, falling back to chronological on empty/timeout).
 
 ---
 ## Recommendation System
 
-The Recommendation System is responsible for content personalization and feed ranking.
+The Recommendation System is responsible for content personalization and feed ranking and is documented in detail in [6-Recommendation.md](./6-Recommendation.md).
 
-This subsystem is implemented as an independent Python (FastAPI) service and does not manage users or store application data directly. In the current implementation it does not receive candidates from the backend; instead it reads candidate posts directly from the shared PostgreSQL database:
+This subsystem is implemented as an independent Python (FastAPI) service and does not manage users or store application data directly. It reads candidate posts directly from the shared PostgreSQL database:
 
-- **Trending posts:** recent posts (last 7 days) with high engagement, ordered by engagement
-- **Posts from followings:** recent posts by users the requesting user follows
-- **Posts from followers:** recent posts by users that follow the requesting user
+- **Trending posts:** recent posts (last 7 days) with high engagement, ordered by `like_count + view_count` (limit 100)
+- **Posts from followings:** recent posts by users the requesting user follows (limit 50)
+- **Posts from followers:** recent posts by users that follow the requesting user (limit 50)
 
-Candidates are deduplicated, scored, sorted by descending score, and returned by `GET /feed`. Each item contains the `post_id` and a `score` computed from engagement (likes + views − dislikes), a recency decay (half-life of about 48 hours), and a boost for posts coming from followed users.
+Candidates are deduplicated (preserving `trending → following → follower` order), scored, sorted by descending score, and paginated. `GET /feed?user_id=&page=&size=` (health via `GET /health`) returns `{user_id, posts: [{post_id, score}], page, size, total}` with server-side `score desc` order; see [6-Recommendation.md](./6-Recommendation.md) for scoring formula and API details.
 
-> **Note on the contract:** the service currently returns both `post_id` and `score`. The intended contract is that the recommendation service returns **only post IDs** to the Core Backend, and the backend hydrates the full post data from the database before responding.
+> **Note on the contract:** the service currently returns both `post_id` and `score`. The intended contract is that the recommendation service returns **only post IDs** to the Core Backend, and the backend hydrates the full post data from the database before responding. Currently the backend ignores `score` except for order and hydrates via `findAllByIdsFiltered` preserving rank order.
 
-The integration with the Core Backend is not yet implemented: the backend does not call this service during feed generation. Per design, the backend will select candidate posts, send them together with the required user information to the recommendation service, receive the ranked post IDs back, and hydrate the final feed. If the recommendation service becomes unavailable, the backend can continue operating by falling back to a simple chronological feed without interrupting service availability (graceful degradation).
+The integration with the Core Backend is implemented: `GET /api/feed/recommended` resolves the authenticated user, calls `GET http://recommendation:8000/feed?user_id=&page=&size=` via `RestClient` (`RestClientConfig` with `recommendation.base-url` / `RECOMMENDATION_URL` and 1500 ms timeout), extracts ranked IDs (skipping invalid strings), hydrates, and builds `Page<PostResponse>` with `total` from recommendation. On empty response, timeout, or any exception it logs `WARN` and falls back to a simple chronological feed without interrupting availability (graceful degradation, detailed in [5-Backend.md](./5-Backend.md)). `GET /health` is polled by `docker-compose.yaml` healthcheck.
 
 Since this subsystem does not maintain persistent internal state, multiple instances can be deployed in parallel in the future to distribute processing load and improve scalability.
 
@@ -137,9 +137,9 @@ As a result, each category of data is stored in the environment most suitable fo
 |-----------|--------|
 | Core Backend (users, auth, posts, reactions, follows, media) | Implemented |
 | Media storage on local filesystem | Implemented |
-| Event logging (`event_logs`) | Implemented |
-| Feed generation (chronological / smart feed) | Planned — no feed endpoint yet |
-| Backend ↔ Recommendation integration | Planned — service runs standalone, reads PostgreSQL directly, returns `post_id` + `score` |
+| Event logging (`event_logs`) | Implemented — `REQUEST_FEED` with `metadata {feed_type, page, size, total_elements}` |
+| Feed generation (chronological / smart feed) | Implemented — `GET /api/feed/chronological` and `GET /api/feed/recommended` with `Page<PostResponse>` and graceful fallback |
+| Backend ↔ Recommendation integration | Implemented — `RestClient` (`recommendation.base-url` / `RECOMMENDATION_URL`, 1500 ms timeout), `RecommendationClient` → `GET /feed?user_id=&page=&size=`, hydration via `findAllByIdsFiltered`, healthcheck on `GET /health` |
 | Analytics subsystem | Planned — not started |
 | Monitoring (Prometheus / Grafana) | Planned — only actuator dependency present |
 | Redis (caching / rate limiting) | Planned — container present, unused |
