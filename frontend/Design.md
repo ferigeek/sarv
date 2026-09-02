@@ -234,6 +234,10 @@ Likes and dislikes must use:
 
 Do **not** use a heart icon for likes.
 
+When a post is liked by the viewer, the thumbs-up icon should be colored **green**.
+
+When a post is disliked by the viewer, the thumbs-down icon should be colored **red**.
+
 After a successful like interaction, display a **pixelated smiling emoji** as feedback.
 
 After a successful dislike interaction, display a **pixelated sad emoji** as feedback.

@@ -49,6 +49,7 @@ Design of the frontend can be found at `frontend/Design.md`.
 - Do not write comments for everything. Comments and docs in the code are only required when there is something important to notice, a piece of code that might be hard to understand, or something unexpected.
 - Do not chage anything related to depenencies(e.g. pom.xml, requirements.txt, pyproject.toml, uv.lock, ...). 
 - Dependencies should be only managed by the developer.
+- If some dependency is required, ask the developer to add it.
 - Do not remove or weaken existing tests merely to make them pass.
 - New or modified behavior should include appropriate tests, covering as much cases as possible.
 - Tests should examine behavior and expected outcomes, not implementation details. They should verify what the code is supposed to do from the user's or caller's perspective.
