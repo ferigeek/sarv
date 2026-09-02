@@ -1,14 +1,178 @@
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+
+import { getChronologicalFeed, getRecommendedFeed } from '@/api/feed'
+import type { PostResponse } from '@/types/api'
+import PostCard from '@/components/PostCard.vue'
+
+const posts = ref<PostResponse[]>([])
+const page = ref(0)
+const size = 20
+const loading = ref(false)
+const error = ref('')
+const hasMore = ref(true)
+const initialLoading = ref(true)
+
+async function fetchPage(pageNum: number, append: boolean) {
+  if (loading.value) return
+  loading.value = true
+  error.value = ''
+
+  try {
+    let data
+    try {
+      data = await getRecommendedFeed({ page: pageNum, size })
+      // Fallback if recommended is empty on first page and no error
+      if (data.content.length === 0 && pageNum === 0) {
+        const chrono = await getChronologicalFeed({ page: pageNum, size })
+        if (chrono.content.length > 0) {
+          data = chrono
+        }
+      }
+    } catch {
+      // Recommended failed → fallback to chronological
+      data = await getChronologicalFeed({ page: pageNum, size })
+    }
+
+    if (append) {
+      posts.value = [...posts.value, ...data.content]
+    } else {
+      posts.value = data.content
+    }
+
+    // hasMore from page metadata; content length check would break mocked pages where size > content
+    hasMore.value = data.page.number + 1 < data.page.totalPages
+    if (data.content.length === 0) hasMore.value = false
+
+    page.value = pageNum
+  } catch (e) {
+    const msg = (e as { detail?: string })?.detail ?? (e instanceof Error ? e.message : 'Failed to load feed.')
+    error.value = msg
+    if (!append) posts.value = []
+  } finally {
+    loading.value = false
+    initialLoading.value = false
+  }
+}
+
+function loadMore() {
+  if (!hasMore.value || loading.value) return
+  void fetchPage(page.value + 1, true)
+}
+
+onMounted(() => {
+  void fetchPage(0, false)
+})
+</script>
+
 <template>
-  <section class="view-stub" data-testid="feed-view">
-    <p>Feed</p>
+  <section class="feed-view" data-testid="feed-view">
+    <header class="feed-header">
+      <span class="feed-header__title">FEED // RECOMMENDED</span>
+      <span class="feed-header__meta">SYS.FEED</span>
+    </header>
+
+    <div v-if="initialLoading" class="feed-state" data-testid="feed-loading">loading feed…</div>
+
+    <div v-else-if="error && posts.length === 0" class="feed-state feed-state--error" data-testid="feed-error">
+      {{ error }}
+      <button class="btn feed-retry" type="button" data-testid="feed-retry" @click="fetchPage(0, false)">retry</button>
+    </div>
+
+    <div v-else-if="posts.length === 0" class="feed-state" data-testid="feed-empty">no posts yet — be the first to post</div>
+
+    <template v-else>
+      <div class="feed-list" data-testid="feed-list">
+        <PostCard v-for="p in posts" :key="p.id" :post="p" />
+      </div>
+
+      <footer class="feed-footer">
+        <div v-if="error" class="feed-state feed-state--error" data-testid="feed-error-more">{{ error }}</div>
+        <button
+          v-if="hasMore"
+          class="btn feed-load-more"
+          type="button"
+          data-testid="feed-load-more"
+          :disabled="loading"
+          @click="loadMore"
+        >
+          {{ loading ? 'loading…' : 'load more' }}
+        </button>
+        <span v-else class="feed-end" data-testid="feed-end">— end of feed —</span>
+      </footer>
+    </template>
   </section>
 </template>
 
 <style scoped>
-.view-stub {
-  height: 100%;
+.feed-view {
+  min-height: 100%;
   display: grid;
-  place-items: center;
+  gap: 1px;
+  background: var(--sarv-border);
+  align-content: start;
+}
+
+.feed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sarv-space-3) var(--sarv-space-4);
+  background: var(--sarv-panel);
+}
+
+.feed-header__title {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--sarv-green);
+}
+
+.feed-header__meta {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--sarv-text-faint);
+}
+
+.feed-state {
+  padding: var(--sarv-space-6);
+  text-align: center;
+  font-size: 12px;
   color: var(--sarv-text-dim);
+  background: var(--sarv-panel);
+}
+
+.feed-state--error {
+  color: #ff8fa3;
+  display: grid;
+  gap: var(--sarv-space-3);
+  justify-items: center;
+}
+
+.feed-retry {
+  margin-top: var(--sarv-space-2);
+}
+
+.feed-list {
+  display: grid;
+  gap: 1px;
+}
+
+.feed-footer {
+  display: grid;
+  gap: var(--sarv-space-3);
+  padding: var(--sarv-space-4);
+  background: var(--sarv-panel);
+  justify-items: center;
+}
+
+.feed-end {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--sarv-text-faint);
+}
+
+.feed-load-more {
+  min-width: 160px;
+  justify-content: center;
 }
 </style>
