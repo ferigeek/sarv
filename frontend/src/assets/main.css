@@ -1,0 +1,203 @@
+/* Sarv global styles — design tokens, reset, and square/terminal foundation.
+   Visual direction per frontend/Design.md: cypress-green, matrix, sharp square geometry. */
+
+:root {
+  /* Cypress / matrix green family */
+  --sarv-green: #00ff41;
+  --sarv-green-bright: #4dff70;
+  --sarv-green-dim: #00c853;
+  --sarv-green-dark: #004d1a;
+  --sarv-green-faint: #0d3a1a;
+
+  /* Surfaces */
+  --sarv-bg: #070a07;
+  --sarv-bg-alt: #0a100a;
+  --sarv-panel: #0d130d;
+  --sarv-panel-alt: #101a10;
+  --sarv-border: #1d2b1d;
+  --sarv-border-bright: #2f4a2f;
+
+  /* Accents */
+  --sarv-red: #ff3355;
+
+  /* Text */
+  --sarv-text: #c7d4c7;
+  --sarv-text-dim: #6b7d6b;
+  --sarv-text-faint: #344434;
+
+  /* Spacing scale */
+  --sarv-space-1: 4px;
+  --sarv-space-2: 8px;
+  --sarv-space-3: 12px;
+  --sarv-space-4: 16px;
+  --sarv-space-5: 24px;
+  --sarv-space-6: 32px;
+  --sarv-space-7: 48px;
+
+  /* Typography */
+  --sarv-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* Effects */
+  --sarv-glow: 0 0 6px color-mix(in srgb, var(--sarv-green) 60%, transparent);
+}
+
+/* The entire interface is sharp and square — no rounded corners (Design 2.2). */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  border-radius: 0;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  background: var(--sarv-bg);
+  color: var(--sarv-text);
+  font-family: var(--sarv-font-mono);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+ul,
+ol {
+  list-style: none;
+  padding: 0;
+}
+
+a {
+  color: var(--sarv-green);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sarv-green);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--sarv-green);
+  color: var(--sarv-bg);
+}
+
+/* Square green scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--sarv-bg-alt);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--sarv-border-bright);
+  border: 2px solid var(--sarv-bg-alt);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--sarv-green-dim);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--sarv-border-bright) var(--sarv-bg-alt);
+}
+
+/* Base building blocks */
+.panel {
+  background: var(--sarv-panel);
+  border: 1px solid var(--sarv-border);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sarv-space-2);
+  padding: var(--sarv-space-2) var(--sarv-space-4);
+  background: var(--sarv-panel-alt);
+  border: 1px solid var(--sarv-border-bright);
+  color: var(--sarv-text);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.btn:hover {
+  border-color: var(--sarv-green-dim);
+  color: var(--sarv-green-bright);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--sarv-green);
+  border-color: var(--sarv-green);
+  color: var(--sarv-bg);
+  font-weight: 700;
+}
+
+.btn-primary:hover {
+  background: var(--sarv-green-bright);
+  border-color: var(--sarv-green-bright);
+  color: var(--sarv-bg);
+}
+
+/* Matrix-style name construction keyframes (GSAP drives the real animation in the layout phase). */
+@keyframes sarv-matrix-column {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Cycles used for pixelated emoji feedback and cursor blink. */
+@keyframes sarv-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes sarv-pop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

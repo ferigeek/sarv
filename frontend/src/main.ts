@@ -3,6 +3,10 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './router'
+import { registerPixelicons } from './assets/icons/pixelarticons'
+import './assets/main.css'
+
+registerPixelicons()
 
 const app = createApp(App)
 
