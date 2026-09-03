@@ -1,11 +1,22 @@
 <script setup lang="ts">
+import { provide, ref } from 'vue'
+
 import LeftSidebar from '@/components/LeftSidebar.vue'
 import RightSidebar from '@/components/RightSidebar.vue'
+
+const refreshKey = ref(0)
+function onPostCreated() {
+  // Bump so FeedView re-fetches when a new post is published.
+
+  refreshKey.value += 1
+}
+
+provide('feedRefreshKey', refreshKey)
 </script>
 
 <template>
   <div class="app-shell" data-testid="app-shell">
-    <LeftSidebar />
+    <LeftSidebar @created="onPostCreated" />
     <main class="app-center" data-testid="app-center">
       <router-view />
     </main>

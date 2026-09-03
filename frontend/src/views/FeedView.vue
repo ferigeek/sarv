@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { inject, onMounted, ref, watch } from 'vue'
 
 import { getChronologicalFeed, getRecommendedFeed } from '@/api/feed'
 import type { PostResponse } from '@/types/api'
@@ -12,6 +12,12 @@ const loading = ref(false)
 const error = ref('')
 const hasMore = ref(true)
 const initialLoading = ref(true)
+
+const refreshKey = inject<import('vue').Ref<number>>('feedRefreshKey', ref(0))
+
+watch(refreshKey, () => {
+  void fetchPage(0, false)
+})
 
 async function fetchPage(pageNum: number, append: boolean) {
   if (loading.value) return

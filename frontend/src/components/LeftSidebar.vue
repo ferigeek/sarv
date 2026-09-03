@@ -7,6 +7,7 @@ import SearchSection from './SearchSection.vue'
 import UserSummary from './UserSummary.vue'
 
 const showCreate = ref(false)
+const emit = defineEmits<{ created: [id: number] }>()
 </script>
 
 <template>
@@ -34,7 +35,7 @@ const showCreate = ref(false)
       <NavigationMenu />
     </section>
 
-    <PostCreateModal v-if="showCreate" @close="showCreate = false" />
+    <PostCreateModal v-if="showCreate" @close="showCreate = false" @created="(id) => emit('created', id)" />
   </aside>
 </template>
 
