@@ -29,7 +29,8 @@ public class EventLog {
     private User user;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "type",  nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "type", nullable = false, columnDefinition = "event_type")
     private EventType eventType;
 
     @ManyToOne(fetch = FetchType.LAZY)
