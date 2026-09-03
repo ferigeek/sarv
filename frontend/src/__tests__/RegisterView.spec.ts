@@ -3,6 +3,8 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory } from 'vue-router'
 
+import type { VueWrapper } from '@vue/test-utils'
+
 import type { LoginPayload, RegisterPayload } from '@/api/auth'
 import type { MediaResponse, UserRegisterResponse, UserResponse } from '@/types/api'
 
@@ -22,6 +24,46 @@ vi.mock('@/api/media', () => ({
   uploadMedia: vi.fn<(file: File) => Promise<MediaResponse>>(),
   getMediaBlob: vi.fn<() => Promise<Blob>>(),
   getMediaMetadata: vi.fn<() => Promise<unknown>>(),
+}))
+
+vi.mock('gsap', () => {
+  const mockTimeline = () => ({
+    to: vi.fn().mockReturnThis(),
+    call: vi.fn().mockReturnThis(),
+    set: vi.fn().mockReturnThis(),
+  })
+  const mockGsap = {
+    to: vi.fn(),
+    set: vi.fn(),
+    timeline: vi.fn(mockTimeline),
+  }
+  return {
+    default: mockGsap,
+    ...mockGsap,
+  }
+})
+
+// Avoid lazy-import teardown hangs when navigating to the feed (AppShell + FeedView
+// pull in PostCard/LeftSidebar/AmbientNetwork). In the registration flow the
+// AppShell is not rendered, but the router still has to resolve the lazy
+// components for the navigation to complete deterministically with flushPromises.
+vi.mock('@/views/AppShell.vue', () => ({
+  default: { name: 'AppShellStub', template: '<div><router-view /></div>' },
+}))
+vi.mock('@/views/FeedView.vue', () => ({
+  default: { name: 'FeedViewStub', template: '<div data-testid="feed-view">feed</div>' },
+}))
+vi.mock('@/views/ProfileView.vue', () => ({
+  default: { name: 'ProfileViewStub', template: '<div>profile</div>' },
+}))
+vi.mock('@/components/LeftSidebar.vue', () => ({
+  default: { name: 'LeftSidebarStub', template: '<div>left</div>' },
+}))
+vi.mock('@/components/RightSidebar.vue', () => ({
+  default: { name: 'RightSidebarStub', template: '<div>right</div>' },
+}))
+vi.mock('@/components/PostCard.vue', () => ({
+  default: { name: 'PostCardStub', template: '<div>post</div>' },
 }))
 
 import { register as mockRegister } from '@/api/auth'
@@ -44,7 +86,7 @@ function mountRegister() {
       plugins: [pinia, router],
     },
   })
-  return { wrapper, router }
+  return { wrapper, router, pinia }
 }
 
 const userResponse: UserResponse = {
@@ -56,6 +98,13 @@ const userResponse: UserResponse = {
   location: null,
   profilePictureId: null,
   status: 'ACTIVE',
+}
+
+async function fillRequiredFields(wrapper: VueWrapper) {
+  await wrapper.find('[data-testid="register-username"]').setValue('alice')
+  await wrapper.find('[data-testid="register-password"]').setValue('secret12')
+  await wrapper.find('[data-testid="register-email"]').setValue('a@x.io')
+  await wrapper.find('[data-testid="register-displayName"]').setValue('Alice')
 }
 
 describe('RegisterView', () => {
@@ -93,14 +142,11 @@ describe('RegisterView', () => {
     mockedRegister.mockResolvedValue({ id: 1, username: 'alice', displayName: 'Alice', email: 'a@x.io', token: 'tok' })
     mockedGetMe.mockResolvedValue(userResponse)
 
-    const { wrapper, router } = mountRegister()
+    const { wrapper, router, pinia } = mountRegister()
     await router.push('/register')
     await flushPromises()
 
-    await wrapper.find('[data-testid="register-username"]').setValue('alice')
-    await wrapper.find('[data-testid="register-password"]').setValue('secret12')
-    await wrapper.find('[data-testid="register-email"]').setValue('a@x.io')
-    await wrapper.find('[data-testid="register-displayName"]').setValue('Alice')
+    await fillRequiredFields(wrapper)
     await wrapper.find('[data-testid="register-gender"]').setValue('FEMALE')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
@@ -109,6 +155,14 @@ describe('RegisterView', () => {
     expect(wrapper.find('[data-testid="register-bio"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="register-skip"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="register-complete"]').exists()).toBe(true)
+
+    // Strengthened: verify authentication side effect
+    const { useAuthStore } = await import('@/stores/auth')
+    const auth = useAuthStore(pinia)
+    expect(auth.isAuthenticated).toBe(true)
+    expect(auth.token).toBe('tok')
+    expect(localStorage.getItem('sarv.jwt')).toBe('tok')
+    expect(auth.user).toEqual(expect.objectContaining({ username: 'alice' }))
   })
 
   it('shows backend detail when registration fails', async () => {
@@ -118,10 +172,7 @@ describe('RegisterView', () => {
     await router.push('/register')
     await flushPromises()
 
-    await wrapper.find('[data-testid="register-username"]').setValue('alice')
-    await wrapper.find('[data-testid="register-password"]').setValue('secret12')
-    await wrapper.find('[data-testid="register-email"]').setValue('a@x.io')
-    await wrapper.find('[data-testid="register-displayName"]').setValue('Alice')
+    await fillRequiredFields(wrapper)
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
@@ -136,24 +187,14 @@ describe('RegisterView', () => {
     await router.push('/register')
     await flushPromises()
 
-    await wrapper.find('[data-testid="register-username"]').setValue('alice')
-    await wrapper.find('[data-testid="register-password"]').setValue('secret12')
-    await wrapper.find('[data-testid="register-email"]').setValue('a@x.io')
-    await wrapper.find('[data-testid="register-displayName"]').setValue('Alice')
+    await fillRequiredFields(wrapper)
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    await new Promise((r) => setTimeout(r, 60))
-    await flushPromises()
+
+    expect(wrapper.find('[data-testid="register-skip"]').exists()).toBe(true)
 
     await wrapper.find('[data-testid="register-skip"]').trigger('click')
     await flushPromises()
-    {
-      const start = Date.now()
-      while (router.currentRoute.value.name !== 'feed' && Date.now() - start < 1000) {
-        await new Promise((r) => setTimeout(r, 20))
-        await flushPromises()
-      }
-    }
 
     expect(router.currentRoute.value.name).toBe('feed')
     expect(mockedUpdateMe).not.toHaveBeenCalled()
@@ -168,26 +209,14 @@ describe('RegisterView', () => {
     await router.push('/register')
     await flushPromises()
 
-    await wrapper.find('[data-testid="register-username"]').setValue('alice')
-    await wrapper.find('[data-testid="register-password"]').setValue('secret12')
-    await wrapper.find('[data-testid="register-email"]').setValue('a@x.io')
-    await wrapper.find('[data-testid="register-displayName"]').setValue('Alice')
+    await fillRequiredFields(wrapper)
     await wrapper.find('form').trigger('submit')
-    await flushPromises()
-    await new Promise((r) => setTimeout(r, 60))
     await flushPromises()
 
     await wrapper.find('[data-testid="register-bio"]').setValue('hello')
     await wrapper.find('[data-testid="register-location"]').setValue('Tehran')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    {
-      const start = Date.now()
-      while (router.currentRoute.value.name !== 'feed' && Date.now() - start < 1000) {
-        await new Promise((r) => setTimeout(r, 20))
-        await flushPromises()
-      }
-    }
 
     expect(mockedUpdateMe).toHaveBeenCalledWith(
       expect.objectContaining({ bio: 'hello', location: 'Tehran' }),
@@ -205,18 +234,12 @@ describe('RegisterView', () => {
     await router.push('/register')
     await flushPromises()
 
-    await wrapper.find('[data-testid="register-username"]').setValue('alice')
-    await wrapper.find('[data-testid="register-password"]').setValue('secret12')
-    await wrapper.find('[data-testid="register-email"]').setValue('a@x.io')
-    await wrapper.find('[data-testid="register-displayName"]').setValue('Alice')
+    await fillRequiredFields(wrapper)
     await wrapper.find('form').trigger('submit')
-    await flushPromises()
-    await new Promise((r) => setTimeout(r, 60))
     await flushPromises()
 
     const file = new File(['img'], 'avatar.png', { type: 'image/png' })
     const input = wrapper.find('[data-testid="register-file"]')
-    // jsdom file input: set files property then trigger change
     Object.defineProperty(input.element, 'files', { value: [file] })
     await input.trigger('change')
     await flushPromises()
@@ -225,13 +248,6 @@ describe('RegisterView', () => {
 
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    {
-      const start = Date.now()
-      while (router.currentRoute.value.name !== 'feed' && Date.now() - start < 1000) {
-        await new Promise((r) => setTimeout(r, 20))
-        await flushPromises()
-      }
-    }
 
     expect(mockedUploadMedia).toHaveBeenCalledOnce()
     expect(mockedUpdateMe).toHaveBeenCalledWith(expect.objectContaining({ profilePictureId: 42 }))
