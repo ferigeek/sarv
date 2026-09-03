@@ -27,7 +27,7 @@ function onLogout() {
   <aside class="left-sidebar" data-testid="left-sidebar">
     <div class="left-sidebar__brand">
       <SarvLogo />
-      <p class="left-sidebar__tagline">cypress / matrix / linux / hacker</p>
+      <p class="left-sidebar__tagline">A twitter like social media platform by ferigeek</p>
     </div>
 
     <section class="panel left-block" data-testid="left-search">
