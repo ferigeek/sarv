@@ -48,17 +48,17 @@ onMounted(() => {
 
   els.forEach((el, i) => {
     const finalChar = chars[i] ?? ''
-    tl.call(() => scrambleChars(el, finalChar, 0.35), undefined, i * 0.14)
-    tl.to(el, { opacity: 1, y: 0, duration: 0.22, ease: 'steps(4)' }, i * 0.14)
+    tl.call(() => scrambleChars(el, finalChar, 0.8), undefined, i * 0.3)
+    tl.to(el, { opacity: 1, y: 0, duration: 0.45, ease: 'steps(6)' }, i * 0.3)
   })
 
   // Subtle glow pulse after construction completes — reinforces computer/terminal identity
   tl.to(
     rootRef.value,
-    { filter: 'drop-shadow(0 0 8px var(--sarv-green))', duration: 0.3, ease: 'power1.out' },
-    '+=0.15',
+    { filter: 'drop-shadow(0 0 8px var(--sarv-green))', duration: 0.6, ease: 'power1.out' },
+    '+=0.25',
   )
-  tl.to(rootRef.value, { filter: 'drop-shadow(0 0 4px var(--sarv-green))', duration: 0.4 }, '+=0.1')
+  tl.to(rootRef.value, { filter: 'drop-shadow(0 0 4px var(--sarv-green))', duration: 0.8 }, '+=0.2')
 })
 </script>
 
