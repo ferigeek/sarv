@@ -215,7 +215,7 @@ The `ranked = sorted(candidates, key=score_post, reverse=True)` determines final
 5. On `rankedIds.isEmpty()` or any `Exception` (timeout, `RestClientException`, `null` body) → `log.warn` and fallback to `getChronological(pageable)` (graceful degradation); transparent to client — identical `Page<PostResponse>` shape.
 6. Logs `REQUEST_FEED` with `metadata {feed_type: recommended, page,size,total_elements,returned,...}` via `EventLoggingAspect.java:84`.
 
-`docker-compose.yaml` exposes backend `8080`, recommendation `8000`, Postgres `5432`, and sets `RECOMMENDATION_URL` for backend.
+`docker-compose.yaml` exposes backend `8080`, recommendation `8000`, Postgres `5432`, frontend `3000` (see [7-Frontend.md](./7-Frontend.md)), and sets `RECOMMENDATION_URL` for backend.
 
 ---
 

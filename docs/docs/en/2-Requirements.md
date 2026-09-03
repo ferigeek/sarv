@@ -36,6 +36,8 @@ Deliberately, certain components have been excluded from the initial phase of th
 
 While these items can be integrated into the system in later development phases, the current focus remains on designing a scalable, modular, and upgradeable backend system that can expand in the future without requiring fundamental architectural changes.
 
+> **Scope evolution:** since this requirements phase, a web client **has** been built — the Frontend service (Vue 3 + TypeScript SPA, implemented with AI agents per `frontend/Design.md`). It is documented in [7-Frontend.md](./7-Frontend.md). Mobile clients remain out of scope.
+
 ## Use Cases
 
 ### System Boundary
@@ -297,6 +299,8 @@ social-network-platform/
 │
 ├── backend/               # Main Application Logic & Data Management (Java/Spring Boot)
 │
+├── frontend/              # Web Client (Vue 3 + TypeScript SPA, AI-generated; see 7-Frontend.md)
+│
 ├── intelligence/          # Data Processing & Intelligent Services (Python)
 │   ├── recommendation/    # Smart Ranking & Personalized Feed Algorithms
 │   └── analytics/         # Offline Log Processing & User Behavior Metrics
@@ -313,7 +317,9 @@ social-network-platform/
 - **Python:** 
 	  The platform's intelligence layer (encompassing recommendation and analytics engines) is developed in Python. Python's clean syntax, rapid prototyping speed, and dominant data processing ecosystem make it the ideal choice for data heavy tasks. This layer heavily utilizes optimized vector and analytics libraries including `numpy`, `pandas`, and `scikit-learn` to process interaction logs and execute ML ranking models.
 - **PostgreSQL:** 
-	  Serves as the primary object-relational database management system (ORDBMS). Chosen for its enterprise reliability, complex query optimization engines, and robust ACID transaction guarantees, it safely handles relational social graphs, user states, and core platform content.
+ 	  Serves as the primary object-relational database management system (ORDBMS). Chosen for its enterprise reliability, complex query optimization engines, and robust ACID transaction guarantees, it safely handles relational social graphs, user states, and core platform content.
+- **Vue 3, TypeScript & Vite:**
+	  The web client (added after the requirements phase, written using AI agents) is a single-page application built with Vue 3 + TypeScript, bundled by Vite, with `vue-router` for routing, `pinia` for session state, and `axios` for API calls. It is served by nginx in production and documented in [7-Frontend.md](./7-Frontend.md).
 - **Markdown & MkDocs:** 
 	  Technical documentation follows a "Documentation as Code" philosophy, written in lightweight Markdown and built into an accessible, searchable static documentation website using the MkDocs static site generator.
 - **Git & GitHub:** 

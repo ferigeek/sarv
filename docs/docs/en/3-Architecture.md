@@ -20,6 +20,7 @@ A Monitoring Subsystem is also included to collect operational metrics and provi
 ```mermaid
 graph TD
     Client(Client / User)
+    Frontend(Frontend / Vue SPA)
     LocalFileStorage[(Local File Storage / uploads directory)]
     Monitoring(Monitoring System / planned)
 
@@ -30,7 +31,8 @@ graph TD
         Postgres[(PostgreSQL Database)]
     end
 
-    Client -- HTTP REST --> Backend
+    Client -- Browser --> Frontend
+    Frontend -- HTTP REST --> Backend
     Backend -- SQL --> Postgres
     Backend -- Binary Read/Write --> LocalFileStorage
     Recommender -- SQL --> Postgres
@@ -71,10 +73,18 @@ This separation of concerns improves maintainability and allows individual layer
 The Core Backend is responsible for user management, profiles, posts, comments, user interactions, follow relationships, feed generation, and communication with external subsystems. Its implementation is documented in detail in [5-Backend.md](./5-Backend.md).
 
 When a user creates a new post, the backend first validates the incoming request. If media files are attached, the files are written to the local filesystem (content-addressed by their SHA-256 hash) and only media metadata is stored in PostgreSQL.
-
 When generating a feed, the backend either serves a chronological feed (`GET /api/feed/chronological` with `PageableDefault(size=20, sort=createdAt,DESC)`) or a personalized feed (`GET /api/feed/recommended` with `@AuthenticationPrincipal` forwarding `page/size` to the Recommendation Service and hydrating via `findAllByIdsFiltered` preserving rank order, falling back to chronological on empty/timeout).
 
 ---
+
+## Frontend (Web Client)
+
+The Frontend is the web client of the platform — a Vue 3 + TypeScript single-page application (Vite, Pinia, Axios) served by nginx and deployed as the `frontend` service in `docker-compose.yaml` (`3000:80`, proxying same-origin `/api/` to the Core Backend). Unlike the backend and recommendation services, it was written using AI agents against `frontend/Design.md` and the backend API contracts.
+
+Users never call the Core Backend directly in normal use: the browser loads the SPA, which performs login/registration, stores the JWT in `localStorage`, attaches it as `Authorization: Bearer <token>`, and renders feed, posts, profiles, search, and media upload flows. Its implementation is documented in detail in [7-Frontend.md](./7-Frontend.md).
+
+---
+
 ## Recommendation System
 
 The Recommendation System is responsible for content personalization and feed ranking and is documented in detail in [6-Recommendation.md](./6-Recommendation.md).
@@ -136,6 +146,7 @@ As a result, each category of data is stored in the environment most suitable fo
 | Component | Status |
 |-----------|--------|
 | Core Backend (users, auth, posts, reactions, follows, media) | Implemented |
+| Frontend web client (auth, feed tabs, posts, reactions, profiles, search, media) | Implemented (AI-generated; topics/news content and repost/quote/comment still placeholders — see [7-Frontend.md](./7-Frontend.md)) |
 | Media storage on local filesystem | Implemented |
 | Event logging (`event_logs`) | Implemented — `REQUEST_FEED` with `metadata {feed_type, page, size, total_elements}` |
 | Feed generation (chronological / smart feed) | Implemented — `GET /api/feed/chronological` and `GET /api/feed/recommended` with `Page<PostResponse>` and graceful fallback |

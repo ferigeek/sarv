@@ -215,7 +215,7 @@ return engagement * recency_boost * follow_boost
 5. در صورت `rankedIds.isEmpty()` یا هر `Exception` (تایم‌اوت، `RestClientException`، بدنه `null`) → ثبت `log.warn` و fallback به `getChronological(pageable)` (تخریب مهربانانه)؛ برای کلاینت شفاف است — شکل یکسان `Page<PostResponse>`.
 6. ثبت `REQUEST_FEED` با `metadata {feed_type: recommended, page,size,total_elements,returned,...}` از طریق `EventLoggingAspect.java:84`.
 
-`docker-compose.yaml` پورت‌های بک‌اند `8080`، توصیه‌گر `8000`، Postgres `5432` را اکسپوز کرده و `RECOMMENDATION_URL` را برای بک‌اند ست می‌کند.
+`docker-compose.yaml` پورت‌های بک‌اند `8080`، توصیه‌گر `8000`، Postgres `5432` و فرانت‌اند `3000` (به [7-Frontend.md](./7-Frontend.md) مراجعه کنید) را اکسپوز کرده و `RECOMMENDATION_URL` را برای بک‌اند ست می‌کند.
 
 ---
 

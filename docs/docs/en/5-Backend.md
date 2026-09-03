@@ -61,7 +61,7 @@ Incoming HTTP requests are handled in the controller layer, where authentication
 
 ## API Reference
 
-All endpoints are prefixed with `/api`. Except where marked **public**, every endpoint requires an `Authorization: Bearer <token>` header and returns `404` / `401` when the JWT is missing or invalid.
+All endpoints are prefixed with `/api`. Except where marked **public**, every endpoint requires an `Authorization: Bearer <token>` header and returns `404` / `401` when the JWT is missing or invalid. The primary consumer is the Frontend web client (see [7-Frontend.md](./7-Frontend.md)), which calls these endpoints same-origin via its `/api` proxy.
 
 ### Authentication (`/api/auth`)
 
@@ -292,7 +292,7 @@ The service is containerized. From the repository root:
 docker compose up --build
 ```
 
-This starts PostgreSQL, the Core Backend (port `8080`), and the Recommendation Service (port `8000`). A named volume (`uploads`) persists media files across container restarts. Alternatively, run locally with `./mvnw spring-boot:run` after exporting the environment variables above.
+This starts PostgreSQL, the Core Backend (port `8080`), the Recommendation Service (port `8000`), and the Frontend web client (port `3000`; see [7-Frontend.md](./7-Frontend.md)). A named volume (`uploads`) persists media files across container restarts. Alternatively, run locally with `./mvnw spring-boot:run` after exporting the environment variables above.
 
 ---
 

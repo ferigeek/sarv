@@ -14,3 +14,5 @@
 | [Architecture](3-Architecture.md) | System design and components |
 | [Database](4-Database.md) | Database design and schema |
 | [Backend](5-Backend.md) | Core backend implementation |
+| [Recommendation](6-Recommendation.md) | Recommendation service (feed ranking) |
+| [Frontend](7-Frontend.md) | Web client implementation (Vue 3 + Vite, AI-generated) |
