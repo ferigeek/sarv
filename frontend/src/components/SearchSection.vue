@@ -325,4 +325,14 @@ function onTab(tab: Tab) {
   font-size: 11px;
   color: var(--sarv-text-dim);
 }
+
+@media (max-width: 640px) {
+  .search-panel {
+    max-height: 50dvh;
+  }
+
+  .search-result {
+    min-height: 44px;
+  }
+}
 </style>

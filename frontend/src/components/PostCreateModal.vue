@@ -464,4 +464,32 @@ function close() {
   background: var(--sarv-panel);
   border-top:  01px solid var(--sarv-border);
 }
+
+@media (max-width: 640px) {
+  .post-create-overlay {
+    place-items: end center;
+    padding: 0;
+  }
+
+  .post-create-panel {
+    max-width: 100%;
+    max-height: 92dvh;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-top: 2px solid var(--sarv-green-dark);
+  }
+
+  .post-create__footer {
+    position: sticky;
+    bottom: 0;
+    padding-bottom: calc(var(--sarv-space-3) + env(safe-area-inset-bottom));
+  }
+
+  .post-create__footer .btn {
+    flex: 1;
+    min-height: 48px;
+    justify-content: center;
+  }
+}
 </style>
