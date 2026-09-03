@@ -393,4 +393,27 @@ async function onSkip() {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+@media (max-width: 640px) {
+  .register-view {
+    padding: var(--sarv-space-3);
+    padding-bottom: calc(var(--sarv-space-3) + env(safe-area-inset-bottom));
+  }
+
+  .auth-box {
+    padding: var(--sarv-space-5) var(--sarv-space-4);
+  }
+
+  .auth-submit,
+  .auth-actions .btn {
+    min-height: 48px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 380px) {
+  .auth-actions {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

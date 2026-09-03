@@ -532,4 +532,48 @@ onBeforeUnmount(() => {
   color: var(--sarv-text-dim);
   background: var(--sarv-bg);
 }
+
+@media (max-width: 640px) {
+  .profile-header {
+    padding: var(--sarv-space-4);
+  }
+
+  .profile-header__main {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .profile-avatar {
+    width: 56px;
+    height: 56px;
+  }
+
+  .profile-name {
+    font-size: 16px;
+  }
+
+  .profile-header__actions {
+    justify-content: stretch;
+  }
+
+  .profile-header__actions .btn {
+    flex: 1;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .profile-edit {
+    padding: var(--sarv-space-4);
+  }
+
+  .profile-edit__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .profile-edit__actions .btn {
+    min-height: 44px;
+    justify-content: center;
+  }
+}
 </style>

@@ -195,4 +195,19 @@ async function onSubmit() {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+@media (max-width: 640px) {
+  .login-view {
+    padding: var(--sarv-space-3);
+    padding-bottom: calc(var(--sarv-space-3) + env(safe-area-inset-bottom));
+  }
+
+  .auth-box {
+    padding: var(--sarv-space-5) var(--sarv-space-4);
+  }
+
+  .auth-submit {
+    min-height: 48px;
+  }
+}
 </style>
