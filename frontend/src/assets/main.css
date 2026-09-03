@@ -39,6 +39,10 @@
 
   /* Effects */
   --sarv-glow: 0 0 6px color-mix(in srgb, var(--sarv-green) 60%, transparent);
+
+  /* Mobile shell dimensions */
+  --sarv-topbar-h: 56px;
+  --sarv-bottomnav-h: 60px;
 }
 
 /* The entire interface is sharp and square — no rounded corners (Design 2.2). */
@@ -54,6 +58,19 @@ html,
 body,
 #app {
   height: 100%;
+}
+
+/* Prefer dynamic viewport height on mobile so the shell survives URL-bar collapse. */
+@supports (height: 100dvh) {
+  html,
+  body,
+  #app {
+    height: 100dvh;
+  }
+}
+
+body.no-scroll {
+  overflow: hidden;
 }
 
 body {
@@ -199,5 +216,35 @@ select {
   100% {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+/* Mobile foundation: tap highlight, touch targets, safe-area, iOS zoom guard. */
+@media (max-width: 640px) {
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  .btn,
+  .left-nav__item,
+  .post-action,
+  .search-result,
+  .feed-tab {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

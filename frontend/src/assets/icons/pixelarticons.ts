@@ -46,6 +46,12 @@ const icons: Record<string, IconifyIcon> = {
   share: {
     body: '<path fill="currentColor" d="M20 22H4v-2h16zM4 20H2v-6h2zm18 0h-2v-6h2zM13 4h2v2h2v2h-4v10h-2V8H7V6h2V4h2V2h2zM9 14H4v-2h5zm11 0h-5v-2h5z"/>',
   },
+  home: {
+    body: '<path fill="currentColor" d="M10 2h4v2h-4zM8 4h8v2H8zM6 6h12v2H6zM4 8h16v2H4zM2 10h20v2H2zm0 2h2v10H2zm18 0h2v10h-2zM4 20h16v2H4z"/>',
+  },
+  menu: {
+    body: '<path fill="currentColor" d="M2 6h20v2H2zm0 6h20v2H2zm0 6h20v2H2z"/>',
+  },
 }
 
 const collection: IconifyJSON = {
