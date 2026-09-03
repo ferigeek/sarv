@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AmbientNetwork from './AmbientNetwork.vue'
 import HotTopicsPanel from './HotTopicsPanel.vue'
 import PlatformNewsPanel from './PlatformNewsPanel.vue'
 </script>
@@ -7,6 +8,9 @@ import PlatformNewsPanel from './PlatformNewsPanel.vue'
   <aside class="right-sidebar" data-testid="right-sidebar">
     <HotTopicsPanel />
     <PlatformNewsPanel />
+    <div class="right-ambient-wrap" data-testid="right-ambient">
+      <AmbientNetwork />
+    </div>
   </aside>
 </template>
 
@@ -22,6 +26,17 @@ import PlatformNewsPanel from './PlatformNewsPanel.vue'
 
 /* RightSidebar itself is the scroll container; panels sit on a shared border background. */
 .right-sidebar :deep(.right-panel) {
+  flex-shrink: 0;
+}
+
+.right-ambient-wrap {
+  flex: 1 1 auto;
+  min-height: 160px;
+  display: flex;
+  background: var(--sarv-panel);
+  border-top: 1px solid var(--sarv-border);
+  border-bottom: 1px solid var(--sarv-border);
+  overflow: hidden;
   flex-shrink: 0;
 }
 </style>
