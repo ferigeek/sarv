@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 
+import AmbientNetwork from './AmbientNetwork.vue'
 import AppIcon from './AppIcon.vue'
 import NavigationMenu from './NavigationMenu.vue'
 import PostCreateModal from './PostCreateModal.vue'
@@ -52,6 +53,10 @@ function onLogout() {
     <section class="panel left-block">
       <NavigationMenu />
     </section>
+
+    <div class="left-ambient-wrap" data-testid="left-ambient">
+      <AmbientNetwork />
+    </div>
 
     <div class="left-sidebar__logout">
       <button
@@ -104,8 +109,18 @@ function onLogout() {
   color: var(--sarv-text-faint);
 }
 
+.left-ambient-wrap {
+  flex: 1 1 auto;
+  min-height: 160px;
+  display: flex;
+  background: var(--sarv-panel);
+  border-top: 1px solid var(--sarv-border);
+  border-bottom: 1px solid var(--sarv-border);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
 .left-sidebar__logout {
-  margin-top: auto;
   background: var(--sarv-panel);
   padding: var(--sarv-space-3) var(--sarv-space-4);
   border-top: 1px solid var(--sarv-border);
