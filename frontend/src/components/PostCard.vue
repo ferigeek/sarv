@@ -488,4 +488,44 @@ async function onDislike() {
   image-rendering: pixelated;
   filter: contrast(1.2);
 }
+
+@media (max-width: 640px) {
+  .post-card {
+    padding: var(--sarv-space-3);
+  }
+
+  .post-header {
+    gap: var(--sarv-space-2);
+  }
+
+  .post-time {
+    font-size: 10px;
+    max-width: 96px;
+    white-space: normal;
+    text-align: right;
+    line-height: 1.3;
+  }
+
+  .post-footer {
+    gap: 4px;
+  }
+
+  .post-action,
+  .post-stat {
+    min-height: 44px;
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  /* Icon-only for not-yet-implemented actions to save horizontal space. */
+  .post-action--inert {
+    font-size: 0;
+    gap: 0;
+    padding: 4px 10px;
+  }
+
+  .post-media__img {
+    max-height: 300px;
+  }
+}
 </style>

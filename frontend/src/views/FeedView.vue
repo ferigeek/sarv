@@ -308,4 +308,27 @@ onMounted(() => {
   min-width: 160px;
   justify-content: center;
 }
+
+@media (max-width: 640px) {
+  .feed-header {
+    padding: var(--sarv-space-2) var(--sarv-space-3);
+  }
+
+  .feed-tabs {
+    top: var(--sarv-topbar-h);
+  }
+
+  .feed-tab {
+    padding: var(--sarv-space-2) var(--sarv-space-3);
+  }
+
+  .feed-footer {
+    padding: var(--sarv-space-3);
+  }
+
+  .feed-load-more {
+    width: 100%;
+    min-height: 48px;
+  }
+}
 </style>
