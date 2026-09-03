@@ -27,7 +27,7 @@ provide('feedRefreshKey', refreshKey)
 <style scoped>
 .app-shell {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 320px;
+  grid-template-columns: 300px minmax(0, 1fr) 320px;
   height: 100%;
   gap: 1px;
   background: var(--sarv-border);
@@ -44,13 +44,13 @@ provide('feedRefreshKey', refreshKey)
 /* Preserve the center-is-largest hierarchy on narrower viewports. */
 @media (max-width: 1100px) {
   .app-shell {
-    grid-template-columns: 220px minmax(0, 1fr) 280px;
+    grid-template-columns: 260px minmax(0, 1fr) 280px;
   }
 }
 
 @media (max-width: 900px) {
   .app-shell {
-    grid-template-columns: 200px minmax(0, 1fr);
+    grid-template-columns: 240px minmax(0, 1fr);
   }
 
   /* Right sidebar collapses on tablet; hot topics / news remain reachable via future mobile nav. */
