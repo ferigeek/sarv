@@ -315,7 +315,9 @@ onMounted(() => {
   }
 
   .feed-tabs {
-    top: var(--sarv-topbar-h);
+    /* The mobile top bar is a separate grid row above the scroll container,
+       not an overlay — so the tabs must pin flush to the scrollport top. */
+    top: 0;
   }
 
   .feed-tab {
