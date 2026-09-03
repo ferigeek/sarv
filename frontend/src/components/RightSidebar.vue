@@ -39,4 +39,11 @@ import PlatformNewsPanel from './PlatformNewsPanel.vue'
   overflow: hidden;
   flex-shrink: 0;
 }
+
+/* Skip the ambient canvas inside the tablet/mobile drawer to save space and GPU. */
+@media (max-width: 900px) {
+  .right-ambient-wrap {
+    display: none;
+  }
+}
 </style>
