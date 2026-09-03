@@ -6,6 +6,7 @@ import type { ApiError } from '@/api/client'
 import { uploadMedia } from '@/api/media'
 import { updateMe } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
+import SarvMark from '@/components/SarvMark.vue'
 import type { Gender } from '@/types/api'
 
 const router = useRouter()
@@ -126,6 +127,7 @@ async function onSkip() {
 <template>
   <main class="register-view" data-testid="register-view">
     <section class="panel auth-box">
+      <SarvMark :size="64" class="auth-mark" />
       <h1 class="auth-brand">SARV</h1>
 
       <!-- Step 1 -->
@@ -292,6 +294,11 @@ async function onSkip() {
   padding: var(--sarv-space-6) var(--sarv-space-6);
   border-color: var(--sarv-green-dark);
   box-shadow: var(--sarv-glow);
+}
+
+.auth-mark {
+  display: block;
+  margin: 0 auto var(--sarv-space-3);
 }
 
 .auth-brand {

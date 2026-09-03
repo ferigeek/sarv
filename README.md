@@ -1,4 +1,8 @@
-# 🌳 Sarv (سرو)
+# Sarv (سرو)
+
+<p align="center">
+  <img src="assets/icons/icon_sarv_256.png" alt="Sarv logo" width="128" />
+</p>
 
 <p align="center">
 <a href="README_FA.md">فارسی</a>

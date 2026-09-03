@@ -9,6 +9,7 @@ import AppIcon from './AppIcon.vue'
 import NavigationMenu from './NavigationMenu.vue'
 import PostCreateModal from './PostCreateModal.vue'
 import SarvLogo from './SarvLogo.vue'
+import SarvMark from './SarvMark.vue'
 import SearchSection from './SearchSection.vue'
 import UserSummary from './UserSummary.vue'
 
@@ -27,7 +28,10 @@ function onLogout() {
 <template>
   <aside class="left-sidebar" data-testid="left-sidebar">
     <div class="left-sidebar__brand">
-      <SarvLogo />
+      <div class="left-sidebar__brand-row">
+        <SarvMark :size="32" />
+        <SarvLogo />
+      </div>
       <p class="left-sidebar__tagline">A twitter like social media platform by ferigeek</p>
     </div>
 
@@ -99,6 +103,12 @@ function onLogout() {
   padding: var(--sarv-space-5) var(--sarv-space-4);
   border-bottom: 1px solid var(--sarv-border);
   flex-shrink: 0;
+}
+
+.left-sidebar__brand-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sarv-space-3);
 }
 
 .left-sidebar__tagline {

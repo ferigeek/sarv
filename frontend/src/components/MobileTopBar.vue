@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppIcon from './AppIcon.vue'
 import SarvLogo from './SarvLogo.vue'
+import SarvMark from './SarvMark.vue'
 
 defineProps<{ title: string }>()
 
@@ -24,6 +25,7 @@ const emit = defineEmits<{
     </button>
 
     <div class="mobile-topbar__brand">
+      <SarvMark :size="24" />
       <SarvLogo class="mobile-topbar__logo" />
       <span class="mobile-topbar__title" data-testid="mobile-topbar-title">{{ title }}</span>
     </div>

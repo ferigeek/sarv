@@ -1,4 +1,4 @@
-site_name: 🌳 Sarv (سرو)
+site_name: Sarv (سرو)
 site_url: https://ferigeek.github.io/sarv/
 docs_dir: docs
 site_dir: site
@@ -40,6 +40,8 @@ theme:
 
   icon:
     repo: material/git
+  favicon: assets/icons/icon_sarv_32.png
+  logo: assets/icons/icon_sarv_128.png
 
 plugins:
   - search

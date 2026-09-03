@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 import type { ApiError } from '@/api/client'
+import SarvMark from '@/components/SarvMark.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -45,6 +46,7 @@ async function onSubmit() {
 <template>
   <main class="login-view" data-testid="login-view">
     <section class="panel auth-box">
+      <SarvMark :size="64" class="auth-mark" />
       <h1 class="auth-brand">SARV</h1>
       <p class="auth-hint">sign in to continue</p>
 
@@ -109,6 +111,11 @@ async function onSubmit() {
   padding: var(--sarv-space-6) var(--sarv-space-6);
   border-color: var(--sarv-green-dark);
   box-shadow: var(--sarv-glow);
+}
+
+.auth-mark {
+  display: block;
+  margin: 0 auto var(--sarv-space-3);
 }
 
 .auth-brand {

@@ -1,4 +1,8 @@
-# 🌳 سرو (Sarv)
+# سرو (Sarv)
+
+<p align="center">
+  <img src="assets/icons/icon_sarv_256.png" alt="لوگوی سرو" width="128" />
+</p>
   
 <p align="center">
     <a href="README.md">English</a>

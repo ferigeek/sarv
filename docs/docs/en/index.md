@@ -1,4 +1,6 @@
-# 🌳 Sarv (سرو)
+# Sarv (سرو)
+
+![Sarv logo](../assets/icons/icon_sarv_128.png)
 
 | Link | Value |
 |------|-------|
