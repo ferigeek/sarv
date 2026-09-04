@@ -22,7 +22,7 @@ vi.mock('@/api/media', () => ({
   getMediaMetadata: vi.fn<() => Promise<import('@/types/api').MediaMetadataResponse>>(),
 }))
 
-import { getMediaBlob as mockGetMediaBlob } from '@/api/media'
+import { getMediaBlob as mockGetMediaBlob, getMediaMetadata as mockGetMediaMetadata } from '@/api/media'
 import { addReaction as mockAddReaction, getReaction as mockGetReaction, removeReaction as mockRemoveReaction } from '@/api/reactions'
 import { getUser as mockGetUser } from '@/api/users'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
@@ -35,6 +35,7 @@ const mockedGetReaction = vi.mocked(mockGetReaction)
 const mockedAddReaction = vi.mocked(mockAddReaction)
 const mockedRemoveReaction = vi.mocked(mockRemoveReaction)
 const mockedGetMediaBlob = vi.mocked(mockGetMediaBlob)
+const mockedGetMediaMetadata = vi.mocked(mockGetMediaMetadata)
 
 function makePost(overrides: Partial<PostResponse> = {}): PostResponse {
   return {
@@ -69,6 +70,13 @@ describe('PostCard', () => {
     })
     mockedGetReaction.mockResolvedValue({ likeCount: 2, dislikeCount: 1, userReaction: 0 })
     mockedGetMediaBlob.mockResolvedValue(new Blob(['x'], { type: 'image/png' }))
+    mockedGetMediaMetadata.mockResolvedValue({
+      id: 42,
+      size: 1,
+      name: 'pic.png',
+      mimeType: 'image/png',
+      createdAt: '2026-09-02T10:00:00+00:00',
+    })
   })
 
   it('renders post content, view count and like/dislike counts', async () => {
@@ -189,5 +197,54 @@ describe('PostCard', () => {
 
     expect(mockedGetMediaBlob).toHaveBeenCalled()
     expect(wrapper.find('[data-testid="post-media"]').exists()).toBe(true)
+  })
+
+  it('renders an image element for image media including gifs', async () => {
+    mockedGetMediaMetadata.mockResolvedValue({
+      id: 43,
+      size: 2,
+      name: 'anim.gif',
+      mimeType: 'image/gif',
+      createdAt: '2026-09-02T10:00:00+00:00',
+    })
+    mockedGetMediaBlob.mockResolvedValue(new Blob(['gif'], { type: 'image/gif' }))
+    const wrapper = mount(PostCard, { props: { post: makePost({ mediaId: 43 }) } })
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 20))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="post-media-img"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="post-media-video"]').exists()).toBe(false)
+  })
+
+  it('renders a video element for video media', async () => {
+    mockedGetMediaMetadata.mockResolvedValue({
+      id: 44,
+      size: 3,
+      name: 'clip.mp4',
+      mimeType: 'video/mp4',
+      createdAt: '2026-09-02T10:00:00+00:00',
+    })
+    mockedGetMediaBlob.mockResolvedValue(new Blob(['video'], { type: 'video/mp4' }))
+    const wrapper = mount(PostCard, { props: { post: makePost({ mediaId: 44 }) } })
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 20))
+    await flushPromises()
+
+    const video = wrapper.find('[data-testid="post-media-video"]')
+    expect(video.exists()).toBe(true)
+    expect(video.attributes('controls')).toBeDefined()
+    expect(wrapper.find('[data-testid="post-media-img"]').exists()).toBe(false)
+  })
+
+  it('falls back to the blob content type when metadata is unavailable', async () => {
+    mockedGetMediaMetadata.mockRejectedValue(new Error('not found'))
+    mockedGetMediaBlob.mockResolvedValue(new Blob(['video'], { type: 'video/webm' }))
+    const wrapper = mount(PostCard, { props: { post: makePost({ mediaId: 45 }) } })
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 20))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="post-media-video"]').exists()).toBe(true)
   })
 })

@@ -31,6 +31,8 @@ const canSubmit = computed(() => {
   return hasContent || hasMedia
 })
 
+const isSelectedVideo = computed(() => selectedFile.value?.type.startsWith('video/') ?? false)
+
 function clearPreview() {
   if (previewObjectUrl) {
     URL.revokeObjectURL(previewObjectUrl)
@@ -175,7 +177,22 @@ function close() {
           <span class="field-label">media</span>
 
           <div v-if="previewUrl" class="post-create__preview" data-testid="post-create-preview">
-            <img :src="previewUrl" alt="selected media preview" class="post-create__preview-img" />
+            <video
+              v-if="isSelectedVideo"
+              :src="previewUrl"
+              controls
+              preload="metadata"
+              playsinline
+              class="post-create__preview-video"
+              data-testid="post-create-preview-video"
+            />
+            <img
+              v-else
+              :src="previewUrl"
+              alt="selected media preview"
+              class="post-create__preview-img"
+              data-testid="post-create-preview-img"
+            />
             <div class="post-create__preview-meta">
               <span class="post-create__preview-name">{{ selectedFile?.name }}</span>
               <button
@@ -355,7 +372,8 @@ function close() {
   border:  01px solid var(--sarv-border-bright);
 }
 
-.post-create__preview-img {
+.post-create__preview-img,
+.post-create__preview-video {
   display: block;
   width: 100%;
   max-height: 200px;

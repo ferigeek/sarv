@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
 import gsap from 'gsap'
 
-import { getMediaBlob } from '@/api/media'
+import { getMediaBlob, getMediaMetadata } from '@/api/media'
 import { addReaction, getReaction, removeReaction } from '@/api/reactions'
 import { getUser } from '@/api/users'
 import type { PostResponse, UserResponse, UserReaction } from '@/types/api'
@@ -15,6 +15,7 @@ const avatarUrl = ref<string | null>(null)
 let avatarObjectUrl: string | null = null
 
 const mediaUrl = ref<string | null>(null)
+const mediaMimeType = ref<string | null>(null)
 let mediaObjectUrl: string | null = null
 
 const likeCount = ref(props.post.likeCount)
@@ -35,6 +36,8 @@ const createdAtLabel = computed(() => {
   }
 })
 
+const isVideoMedia = computed(() => mediaMimeType.value?.startsWith('video/') ?? false)
+
 function clearAvatar() {
   if (avatarObjectUrl) {
     URL.revokeObjectURL(avatarObjectUrl)
@@ -49,6 +52,7 @@ function clearMedia() {
     mediaObjectUrl = null
   }
   mediaUrl.value = null
+  mediaMimeType.value = null
 }
 
 async function loadUser() {
@@ -87,12 +91,24 @@ async function loadReaction() {
 async function loadMedia() {
   clearMedia()
   if (!props.post.mediaId) return
+  const mediaId = props.post.mediaId
   try {
-    const blob = await getMediaBlob(props.post.mediaId)
+    const metadataPromise: Promise<{ mimeType: string } | null> = Promise.resolve()
+      .then(() => getMediaMetadata(mediaId))
+      .then(
+        (m) => m ?? null,
+        () => null,
+      )
+    const [metadata, blob] = await Promise.all([metadataPromise, getMediaBlob(mediaId)])
+    // Ignore stale responses when mediaId changed while fetching.
+    if (props.post.mediaId !== mediaId) return
     mediaObjectUrl = URL.createObjectURL(blob)
     mediaUrl.value = mediaObjectUrl
+    mediaMimeType.value = metadata?.mimeType ?? (blob.type || null)
   } catch {
+    if (props.post.mediaId !== mediaId) return
     mediaUrl.value = null
+    mediaMimeType.value = null
   }
 }
 
@@ -232,7 +248,16 @@ async function onDislike() {
     </div>
 
     <div v-if="mediaUrl" class="post-media" data-testid="post-media">
-      <img :src="mediaUrl" alt="post media" class="post-media__img" />
+      <video
+        v-if="isVideoMedia"
+        :src="mediaUrl"
+        controls
+        preload="metadata"
+        playsinline
+        class="post-media__video"
+        data-testid="post-media-video"
+      />
+      <img v-else :src="mediaUrl" alt="post media" class="post-media__img" data-testid="post-media-img" />
     </div>
 
     <footer class="post-footer">
@@ -391,11 +416,16 @@ async function onDislike() {
   overflow: hidden;
 }
 
-.post-media__img {
+.post-media__img,
+.post-media__video {
   display: block;
   width: 100%;
   max-height: 420px;
   object-fit: contain;
+}
+
+.post-media__video {
+  background: #000;
 }
 
 .post-footer {
@@ -524,7 +554,8 @@ async function onDislike() {
     padding: 4px 10px;
   }
 
-  .post-media__img {
+  .post-media__img,
+  .post-media__video {
     max-height: 300px;
   }
 }

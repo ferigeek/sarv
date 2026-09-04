@@ -153,4 +153,28 @@ describe('PostCreateModal', () => {
 
     expect(wrapper.find('[data-testid="post-create-submit"]').attributes('disabled')).toBeUndefined()
   })
+
+  it('previews video files with a video element instead of an image', async () => {
+    const wrapper = mountComposer()
+    const input = wrapper.find('[data-testid="post-create-media-input"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [makeFile('clip.mp4', 'video/mp4')],
+    })
+    await input.trigger('change')
+
+    expect(wrapper.find('[data-testid="post-create-preview-video"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="post-create-preview-img"]').exists()).toBe(false)
+  })
+
+  it('previews image files (including gifs) with an image element', async () => {
+    const wrapper = mountComposer()
+    const input = wrapper.find('[data-testid="post-create-media-input"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [makeFile('anim.gif', 'image/gif')],
+    })
+    await input.trigger('change')
+
+    expect(wrapper.find('[data-testid="post-create-preview-img"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="post-create-preview-video"]').exists()).toBe(false)
+  })
 })
