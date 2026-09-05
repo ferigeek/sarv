@@ -343,7 +343,7 @@ describe('LeftSidebar (Phase 4)', () => {
     expect(wrapper.find('[data-testid="post-create-modal"]').exists()).toBe(false)
   })
 
-  it('navigation: profile, liked, following and followers navigate', async () => {
+  it('navigation: home, profile, liked, following and followers navigate', async () => {
     setAuthenticated()
     const { wrapper, router } = mountLeftSidebar()
     await router.push('/')
@@ -394,5 +394,41 @@ describe('LeftSidebar (Phase 4)', () => {
       }
     }
     expect(router.currentRoute.value.name).toBe('followers')
+  })
+
+  it('home nav item and brand section navigate to the feed', async () => {
+    setAuthenticated()
+    const { wrapper, router } = mountLeftSidebar()
+    await router.push('/liked')
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="left-nav-home"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="left-nav-home"]').trigger('click')
+    await flushPromises()
+    {
+      const start = Date.now()
+      while (router.currentRoute.value.name !== 'feed' && Date.now() - start < 1000) {
+        await new Promise((r) => setTimeout(r, 20))
+        await flushPromises()
+      }
+    }
+    expect(router.currentRoute.value.name).toBe('feed')
+
+    await router.push('/liked')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="left-brand-home"]').trigger('click')
+    await flushPromises()
+    {
+      const start = Date.now()
+      while (router.currentRoute.value.name !== 'feed' && Date.now() - start < 1000) {
+        await new Promise((r) => setTimeout(r, 20))
+        await flushPromises()
+      }
+    }
+    expect(router.currentRoute.value.name).toBe('feed')
   })
 })

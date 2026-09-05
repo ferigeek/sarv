@@ -23,17 +23,27 @@ function onLogout() {
   auth.logout()
   void router.push({ name: 'login' })
 }
+
+function goHome() {
+  void router.push({ name: 'feed' })
+}
 </script>
 
 <template>
   <aside class="left-sidebar" data-testid="left-sidebar">
-    <div class="left-sidebar__brand">
-      <div class="left-sidebar__brand-row">
+    <button
+      class="left-sidebar__brand"
+      type="button"
+      data-testid="left-brand-home"
+      aria-label="Sarv — go to home feed"
+      @click="goHome"
+    >
+      <span class="left-sidebar__brand-row">
         <SarvMark :size="32" />
         <SarvLogo />
-      </div>
-      <p class="left-sidebar__tagline">A twitter like social media platform by ferigeek</p>
-    </div>
+      </span>
+      <span class="left-sidebar__tagline">A twitter like social media platform by ferigeek</span>
+    </button>
 
     <section class="panel left-block" data-testid="left-search">
       <SearchSection />
@@ -99,10 +109,26 @@ function onLogout() {
 }
 
 .left-sidebar__brand {
+  display: block;
+  width: 100%;
+  text-align: left;
   background: var(--sarv-panel);
   padding: var(--sarv-space-5) var(--sarv-space-4);
+  border: none;
   border-bottom: 1px solid var(--sarv-border);
   flex-shrink: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.left-sidebar__brand:hover {
+  background: var(--sarv-panel-alt);
+}
+
+.left-sidebar__brand:focus-visible {
+  outline: 1px solid var(--sarv-green);
+  outline-offset: -1px;
 }
 
 .left-sidebar__brand-row {
@@ -112,6 +138,7 @@ function onLogout() {
 }
 
 .left-sidebar__tagline {
+  display: block;
   margin-top: var(--sarv-space-2);
   font-size: 10px;
   letter-spacing: 0.14em;

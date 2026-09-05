@@ -3,8 +3,14 @@ import { useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 
+import AppIcon from './AppIcon.vue'
+
 const router = useRouter()
 const auth = useAuthStore()
+
+function goHome() {
+  void router.push({ name: 'feed' })
+}
 
 function goProfile() {
   if (!auth.user) return
@@ -29,6 +35,17 @@ function goLiked() {
   <nav class="left-nav" data-testid="left-navigation" aria-label="User navigation">
     <header class="left-block__header">NAVIGATION</header>
     <ul class="left-nav__list">
+      <li>
+        <button
+          class="left-nav__item left-nav__item--home"
+          type="button"
+          data-testid="left-nav-home"
+          @click="goHome"
+        >
+          <AppIcon name="home" :size="16" class="left-nav__icon" aria-hidden="true" />
+          home
+        </button>
+      </li>
       <li>
         <button
           class="left-nav__item"
@@ -90,12 +107,32 @@ function goLiked() {
   background: transparent;
   border: 1px solid transparent;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .left-nav__item:hover {
   background: var(--sarv-panel-alt);
   border-color: var(--sarv-border);
   color: var(--sarv-text);
+}
+
+.left-nav__item--home {
+  color: var(--sarv-text);
+  font-weight: 700;
+  background: var(--sarv-panel-alt);
+  border-color: var(--sarv-border-bright);
+}
+
+.left-nav__item--home:hover {
+  color: #fff;
+  border-color: var(--sarv-green-dim);
+}
+
+.left-nav__icon {
+  color: var(--sarv-green);
+  flex-shrink: 0;
 }
 
 .left-nav__item--muted {
