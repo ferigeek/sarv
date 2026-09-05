@@ -63,7 +63,7 @@ function goLiked() {
           data-testid="left-nav-liked"
           @click="goLiked"
         >
-          liked posts
+          recent reactions
         </button>
       </li>
       <li>
