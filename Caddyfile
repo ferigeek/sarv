@@ -1,0 +1,68 @@
+# Caddyfile for production — domains are injected via environment variables.
+# Requires FRONTEND_DOMAIN and API_DOMAIN to be set (see .env.prod.example).
+# Caddy handles automatic HTTPS (Let's Encrypt / ZeroSSL) when port 443 is
+# reachable and domains point to the host. No manual certificate management.
+{
+	# ACME contact email for Let's Encrypt expiry notices.
+	# Uncomment the line below and set ACME_EMAIL in your env file if you
+	# want notifications. Caddy obtains/renews certificates automatically
+	# even without an email — the `email` field is optional.
+	# email {$ACME_EMAIL}
+}
+
+# -------------------------------------------------------------------
+# Frontend — serves the Vue SPA (via frontend:80) and proxies /api
+# to the backend so the browser stays same-origin (no CORS needed).
+# -------------------------------------------------------------------
+{$FRONTEND_DOMAIN} {
+	encode gzip
+
+	# Security headers
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	# Proxy API requests directly to the backend (more efficient than
+	# double-proxying through the frontend's nginx).
+	handle /api/* {
+		reverse_proxy core_backend:8080
+	}
+
+	# Everything else goes to the frontend's nginx (SPA fallback handled there)
+	handle {
+		reverse_proxy frontend:80
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# -------------------------------------------------------------------
+# API — direct access to the Spring Boot backend.
+# Useful for mobile clients, external integrations, or health checks.
+# CORS is disabled in the backend (same-origin expected via frontend
+# domain), so cross-origin callers must be handled at application level
+# if needed.
+# -------------------------------------------------------------------
+{$API_DOMAIN} {
+	encode gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	reverse_proxy core_backend:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
