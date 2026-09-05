@@ -1,0 +1,166 @@
+@startuml
+' Sarv database ERD — source of truth in PlantUML.
+' Reflects backend/src/main/resources/db/migration/V1..V6.
+' (`*` = NOT NULL, `o` = nullable.)
+
+title Sarv — Database ERD (migrations V1..V6)
+
+entity users {
+  * id : bigint <<PK>> <<identity>>
+  --
+  * username : varchar(50) <<UQ>>
+  * display_name : varchar(50)
+  * email : varchar(255) <<UQ>>
+  * password_hash : text
+  * created_at : timestamptz
+  o bio : text
+  o gender : gender_enum
+  o location : varchar(30)
+  o profile_picture : bigint <<FK>> -> media
+  * status : user_status <<default ACTIVE>>
+}
+
+entity follows {
+  * id : bigint <<PK>> <<identity>>
+  --
+  * created_at : timestamptz
+  * follower_id : bigint <<FK>> -> users
+  * followed_id : bigint <<FK>> -> users
+  --
+  <<UQ (follower_id, followed_id)>>
+  <<CHECK (V2): follower_id <> followed_id>>
+}
+
+entity media {
+  * id : bigint <<PK>> <<identity>>
+  --
+  * size : bigint
+  o name : varchar(255)
+  * mime_type : varchar(100)
+  * created_at : timestamptz
+  o deleted_at : timestamptz
+  * sha_256 : varchar(64) <<UQ>>
+  o owner_id : bigint <<FK>> -> users
+}
+
+entity posts {
+  * id : bigint <<PK>> <<identity>>
+  --
+  * user_id : bigint <<FK>> -> users
+  * type : post_category
+  o content : text
+  o media_id : bigint <<FK>> -> media
+  * created_at : timestamptz
+  o updated_at : timestamptz
+  o deleted_at : timestamptz
+  o parent_id : bigint <<FK>> -> posts (comments)
+  o repost_of_id : bigint <<FK>> -> posts
+  * view_count : bigint <<V3>>
+  * like_count : bigint <<V3>>
+  * dislike_count : bigint <<V3>>
+  * comment_count : bigint <<V6>>
+}
+
+entity reactions {
+  * id : bigint <<PK>> <<identity>>
+  --
+  * reaction_type : smallint (1 = like, -1 = dislike)
+  * post_id : bigint <<FK>> -> posts
+  * user_id : bigint <<FK>> -> users
+  * created_at : timestamptz
+  --
+  <<UQ (post_id, user_id)>>
+}
+
+entity event_logs {
+  * id : bigint <<PK>> <<identity>>
+  --
+  o user_id : bigint <<FK>> -> users
+  * type : event_type
+  o post_id : bigint <<FK>> -> posts
+  o target_user_id : bigint <<FK>> -> users
+  * created_at : timestamptz
+  o session_id : uuid <<V4>>
+  o metadata : jsonb <<V4>>
+}
+
+enum gender_enum {
+  MALE
+  FEMALE
+  RATHER_NOT_TO_SAY
+}
+
+enum user_status {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  DELETED
+}
+
+enum post_category {
+  NORMAL
+  COMMENT
+  REPOST
+  QUOTE
+}
+
+enum event_type {
+  VIEW_POST
+  LIKE_POST
+  DISLIKE_POST
+  CREATE_COMMENT
+  REPOST_POST
+  FOLLOW_USER
+  UNFOLLOW_USER
+  VIEW_PROFILE
+  CREATE_POST
+  REQUEST_FEED
+  LOGIN
+}
+
+users ||--o{ posts : authors
+users ||--o{ follows : "follows as follower"
+users ||--o{ follows : "followed by"
+users ||--o{ media : owns
+users ||--o{ reactions : reacts
+users ||--o{ event_logs : "acts (nullable)"
+users ||--o{ event_logs : "targeted (nullable)"
+media ||--o{ users : profile_picture
+media ||--o{ posts : attachment
+posts ||--o{ posts : "parent (comments)"
+posts ||--o{ posts : "repost_of"
+posts ||--o{ reactions : receives
+posts ||--o{ event_logs : subject
+
+note bottom of event_logs
+  On user delete: user_id -> NULL
+  (analytics preservation).
+  On post delete: post_id -> NULL.
+end note
+
+note bottom of posts
+  Deletion: posts CASCADE with user;
+  media/parent/repost_of -> SET NULL.
+  Counters maintained by backend:
+  view/like/dislike (V3), comments (V6).
+end note
+
+note bottom of media
+  Files live on the backend filesystem,
+  keyed by sha_256 (dedup); DB holds
+  metadata only. owner_id -> SET NULL
+  on user delete.
+end note
+
+note bottom of follows
+  V5 indexes: follows(followed_id),
+  posts(user_id, created_at),
+  posts(parent_id), posts(repost_of_id),
+  reactions(user_id),
+  event_logs(user_id, created_at),
+  event_logs(type, created_at),
+  event_logs(post_id),
+  event_logs(target_user_id).
+end note
+
+@enduml

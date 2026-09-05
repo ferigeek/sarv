@@ -10,7 +10,7 @@ The database is designed to support users, posts, interactions, media, and event
 
 ![ERD](../assets/erd.png)
 
-> **Note:** the ERD image above is outdated — it does not include the changes from migrations V3 (post counters), V4 (event log session/metadata), and V5 (indexes). It needs to be regenerated from the current schema.
+> **Note:** the diagram source is maintained as PlantUML in [`assets/erd.puml`](../assets/erd.puml) — re-export `erd.png` from it after any schema change.
 
 ---
 ## Core Entities

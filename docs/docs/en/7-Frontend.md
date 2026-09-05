@@ -174,7 +174,7 @@ The card's repost button opens a `RepostConfirm.vue` window (quoted snippet, `re
 
 | Screen | File | Notes |
 |--------|------|-------|
-| Shell | `views/AppShell.vue` | 3-column layout, mobile drawers, create-post modal host |
+| Shell | `views/AppShell.vue` | 3-column layout, mobile drawers, create-post + search modal host |
 | Feed | `views/FeedView.vue` | For You / Latest tabs, retry + empty + load-more states |
 | Post detail | `views/PostDetailView.vue` | Post + comments thread with sort toggle, comment composer |
 | Login / Register | `views/LoginView.vue`, `views/RegisterView.vue` | Centered auth boxes |
@@ -191,7 +191,7 @@ The card's repost button opens a `RepostConfirm.vue` window (quoted snippet, `re
 
 The brand block at the top of the left sidebar (logo + tagline) navigates to the feed, as does the highlighted `home` nav item with its icon.
 
-Search (`SearchModal.vue`, opened from the sidebar input/tabs): a window fixed over the center of the screen with the same three tabs — **username** (`GET /api/users?query=`, top 8, click → profile), **post** (`GET /api/posts/search?query=`, mini rows, click → post detail), and **general** combining both with see-all shortcuts. Debounced 300 ms, `Escape`/backdrop/close-button dismiss, avatars for account rows.
+Search (`SearchModal.vue`, opened from the sidebar input/tabs or the mobile top/bottom bars): a window fixed over the center of the screen with the same three tabs — **username** (`GET /api/users?query=`, top 8, click → profile), **post** (`GET /api/posts/search?query=`, mini rows, click → post detail), and **general** combining both with see-all shortcuts. The modal is teleported to `document.body` so the sidebar drawer's scrollbar/border never paints above it; on mobile it always opens standalone — `AppShell.vue` closes the drawers instead of stacking one behind it (sidebar-initiated search reports `search-opened`/`search-closed` up through `LeftSidebar.vue` for the same treatment). Debounced 300 ms, `Escape`/backdrop/close-button dismiss, avatars for account rows.
 
 Right sidebar data (`HotTopicsPanel.vue:7`, `PlatformNewsPanel.vue:8`): currently **static placeholder lists** (5 themed tags, 3 release entries) — no analytics/topics API exists yet. Clicking them does nothing, per the "unimplemented controls do nothing" rule (`Design.md §13`).
 
@@ -247,7 +247,7 @@ docker compose up --build
 
 ## Implementation Status
 
-**Implemented:** auth (login, 2-step register incl. password confirmation and optional avatar/bio/location), guards + session expiry, For You/Latest feed with client fallback, post create (media-first + progress, normal/comment/quote modes), post detail with comments thread + sorting + composer, repost with confirmation, category banners + embedded originals with media toggle, like/dislike with counts (incl. comment counts) + feedback, profile view/edit with follow stats + own posts, per-user followers/following lists, reacted-posts history with filter, full three-tab search modal, avatar/media blob rendering, styled picture pickers, responsive shell + drawers, unit + e2e suites, Docker/nginx deployment.
+**Implemented:** auth (login, 2-step register incl. password confirmation and optional avatar/bio/location), guards + session expiry, For You/Latest feed with client fallback, post create (media-first + progress, normal/comment/quote modes), post detail with comments thread + sorting + composer, repost with confirmation, category banners + embedded originals with media toggle, like/dislike with counts (incl. comment counts) + feedback, profile view/edit with follow stats + own posts, per-user followers/following lists, reacted-posts history with filter, full three-tab search modal (teleported, standalone on mobile), avatar/media blob rendering, styled picture pickers, responsive shell + drawers, unit + e2e suites, Docker/nginx deployment.
 
 **Designed but not yet wired (UI exists, does nothing or shows placeholders):**
 
