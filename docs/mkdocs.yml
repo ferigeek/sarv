@@ -22,7 +22,7 @@ theme:
 
     # Palette toggle for light mode
     - media: "(prefers-color-scheme: light)"
-      primary: light green
+      primary: teal
       accent: red
       scheme: default 
       toggle:
@@ -31,7 +31,7 @@ theme:
 
     # Palette toggle for dark mode
     - media: "(prefers-color-scheme: dark)"
-      primary: light green
+      primary: teal
       accent: red
       scheme: slate
       toggle:
