@@ -268,6 +268,46 @@ class PostRepositoryTest {
             assertThat(first.getTotalElements()).isEqualTo(5);
             assertThat(first.getTotalPages()).isEqualTo(3);
         }
+
+        @Test
+        @DisplayName("should honor Pageable sort on createdAt")
+        void shouldHonorSortOnCreatedAt() {
+            Post parent = newPost(owner, "parent", OffsetDateTime.now().minusDays(3));
+            OffsetDateTime now = OffsetDateTime.now();
+            Post oldest = newComment(owner, parent, "oldest", now.minusDays(2));
+            Post newest = newComment(owner, parent, "newest", now);
+            Post middle = newComment(owner, parent, "middle", now.minusDays(1));
+
+            Pageable desc = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
+            List<Long> descIds = postRepository.findCommentsByParentId(parent.getId(), desc)
+                    .map(Post::getId).getContent();
+            assertThat(descIds).containsExactly(newest.getId(), middle.getId(), oldest.getId());
+
+            Pageable asc = PageRequest.of(0, 10, Sort.by(Sort.Direction.ASC, "createdAt"));
+            List<Long> ascIds = postRepository.findCommentsByParentId(parent.getId(), asc)
+                    .map(Post::getId).getContent();
+            assertThat(ascIds).containsExactly(oldest.getId(), middle.getId(), newest.getId());
+        }
+
+        @Test
+        @DisplayName("should honor Pageable sort on likeCount")
+        void shouldHonorSortOnLikeCount() {
+            Post parent = newPost(owner, "parent", OffsetDateTime.now().minusDays(1));
+            Post least = newComment(owner, parent, "least", OffsetDateTime.now().minusHours(3));
+            least.setLikeCount(1L);
+            postRepository.saveAndFlush(least);
+            Post most = newComment(owner, parent, "most", OffsetDateTime.now().minusHours(2));
+            most.setLikeCount(10L);
+            postRepository.saveAndFlush(most);
+            Post mid = newComment(owner, parent, "mid", OffsetDateTime.now().minusHours(1));
+            mid.setLikeCount(5L);
+            postRepository.saveAndFlush(mid);
+
+            Pageable mostLiked = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "likeCount"));
+            List<Long> ids = postRepository.findCommentsByParentId(parent.getId(), mostLiked)
+                    .map(Post::getId).getContent();
+            assertThat(ids).containsExactly(most.getId(), mid.getId(), least.getId());
+        }
     }
 
     @Nested

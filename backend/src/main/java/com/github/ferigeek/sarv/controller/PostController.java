@@ -1,6 +1,7 @@
 package com.github.ferigeek.sarv.controller;
 
 import com.github.ferigeek.sarv.aspect.LogEvent;
+import com.github.ferigeek.sarv.dto.request.CommentSort;
 import com.github.ferigeek.sarv.dto.request.PostRequest;
 import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
@@ -10,6 +11,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -85,7 +87,10 @@ public class PostController {
     @GetMapping("/posts/{postId}/comments")
     public Page<PostResponse> getPostComments(
             @Positive @PathVariable Long postId,
+            @RequestParam(name = "sortBy", defaultValue = "NEWEST") CommentSort sortBy,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return postService.getPostComments(postId, pageable);
+        // Sorting is driven by sortBy; ignore any client sort to keep ordering well-defined
+        Pageable sanitized = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sortBy.toSort());
+        return postService.getPostComments(postId, sanitized);
     }
 }

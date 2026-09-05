@@ -1228,8 +1228,8 @@ class PostControllerTest {
         }
 
         @Test
-        @DisplayName("should allow client sort override")
-        void shouldAllowSortOverride() throws Exception {
+        @DisplayName("should ignore client sort in favor of sortBy")
+        void shouldIgnoreClientSort() throws Exception {
             when(postService.getPostComments(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
 
             mockMvc.perform(get("/api/posts/1/comments")
@@ -1241,7 +1241,7 @@ class PostControllerTest {
                     org.mockito.ArgumentCaptor.forClass(Pageable.class);
             verify(postService).getPostComments(eq(1L), pageableCaptor.capture());
             assertThat(pageableCaptor.getValue().getSort())
-                    .isEqualTo(Sort.by(Sort.Direction.ASC, "createdAt"));
+                    .isEqualTo(Sort.by(Sort.Direction.DESC, "createdAt"));
         }
 
         @Test
@@ -1269,6 +1269,86 @@ class PostControllerTest {
             mockMvc.perform(post("/api/posts/1/comments")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isMethodNotAllowed());
+        }
+
+        @Test
+        @DisplayName("should default to newest first when sortBy is absent")
+        void shouldDefaultToNewest() throws Exception {
+            when(postService.getPostComments(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/posts/1/comments")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).getPostComments(eq(1L), pageableCaptor.capture());
+            assertThat(pageableCaptor.getValue().getSort())
+                    .isEqualTo(Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+
+        @Test
+        @DisplayName("should sort by like count when sortBy=MOST_LIKED")
+        void shouldSortByMostLiked() throws Exception {
+            when(postService.getPostComments(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/posts/1/comments")
+                            .param("sortBy", "MOST_LIKED")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).getPostComments(eq(1L), pageableCaptor.capture());
+            assertThat(pageableCaptor.getValue().getSort())
+                    .isEqualTo(Sort.by(Sort.Direction.DESC, "likeCount"));
+        }
+
+        @Test
+        @DisplayName("should sort by creation date when sortBy=NEWEST")
+        void shouldSortByNewest() throws Exception {
+            when(postService.getPostComments(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/posts/1/comments")
+                            .param("sortBy", "NEWEST")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).getPostComments(eq(1L), pageableCaptor.capture());
+            assertThat(pageableCaptor.getValue().getSort())
+                    .isEqualTo(Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+
+        @Test
+        @DisplayName("should preserve page and size alongside sortBy")
+        void shouldPreservePageAndSizeWithSort() throws Exception {
+            when(postService.getPostComments(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/posts/1/comments")
+                            .param("sortBy", "MOST_LIKED")
+                            .param("page", "2")
+                            .param("size", "5")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).getPostComments(eq(1L), pageableCaptor.capture());
+            Pageable pageable = pageableCaptor.getValue();
+            assertThat(pageable.getPageNumber()).isEqualTo(2);
+            assertThat(pageable.getPageSize()).isEqualTo(5);
+            assertThat(pageable.getSort()).isEqualTo(Sort.by(Sort.Direction.DESC, "likeCount"));
+        }
+
+        @Test
+        @DisplayName("should return 400 for unknown sortBy value")
+        void shouldReturn400ForUnknownSort() throws Exception {
+            mockMvc.perform(get("/api/posts/1/comments")
+                            .param("sortBy", "OLDEST")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
         }
     }
 
