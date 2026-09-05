@@ -3,6 +3,7 @@ package com.github.ferigeek.sarv.controller;
 import com.github.ferigeek.sarv.aspect.LogEvent;
 import com.github.ferigeek.sarv.dto.request.UserUpdateRequest;
 import com.github.ferigeek.sarv.dto.response.UserResponse;
+import com.github.ferigeek.sarv.dto.response.UserStatsResponse;
 import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.UserService;
@@ -63,5 +64,10 @@ public class UserController {
             @RequestParam String query,
             @PageableDefault(size = 20, sort = "username") Pageable pageable) {
         return userService.searchUsers(query, pageable);
+    }
+
+    @GetMapping("/{userId}/stats")
+    public UserStatsResponse getUserStats(@Positive @PathVariable Long userId) {
+        return userService.getUserStats(userId);
     }
 }

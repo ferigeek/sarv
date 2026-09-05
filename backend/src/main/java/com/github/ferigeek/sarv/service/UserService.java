@@ -2,11 +2,13 @@ package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.request.UserUpdateRequest;
 import com.github.ferigeek.sarv.dto.response.UserResponse;
+import com.github.ferigeek.sarv.dto.response.UserStatsResponse;
 import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.exception.MediaNotFoundException;
 import com.github.ferigeek.sarv.exception.UserNotFoundException;
+import com.github.ferigeek.sarv.repository.FollowRepository;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,11 +23,13 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final MediaRepository mediaRepository;
+    private final FollowRepository followRepository;
 
     @Autowired
-    public UserService(UserRepository userRepository, MediaRepository mediaRepository) {
+    public UserService(UserRepository userRepository, MediaRepository mediaRepository, FollowRepository followRepository) {
         this.userRepository = userRepository;
         this.mediaRepository = mediaRepository;
+        this.followRepository = followRepository;
     }
 
     public UserResponse getUser(Long id) {
@@ -83,5 +87,13 @@ public class UserService {
 
     public Page<UserSummaryResponse> searchUsers(String query, Pageable pageable) {
         return userRepository.searchUsers(query, pageable).map(UserSummaryResponse::new);
+    }
+
+    public UserStatsResponse getUserStats(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: <%d>".formatted(id)));
+        long followerCount = followRepository.countByFollowed(user);
+        long followingCount = followRepository.countByFollower(user);
+        return new UserStatsResponse(user.getId(), followerCount, followingCount);
     }
 }

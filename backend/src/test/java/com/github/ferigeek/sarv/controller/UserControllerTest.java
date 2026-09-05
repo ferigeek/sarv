@@ -3,6 +3,7 @@ package com.github.ferigeek.sarv.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.ferigeek.sarv.dto.request.UserUpdateRequest;
 import com.github.ferigeek.sarv.dto.response.UserResponse;
+import com.github.ferigeek.sarv.dto.response.UserStatsResponse;
 import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.User;
@@ -268,6 +269,95 @@ class UserControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))
                     .andExpect(status().isMethodNotAllowed());
+        }
+    }
+
+    // ===================================================================
+    // GET /api/users/{userId}/stats
+    // ===================================================================
+    @Nested
+    @DisplayName("GET /api/users/{userId}/stats")
+    class GetUserStats {
+
+        @Test
+        @DisplayName("should return 200 with follower and following counts")
+        void shouldReturn200() throws Exception {
+            when(userService.getUserStats(1L)).thenReturn(new UserStatsResponse(1L, 7L, 3L));
+
+            mockMvc.perform(get("/api/users/1/stats")
+                            .with(user(testUser("bob"))))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.userId").value(1))
+                    .andExpect(jsonPath("$.followerCount").value(7))
+                    .andExpect(jsonPath("$.followingCount").value(3));
+        }
+
+        @Test
+        @DisplayName("should return zero counts")
+        void shouldReturnZeroCounts() throws Exception {
+            when(userService.getUserStats(2L)).thenReturn(new UserStatsResponse(2L, 0L, 0L));
+
+            mockMvc.perform(get("/api/users/2/stats")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.followerCount").value(0))
+                    .andExpect(jsonPath("$.followingCount").value(0));
+        }
+
+        @Test
+        @DisplayName("should return 404 when UserNotFoundException")
+        void shouldReturn404() throws Exception {
+            when(userService.getUserStats(99L))
+                    .thenThrow(new UserNotFoundException("User not found with ID: <99>"));
+
+            mockMvc.perform(get("/api/users/99/stats")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("User not found with ID: <99>"))
+                    .andExpect(jsonPath("$.instance").value("/api/users/99/stats"));
+        }
+
+        @Test
+        @DisplayName("should return 403 when unauthenticated")
+        void shouldReturn403WhenUnauthenticated() throws Exception {
+            mockMvc.perform(get("/api/users/1/stats"))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("should return 400 for non-numeric userId")
+        void shouldReturn400ForNonNumeric() throws Exception {
+            mockMvc.perform(get("/api/users/abc/stats")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 400 for negative userId")
+        void shouldReturn400ForNegative() throws Exception {
+            mockMvc.perform(get("/api/users/-1/stats")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 400 for zero userId")
+        void shouldReturn400ForZero() throws Exception {
+            mockMvc.perform(get("/api/users/0/stats")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 500 when service throws unexpected exception")
+        void shouldReturn500() throws Exception {
+            when(userService.getUserStats(1L)).thenThrow(new RuntimeException("db fail"));
+
+            mockMvc.perform(get("/api/users/1/stats")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.detail").value("An unexpected error occurred"));
         }
     }
 
@@ -852,6 +942,7 @@ class UserControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}")).andExpect(status().isForbidden());
             mockMvc.perform(get("/api/users").param("query", "x")).andExpect(status().isForbidden());
+            mockMvc.perform(get("/api/users/1/stats")).andExpect(status().isForbidden());
         }
 
         @Test

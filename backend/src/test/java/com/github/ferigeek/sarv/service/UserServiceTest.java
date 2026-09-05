@@ -2,6 +2,7 @@ package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.request.UserUpdateRequest;
 import com.github.ferigeek.sarv.dto.response.UserResponse;
+import com.github.ferigeek.sarv.dto.response.UserStatsResponse;
 import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.User;
@@ -9,6 +10,7 @@ import com.github.ferigeek.sarv.entity.type.Gender;
 import com.github.ferigeek.sarv.entity.type.UserStatus;
 import com.github.ferigeek.sarv.exception.MediaNotFoundException;
 import com.github.ferigeek.sarv.exception.UserNotFoundException;
+import com.github.ferigeek.sarv.repository.FollowRepository;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +45,9 @@ class UserServiceTest {
 
     @Mock
     private MediaRepository mediaRepository;
+
+    @Mock
+    private FollowRepository followRepository;
 
     @InjectMocks
     private UserService userService;
@@ -685,6 +690,55 @@ class UserServiceTest {
             userService.searchUsers("any", PageRequest.of(0, 20));
 
             verifyNoInteractions(mediaRepository);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // getUserStats
+    // -----------------------------------------------------------------------
+    @Nested
+    @DisplayName("getUserStats")
+    class GetUserStats {
+
+        @Test
+        @DisplayName("should return follower and following counts for existing user")
+        void shouldReturnCounts() {
+            when(userRepository.findById(1L)).thenReturn(Optional.of(baseUser));
+            when(followRepository.countByFollowed(baseUser)).thenReturn(7L);
+            when(followRepository.countByFollower(baseUser)).thenReturn(3L);
+
+            UserStatsResponse response = userService.getUserStats(1L);
+
+            assertThat(response.getUserId()).isEqualTo(1L);
+            assertThat(response.getFollowerCount()).isEqualTo(7L);
+            assertThat(response.getFollowingCount()).isEqualTo(3L);
+            verify(followRepository).countByFollowed(baseUser);
+            verify(followRepository).countByFollower(baseUser);
+        }
+
+        @Test
+        @DisplayName("should return zero counts when user has no follows")
+        void shouldReturnZeroCounts() {
+            when(userRepository.findById(1L)).thenReturn(Optional.of(baseUser));
+            when(followRepository.countByFollowed(baseUser)).thenReturn(0L);
+            when(followRepository.countByFollower(baseUser)).thenReturn(0L);
+
+            UserStatsResponse response = userService.getUserStats(1L);
+
+            assertThat(response.getFollowerCount()).isZero();
+            assertThat(response.getFollowingCount()).isZero();
+        }
+
+        @Test
+        @DisplayName("should throw UserNotFoundException when user does not exist")
+        void shouldThrowWhenUserNotFound() {
+            when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+            UserNotFoundException ex = assertThrows(UserNotFoundException.class,
+                    () -> userService.getUserStats(99L));
+
+            assertThat(ex.getMessage()).contains("99");
+            verifyNoInteractions(followRepository);
         }
     }
 }
