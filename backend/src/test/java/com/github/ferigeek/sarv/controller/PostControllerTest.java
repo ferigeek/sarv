@@ -29,6 +29,11 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -37,8 +42,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -894,6 +901,194 @@ class PostControllerTest {
     }
 
     // ===================================================================
+    // GET /api/users/{userId}/posts
+    // ===================================================================
+    @Nested
+    @DisplayName("GET /api/users/{userId}/posts")
+    class GetUserPosts {
+
+        @Test
+        @DisplayName("should return 200 with page when authenticated")
+        void shouldReturn200() throws Exception {
+            PostResponse r1 = postResponse(1L, 10L, PostCategory.NORMAL, "content1", 5L, null, null);
+            PostResponse r2 = postResponse(2L, 10L, PostCategory.NORMAL, "content2", null, null, null);
+            Page<PostResponse> page = new PageImpl<>(List.of(r1, r2),
+                    PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt")), 2);
+            when(postService.getUserPosts(eq(10L), any(Pageable.class))).thenReturn(page);
+
+            mockMvc.perform(get("/api/users/10/posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(2))
+                    .andExpect(jsonPath("$.content[0].id").value(1))
+                    .andExpect(jsonPath("$.content[0].userId").value(10))
+                    .andExpect(jsonPath("$.content[0].postCategory").value("NORMAL"))
+                    .andExpect(jsonPath("$.content[0].content").value("content1"))
+                    .andExpect(jsonPath("$.content[0].mediaId").value(5))
+                    .andExpect(jsonPath("$.content[1].id").value(2))
+                    .andExpect(jsonPath("$.page.size").value(10))
+                    .andExpect(jsonPath("$.page.number").value(0))
+                    .andExpect(jsonPath("$.page.totalElements").value(2))
+                    .andExpect(jsonPath("$.page.totalPages").value(1));
+        }
+
+        @Test
+        @DisplayName("should return 200 with empty page when user has no posts")
+        void shouldReturnEmpty() throws Exception {
+            when(postService.getUserPosts(eq(10L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users/10/posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(0))
+                    .andExpect(jsonPath("$.page.totalElements").value(0));
+        }
+
+        @Test
+        @DisplayName("should handle null media/repost/parent as absent")
+        void shouldHandleNulls() throws Exception {
+            PostResponse resp = postResponse(2L, 10L, PostCategory.NORMAL, "content", null, null, null);
+            Page<PostResponse> page = new PageImpl<>(List.of(resp));
+            when(postService.getUserPosts(eq(10L), any(Pageable.class))).thenReturn(page);
+
+            mockMvc.perform(get("/api/users/10/posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].mediaId").doesNotExist())
+                    .andExpect(jsonPath("$.content[0].repostOfId").doesNotExist())
+                    .andExpect(jsonPath("$.content[0].parentId").doesNotExist());
+        }
+
+        @Test
+        @DisplayName("should return 403 when unauthenticated")
+        void shouldReturn403() throws Exception {
+            mockMvc.perform(get("/api/users/10/posts"))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("should return 400 for non-numeric userId")
+        void shouldReturn400NonNumeric() throws Exception {
+            mockMvc.perform(get("/api/users/abc/posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 400 for negative userId")
+        void shouldReturn400Negative() throws Exception {
+            mockMvc.perform(get("/api/users/-1/posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 400 for zero userId")
+        void shouldReturn400Zero() throws Exception {
+            mockMvc.perform(get("/api/users/0/posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 500 when service throws unexpected")
+        void shouldReturn500() throws Exception {
+            when(postService.getUserPosts(eq(10L), any(Pageable.class)))
+                    .thenThrow(new RuntimeException("fail"));
+
+            mockMvc.perform(get("/api/users/10/posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.detail").value("An unexpected error occurred"));
+        }
+
+        @Test
+        @DisplayName("should use default page=0 size=10 sort createdAt DESC when no paging params")
+        void shouldUseDefaultPageable() throws Exception {
+            when(postService.getUserPosts(eq(10L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users/10/posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).getUserPosts(eq(10L), pageableCaptor.capture());
+            Pageable pageable = pageableCaptor.getValue();
+            assertThat(pageable.getPageNumber()).isZero();
+            assertThat(pageable.getPageSize()).isEqualTo(10);
+            assertThat(pageable.getSort()).isEqualTo(Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+
+        @Test
+        @DisplayName("should pass requested page and size preserving default sort when sort not specified")
+        void shouldPassRequestedPageAndSize() throws Exception {
+            when(postService.getUserPosts(eq(10L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users/10/posts")
+                            .param("page", "2")
+                            .param("size", "5")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).getUserPosts(eq(10L), pageableCaptor.capture());
+            Pageable pageable = pageableCaptor.getValue();
+            assertThat(pageable.getPageNumber()).isEqualTo(2);
+            assertThat(pageable.getPageSize()).isEqualTo(5);
+            assertThat(pageable.getSort()).isEqualTo(Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+
+        @Test
+        @DisplayName("should allow client sort override")
+        void shouldAllowSortOverride() throws Exception {
+            when(postService.getUserPosts(eq(10L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users/10/posts")
+                            .param("sort", "createdAt,asc")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).getUserPosts(eq(10L), pageableCaptor.capture());
+            assertThat(pageableCaptor.getValue().getSort())
+                    .isEqualTo(Sort.by(Sort.Direction.ASC, "createdAt"));
+        }
+
+        @Test
+        @DisplayName("should preserve pagination metadata from service")
+        void shouldPreservePaginationMetadata() throws Exception {
+            PostResponse r = postResponse(1L, 10L, PostCategory.NORMAL, "c", null, null, null);
+            Page<PostResponse> servicePage = new PageImpl<>(List.of(r),
+                    PageRequest.of(1, 2, Sort.by(Sort.Direction.DESC, "createdAt")), 5);
+            when(postService.getUserPosts(eq(10L), any(Pageable.class))).thenReturn(servicePage);
+
+            mockMvc.perform(get("/api/users/10/posts")
+                            .param("page", "1")
+                            .param("size", "2")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.page.number").value(1))
+                    .andExpect(jsonPath("$.page.size").value(2))
+                    .andExpect(jsonPath("$.page.totalElements").value(5))
+                    .andExpect(jsonPath("$.page.totalPages").value(3));
+        }
+
+        @Test
+        @DisplayName("should return 405 for POST on user posts endpoint")
+        void shouldReturn405ForPost() throws Exception {
+            mockMvc.perform(post("/api/users/10/posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isMethodNotAllowed());
+        }
+    }
+
+    // ===================================================================
     // HTTP contract & security
     // ===================================================================
     @Nested
@@ -911,6 +1106,7 @@ class PostControllerTest {
             mockMvc.perform(put("/api/posts/1")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}")).andExpect(status().isForbidden());
+            mockMvc.perform(get("/api/users/10/posts")).andExpect(status().isForbidden());
         }
 
         @Test

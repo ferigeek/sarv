@@ -25,7 +25,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -795,6 +802,106 @@ class PostServiceTest {
 
             assertThat(res.getContent()).isNull();
             assertThat(res.getMediaId()).isEqualTo(10L);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // getUserPosts
+    // -----------------------------------------------------------------------
+    @Nested
+    @DisplayName("getUserPosts")
+    class GetUserPosts {
+
+        private Post post(Long id, User user, String content) {
+            Post p = new Post();
+            p.setId(id);
+            p.setUser(user);
+            p.setPostCategory(PostCategory.NORMAL);
+            p.setContent(content);
+            p.setCreatedAt(OffsetDateTime.now());
+            p.setViewCount(3L);
+            p.setLikeCount(1L);
+            p.setDislikeCount(0L);
+            return p;
+        }
+
+        @Test
+        @DisplayName("should delegate to repository with same userId and pageable")
+        void shouldDelegateWithSameArgs() {
+            Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
+            when(postRepository.findPostsByUserId(1L, pageable))
+                    .thenReturn(Page.empty(pageable));
+
+            postService.getUserPosts(1L, pageable);
+
+            verify(postRepository).findPostsByUserId(1L, pageable);
+        }
+
+        @Test
+        @DisplayName("should map posts to PostResponse preserving order")
+        void shouldMapPosts() {
+            Post p1 = post(100L, owner, "first");
+            Post p2 = post(101L, owner, "second");
+            Pageable pageable = PageRequest.of(0, 10);
+            when(postRepository.findPostsByUserId(1L, pageable))
+                    .thenReturn(new PageImpl<>(List.of(p1, p2), pageable, 2));
+
+            Page<PostResponse> res = postService.getUserPosts(1L, pageable);
+
+            assertThat(res.getContent()).hasSize(2);
+            assertThat(res.getContent().get(0).getId()).isEqualTo(100L);
+            assertThat(res.getContent().get(0).getUserId()).isEqualTo(1L);
+            assertThat(res.getContent().get(0).getContent()).isEqualTo("first");
+            assertThat(res.getContent().get(1).getId()).isEqualTo(101L);
+        }
+
+        @Test
+        @DisplayName("should map media/parent/repost ids")
+        void shouldMapRelations() {
+            Post parent = post(200L, owner, "parent");
+            Post repost = post(300L, owner, "repost");
+            Post p = post(100L, owner, "hello");
+            p.setMedia(media);
+            p.setParent(parent);
+            p.setRepostOf(repost);
+            Pageable pageable = PageRequest.of(0, 10);
+            when(postRepository.findPostsByUserId(1L, pageable))
+                    .thenReturn(new PageImpl<>(List.of(p), pageable, 1));
+
+            Page<PostResponse> res = postService.getUserPosts(1L, pageable);
+
+            assertThat(res.getContent().get(0).getMediaId()).isEqualTo(10L);
+            assertThat(res.getContent().get(0).getParentId()).isEqualTo(200L);
+            assertThat(res.getContent().get(0).getRepostOfId()).isEqualTo(300L);
+        }
+
+        @Test
+        @DisplayName("should preserve pagination metadata")
+        void shouldPreservePagination() {
+            Post p = post(100L, owner, "hello");
+            Pageable pageable = PageRequest.of(1, 2, Sort.by(Sort.Direction.DESC, "createdAt"));
+            when(postRepository.findPostsByUserId(1L, pageable))
+                    .thenReturn(new PageImpl<>(List.of(p), pageable, 5));
+
+            Page<PostResponse> res = postService.getUserPosts(1L, pageable);
+
+            assertThat(res.getTotalElements()).isEqualTo(5);
+            assertThat(res.getTotalPages()).isEqualTo(3);
+            assertThat(res.getNumber()).isEqualTo(1);
+            assertThat(res.getSize()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("should return empty page when user has no posts")
+        void shouldReturnEmpty() {
+            Pageable pageable = PageRequest.of(0, 10);
+            when(postRepository.findPostsByUserId(1L, pageable))
+                    .thenReturn(Page.empty(pageable));
+
+            Page<PostResponse> res = postService.getUserPosts(1L, pageable);
+
+            assertThat(res.getTotalElements()).isZero();
+            assertThat(res.getContent()).isEmpty();
         }
     }
 }
