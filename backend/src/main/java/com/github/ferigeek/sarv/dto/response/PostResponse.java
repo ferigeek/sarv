@@ -23,6 +23,7 @@ public class PostResponse {
     private Long viewCount;
     private Long likeCount;
     private Long dislikeCount;
+    private Long commentCount;
 
     public PostResponse(Post post) {
         this.id = post.getId();
@@ -37,5 +38,6 @@ public class PostResponse {
         this.viewCount = post.getViewCount();
         this.likeCount = post.getLikeCount();
         this.dislikeCount = post.getDislikeCount();
+        this.commentCount = post.getCommentCount();
     }
 }

@@ -62,4 +62,7 @@ public class Post {
 
     @Column(name = "dislike_count", nullable = false)
     private Long dislikeCount = 0L;
+
+    @Column(name = "comment_count", nullable = false)
+    private Long commentCount = 0L;
 }

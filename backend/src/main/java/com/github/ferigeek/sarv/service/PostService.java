@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 
@@ -40,6 +41,7 @@ public class PostService {
         return new PostResponse(post);
     }
 
+    @Transactional
     public PostResponse createPost(PostRequest postRequest, String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(
@@ -159,6 +161,10 @@ public class PostService {
             Post repostOfPost = postRepository.findById(postRequest.getRepostOfId())
                     .orElseThrow(() -> new PostNotFoundException(postRequest.getRepostOfId()));
             post.setRepostOf(repostOfPost);
+        }
+
+        if (post.getParent() != null) {
+            postRepository.incrementCommentCount(post.getParent().getId());
         }
 
         return new PostResponse(postRepository.save(post));

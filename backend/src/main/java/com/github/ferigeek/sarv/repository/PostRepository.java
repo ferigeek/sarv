@@ -4,6 +4,7 @@ import com.github.ferigeek.sarv.entity.Post;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import org.springframework.data.repository.query.Param;
@@ -35,4 +36,12 @@ public interface PostRepository extends JpaRepository<Post, Long> {
         AND post.deletedAt IS NULL
     """)
     Page<Post> findPostsByUserId(@Param("userId") Long userId, Pageable pageable);
+
+    @Modifying
+    @Query("""
+        UPDATE Post post
+        SET post.commentCount = COALESCE(post.commentCount, 0) + 1
+        WHERE post.id = :postId
+    """)
+    void incrementCommentCount(@Param("postId") Long postId);
 }
