@@ -1115,4 +1115,95 @@ class PostServiceTest {
             assertThat(res.getContent()).isEmpty();
         }
     }
+
+    // -----------------------------------------------------------------------
+    // searchPosts
+    // -----------------------------------------------------------------------
+    @Nested
+    @DisplayName("searchPosts")
+    class SearchPosts {
+
+        private Post post(Long id, User user, String content) {
+            Post p = new Post();
+            p.setId(id);
+            p.setUser(user);
+            p.setPostCategory(PostCategory.NORMAL);
+            p.setContent(content);
+            p.setCreatedAt(OffsetDateTime.now());
+            p.setViewCount(3L);
+            p.setLikeCount(1L);
+            p.setDislikeCount(0L);
+            return p;
+        }
+
+        @Test
+        @DisplayName("should delegate to repository with same query and pageable")
+        void shouldDelegateWithSameArgs() {
+            Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
+            when(postRepository.searchPosts("hello", pageable))
+                    .thenReturn(Page.empty(pageable));
+
+            postService.searchPosts("hello", pageable);
+
+            verify(postRepository).searchPosts("hello", pageable);
+        }
+
+        @Test
+        @DisplayName("should map posts to PostResponse preserving order")
+        void shouldMapPosts() {
+            Post p1 = post(100L, owner, "hello world");
+            Post p2 = post(101L, otherUser, "say hello");
+            Pageable pageable = PageRequest.of(0, 10);
+            when(postRepository.searchPosts("hello", pageable))
+                    .thenReturn(new PageImpl<>(List.of(p1, p2), pageable, 2));
+
+            Page<PostResponse> res = postService.searchPosts("hello", pageable);
+
+            assertThat(res.getContent()).hasSize(2);
+            assertThat(res.getContent().get(0).getId()).isEqualTo(100L);
+            assertThat(res.getContent().get(0).getContent()).isEqualTo("hello world");
+            assertThat(res.getContent().get(1).getId()).isEqualTo(101L);
+        }
+
+        @Test
+        @DisplayName("should throw PostNotValidException when query is blank")
+        void shouldThrowWhenBlank() {
+            Pageable pageable = PageRequest.of(0, 10);
+
+            assertThrows(PostNotValidException.class, () -> postService.searchPosts(null, pageable));
+            assertThrows(PostNotValidException.class, () -> postService.searchPosts("   ", pageable));
+            assertThrows(PostNotValidException.class, () -> postService.searchPosts("", pageable));
+
+            verify(postRepository, never()).searchPosts(any(), any());
+        }
+
+        @Test
+        @DisplayName("should preserve pagination metadata")
+        void shouldPreservePagination() {
+            Post p = post(100L, owner, "hello");
+            Pageable pageable = PageRequest.of(1, 2, Sort.by(Sort.Direction.DESC, "createdAt"));
+            when(postRepository.searchPosts("hello", pageable))
+                    .thenReturn(new PageImpl<>(List.of(p), pageable, 5));
+
+            Page<PostResponse> res = postService.searchPosts("hello", pageable);
+
+            assertThat(res.getTotalElements()).isEqualTo(5);
+            assertThat(res.getTotalPages()).isEqualTo(3);
+            assertThat(res.getNumber()).isEqualTo(1);
+            assertThat(res.getSize()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("should return empty page when nothing matches")
+        void shouldReturnEmpty() {
+            Pageable pageable = PageRequest.of(0, 10);
+            when(postRepository.searchPosts("nomatch", pageable))
+                    .thenReturn(Page.empty(pageable));
+
+            Page<PostResponse> res = postService.searchPosts("nomatch", pageable);
+
+            assertThat(res.getTotalElements()).isZero();
+            assertThat(res.getContent()).isEmpty();
+        }
+    }
 }

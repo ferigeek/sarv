@@ -1560,6 +1560,172 @@ class PostControllerTest {
     }
 
     // ===================================================================
+    // GET /api/posts/search
+    // ===================================================================
+    @Nested
+    @DisplayName("GET /api/posts/search")
+    class SearchPosts {
+
+        @Test
+        @DisplayName("should return 200 with page when authenticated")
+        void shouldReturn200() throws Exception {
+            PostResponse r1 = postResponse(1L, 10L, PostCategory.NORMAL, "hello world", 5L, null, null);
+            PostResponse r2 = postResponse(2L, 11L, PostCategory.NORMAL, "say hello", null, null, null);
+            Page<PostResponse> page = new PageImpl<>(List.of(r1, r2),
+                    PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt")), 2);
+            when(postService.searchPosts(eq("hello"), any(Pageable.class))).thenReturn(page);
+
+            mockMvc.perform(get("/api/posts/search")
+                            .param("query", "hello")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(2))
+                    .andExpect(jsonPath("$.content[0].id").value(1))
+                    .andExpect(jsonPath("$.content[0].content").value("hello world"))
+                    .andExpect(jsonPath("$.content[1].id").value(2))
+                    .andExpect(jsonPath("$.page.size").value(10))
+                    .andExpect(jsonPath("$.page.number").value(0))
+                    .andExpect(jsonPath("$.page.totalElements").value(2))
+                    .andExpect(jsonPath("$.page.totalPages").value(1));
+        }
+
+        @Test
+        @DisplayName("should return 200 with empty page when nothing matches")
+        void shouldReturnEmpty() throws Exception {
+            when(postService.searchPosts(eq("nomatch"), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/posts/search")
+                            .param("query", "nomatch")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(0))
+                    .andExpect(jsonPath("$.page.totalElements").value(0));
+        }
+
+        @Test
+        @DisplayName("should return 400 when query is missing")
+        void shouldReturn400WhenQueryMissing() throws Exception {
+            mockMvc.perform(get("/api/posts/search")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 400 when query is blank")
+        void shouldReturn400WhenQueryBlank() throws Exception {
+            when(postService.searchPosts(eq("   "), any(Pageable.class)))
+                    .thenThrow(new PostNotValidException("Search query must not be blank"));
+
+            mockMvc.perform(get("/api/posts/search")
+                            .param("query", "   ")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail").value("Search query must not be blank"));
+        }
+
+        @Test
+        @DisplayName("should return 403 when unauthenticated")
+        void shouldReturn403() throws Exception {
+            mockMvc.perform(get("/api/posts/search")
+                            .param("query", "hello"))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("should return 500 when service throws unexpected")
+        void shouldReturn500() throws Exception {
+            when(postService.searchPosts(eq("hello"), any(Pageable.class)))
+                    .thenThrow(new RuntimeException("fail"));
+
+            mockMvc.perform(get("/api/posts/search")
+                            .param("query", "hello")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.detail").value("An unexpected error occurred"));
+        }
+
+        @Test
+        @DisplayName("should use default page=0 size=10 sort createdAt DESC when no paging params")
+        void shouldUseDefaultPageable() throws Exception {
+            when(postService.searchPosts(eq("hello"), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/posts/search")
+                            .param("query", "hello")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).searchPosts(eq("hello"), pageableCaptor.capture());
+            Pageable pageable = pageableCaptor.getValue();
+            assertThat(pageable.getPageNumber()).isZero();
+            assertThat(pageable.getPageSize()).isEqualTo(10);
+            assertThat(pageable.getSort()).isEqualTo(Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+
+        @Test
+        @DisplayName("should pass requested page and size")
+        void shouldPassRequestedPageAndSize() throws Exception {
+            when(postService.searchPosts(eq("hello"), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/posts/search")
+                            .param("query", "hello")
+                            .param("page", "2")
+                            .param("size", "5")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).searchPosts(eq("hello"), pageableCaptor.capture());
+            Pageable pageable = pageableCaptor.getValue();
+            assertThat(pageable.getPageNumber()).isEqualTo(2);
+            assertThat(pageable.getPageSize()).isEqualTo(5);
+        }
+
+        @Test
+        @DisplayName("should allow client sort override")
+        void shouldAllowSortOverride() throws Exception {
+            when(postService.searchPosts(eq("hello"), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/posts/search")
+                            .param("query", "hello")
+                            .param("sort", "createdAt,asc")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).searchPosts(eq("hello"), pageableCaptor.capture());
+            assertThat(pageableCaptor.getValue().getSort())
+                    .isEqualTo(Sort.by(Sort.Direction.ASC, "createdAt"));
+        }
+
+        @Test
+        @DisplayName("should preserve pagination metadata from service")
+        void shouldPreservePaginationMetadata() throws Exception {
+            PostResponse r = postResponse(1L, 10L, PostCategory.NORMAL, "hello", null, null, null);
+            Page<PostResponse> servicePage = new PageImpl<>(List.of(r),
+                    PageRequest.of(1, 2, Sort.by(Sort.Direction.DESC, "createdAt")), 5);
+            when(postService.searchPosts(eq("hello"), any(Pageable.class))).thenReturn(servicePage);
+
+            mockMvc.perform(get("/api/posts/search")
+                            .param("query", "hello")
+                            .param("page", "1")
+                            .param("size", "2")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.page.number").value(1))
+                    .andExpect(jsonPath("$.page.size").value(2))
+                    .andExpect(jsonPath("$.page.totalElements").value(5))
+                    .andExpect(jsonPath("$.page.totalPages").value(3));
+        }
+    }
+
+    // ===================================================================
     // HTTP contract & security
     // ===================================================================
     @Nested
@@ -1580,6 +1746,7 @@ class PostControllerTest {
             mockMvc.perform(get("/api/users/10/posts")).andExpect(status().isForbidden());
             mockMvc.perform(get("/api/posts/1/comments")).andExpect(status().isForbidden());
             mockMvc.perform(get("/api/users/10/reacted-posts")).andExpect(status().isForbidden());
+            mockMvc.perform(get("/api/posts/search").param("query", "hello")).andExpect(status().isForbidden());
         }
 
         @Test

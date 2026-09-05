@@ -237,6 +237,14 @@ public class PostService {
                 .map(PostResponse::new);
     }
 
+    public Page<PostResponse> searchPosts(String query, Pageable pageable) {
+        if (query == null || query.isBlank()) {
+            throw new PostNotValidException("Search query must not be blank");
+        }
+        return postRepository.searchPosts(query, pageable)
+                .map(PostResponse::new);
+    }
+
     public Page<PostResponse> getPostComments(Long postId, Pageable pageable) {
         if (!postRepository.existsById(postId)) {
             throw new PostNotFoundException(postId);

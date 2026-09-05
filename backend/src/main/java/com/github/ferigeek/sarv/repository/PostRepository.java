@@ -73,4 +73,13 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             @Param("userId") Long userId,
             @Param("reactionType") Short reactionType,
             Pageable pageable);
+
+    // Sorting is applied through `Pageable` to keep the pagination order deterministic.
+    @Query("""
+        SELECT post
+        FROM Post post
+        WHERE LOWER(post.content) LIKE LOWER(CONCAT('%', :query, '%'))
+        AND post.deletedAt IS NULL
+    """)
+    Page<Post> searchPosts(@Param("query") String query, Pageable pageable);
 }

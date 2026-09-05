@@ -95,6 +95,13 @@ public class PostController {
         return postService.getReactedPosts(userId, filter, sanitized);
     }
 
+    @GetMapping("/posts/search")
+    public Page<PostResponse> searchPosts(
+            @RequestParam String query,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return postService.searchPosts(query, pageable);
+    }
+
     @GetMapping("/posts/{postId}/comments")
     public Page<PostResponse> getPostComments(
             @Positive @PathVariable Long postId,

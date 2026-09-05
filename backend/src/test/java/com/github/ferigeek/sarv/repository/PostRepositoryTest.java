@@ -476,4 +476,78 @@ class PostRepositoryTest {
             assertThat(first.getTotalPages()).isEqualTo(3);
         }
     }
+
+    @Nested
+    @DisplayName("searchPosts")
+    class SearchPosts {
+
+        @Test
+        @DisplayName("should return posts whose content contains the query")
+        void shouldReturnMatchingPosts() {
+            newPost(owner, "hello world", OffsetDateTime.now().minusHours(2));
+            newPost(other, "say hello", OffsetDateTime.now().minusHours(1));
+            newPost(owner, "unrelated", OffsetDateTime.now());
+
+            Page<Post> page = postRepository.searchPosts("hello", PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isEqualTo(2);
+            assertThat(page.getContent())
+                    .map(Post::getContent)
+                    .containsExactlyInAnyOrder("hello world", "say hello");
+        }
+
+        @Test
+        @DisplayName("should match case-insensitively")
+        void shouldMatchCaseInsensitively() {
+            newPost(owner, "Hello World", OffsetDateTime.now().minusHours(1));
+            newPost(other, "HELLO again", OffsetDateTime.now());
+
+            Page<Post> page = postRepository.searchPosts("hello", PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("should exclude soft-deleted posts")
+        void shouldExcludeSoftDeleted() {
+            Post visible = newPost(owner, "hello visible", OffsetDateTime.now().minusHours(2));
+            Post deleted = newPost(owner, "hello deleted", OffsetDateTime.now().minusHours(1));
+            deleted.setDeletedAt(OffsetDateTime.now());
+            postRepository.saveAndFlush(deleted);
+
+            Page<Post> page = postRepository.searchPosts("hello", PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isEqualTo(1);
+            assertThat(page.getContent()).map(Post::getId).containsExactly(visible.getId());
+        }
+
+        @Test
+        @DisplayName("should return empty page when nothing matches")
+        void shouldReturnEmptyWhenNoMatch() {
+            newPost(owner, "hello world", OffsetDateTime.now());
+
+            Page<Post> page = postRepository.searchPosts("nomatch", PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isZero();
+            assertThat(page.getContent()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("should honor page and size")
+        void shouldHonorPageAndSize() {
+            for (int i = 0; i < 5; i++) {
+                newPost(owner, "hello-" + i, OffsetDateTime.now().minusMinutes(i));
+            }
+
+            Page<Post> first = postRepository.searchPosts("hello", PageRequest.of(0, 2));
+            Page<Post> second = postRepository.searchPosts("hello", PageRequest.of(1, 2));
+            Page<Post> third = postRepository.searchPosts("hello", PageRequest.of(2, 2));
+
+            assertThat(first.getContent()).hasSize(2);
+            assertThat(second.getContent()).hasSize(2);
+            assertThat(third.getContent()).hasSize(1);
+            assertThat(first.getTotalElements()).isEqualTo(5);
+            assertThat(first.getTotalPages()).isEqualTo(3);
+        }
+    }
 }
