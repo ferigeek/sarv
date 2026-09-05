@@ -76,6 +76,19 @@ function goLiked() {
           followers
         </button>
       </li>
+      <li>
+        <a
+          class="left-nav__item"
+          href="https://github.com/ferigeek/sarv"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="left-nav-github"
+          aria-label="Sarv on GitHub — opens in a new tab"
+        >
+          <AppIcon name="github" :size="16" class="left-nav__icon" aria-hidden="true" />
+          github
+        </a>
+      </li>
     </ul>
   </nav>
 </template>
@@ -103,6 +116,7 @@ function goLiked() {
   font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  text-decoration: none;
   color: var(--sarv-text-dim);
   background: transparent;
   border: 1px solid transparent;

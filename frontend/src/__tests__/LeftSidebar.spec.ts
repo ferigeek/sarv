@@ -470,4 +470,22 @@ describe('LeftSidebar (Phase 4)', () => {
     }
     expect(router.currentRoute.value.name).toBe('feed')
   })
+
+  it('navigation ends with a github link to the repository', async () => {
+    setAuthenticated()
+    const { wrapper, router } = mountLeftSidebar()
+    await router.push('/')
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    const items = wrapper.findAll('[data-testid="left-navigation"] li')
+    expect(items.length).toBeGreaterThan(0)
+    const last = items[items.length - 1]?.find('[data-testid="left-nav-github"]')
+    expect(last?.exists()).toBe(true)
+    expect(last?.element.tagName).toBe('A')
+    expect(last?.attributes('href')).toBe('https://github.com/ferigeek/sarv')
+    expect(last?.attributes('target')).toBe('_blank')
+    expect(last?.attributes('rel')).toContain('noopener')
+  })
 })
