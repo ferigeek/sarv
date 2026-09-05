@@ -904,4 +904,111 @@ class PostServiceTest {
             assertThat(res.getContent()).isEmpty();
         }
     }
+
+    // -----------------------------------------------------------------------
+    // getPostComments
+    // -----------------------------------------------------------------------
+    @Nested
+    @DisplayName("getPostComments")
+    class GetPostComments {
+
+        private Post comment(Long id, Post parent, User user, String content) {
+            Post p = new Post();
+            p.setId(id);
+            p.setUser(user);
+            p.setPostCategory(PostCategory.COMMENT);
+            p.setContent(content);
+            p.setCreatedAt(OffsetDateTime.now());
+            p.setParent(parent);
+            p.setViewCount(0L);
+            p.setLikeCount(0L);
+            p.setDislikeCount(0L);
+            return p;
+        }
+
+        @Test
+        @DisplayName("should delegate to repository with same postId and pageable")
+        void shouldDelegateWithSameArgs() {
+            Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
+            when(postRepository.existsById(100L)).thenReturn(true);
+            when(postRepository.findCommentsByParentId(100L, pageable))
+                    .thenReturn(Page.empty(pageable));
+
+            postService.getPostComments(100L, pageable);
+
+            verify(postRepository).existsById(100L);
+            verify(postRepository).findCommentsByParentId(100L, pageable);
+        }
+
+        @Test
+        @DisplayName("should map comments to PostResponse preserving order")
+        void shouldMapComments() {
+            Post parent = new Post();
+            parent.setId(100L);
+            parent.setUser(owner);
+            parent.setPostCategory(PostCategory.NORMAL);
+            parent.setContent("parent");
+            parent.setCreatedAt(OffsetDateTime.now());
+            Post c1 = comment(200L, parent, otherUser, "first");
+            Post c2 = comment(201L, parent, owner, "second");
+            Pageable pageable = PageRequest.of(0, 10);
+            when(postRepository.existsById(100L)).thenReturn(true);
+            when(postRepository.findCommentsByParentId(100L, pageable))
+                    .thenReturn(new PageImpl<>(List.of(c1, c2), pageable, 2));
+
+            Page<PostResponse> res = postService.getPostComments(100L, pageable);
+
+            assertThat(res.getContent()).hasSize(2);
+            assertThat(res.getContent().get(0).getId()).isEqualTo(200L);
+            assertThat(res.getContent().get(0).getParentId()).isEqualTo(100L);
+            assertThat(res.getContent().get(0).getContent()).isEqualTo("first");
+            assertThat(res.getContent().get(1).getId()).isEqualTo(201L);
+        }
+
+        @Test
+        @DisplayName("should throw PostNotFoundException when parent post does not exist")
+        void shouldThrowWhenParentNotFound() {
+            when(postRepository.existsById(99L)).thenReturn(false);
+
+            PostNotFoundException ex = assertThrows(PostNotFoundException.class,
+                    () -> postService.getPostComments(99L, PageRequest.of(0, 10)));
+
+            assertThat(ex.getMessage()).contains("99");
+            verify(postRepository, never()).findCommentsByParentId(any(), any());
+        }
+
+        @Test
+        @DisplayName("should preserve pagination metadata")
+        void shouldPreservePagination() {
+            Post parent = new Post();
+            parent.setId(100L);
+            parent.setUser(owner);
+            Post c = comment(200L, parent, owner, "hello");
+            Pageable pageable = PageRequest.of(1, 2, Sort.by(Sort.Direction.DESC, "createdAt"));
+            when(postRepository.existsById(100L)).thenReturn(true);
+            when(postRepository.findCommentsByParentId(100L, pageable))
+                    .thenReturn(new PageImpl<>(List.of(c), pageable, 5));
+
+            Page<PostResponse> res = postService.getPostComments(100L, pageable);
+
+            assertThat(res.getTotalElements()).isEqualTo(5);
+            assertThat(res.getTotalPages()).isEqualTo(3);
+            assertThat(res.getNumber()).isEqualTo(1);
+            assertThat(res.getSize()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("should return empty page when post has no comments")
+        void shouldReturnEmpty() {
+            Pageable pageable = PageRequest.of(0, 10);
+            when(postRepository.existsById(100L)).thenReturn(true);
+            when(postRepository.findCommentsByParentId(100L, pageable))
+                    .thenReturn(Page.empty(pageable));
+
+            Page<PostResponse> res = postService.getPostComments(100L, pageable);
+
+            assertThat(res.getTotalElements()).isZero();
+            assertThat(res.getContent()).isEmpty();
+        }
+    }
 }

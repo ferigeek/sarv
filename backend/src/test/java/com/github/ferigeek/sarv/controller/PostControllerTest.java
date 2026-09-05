@@ -1089,6 +1089,190 @@ class PostControllerTest {
     }
 
     // ===================================================================
+    // GET /api/posts/{postId}/comments
+    // ===================================================================
+    @Nested
+    @DisplayName("GET /api/posts/{postId}/comments")
+    class GetPostComments {
+
+        @Test
+        @DisplayName("should return 200 with page when authenticated")
+        void shouldReturn200() throws Exception {
+            PostResponse r1 = postResponse(2L, 10L, PostCategory.COMMENT, "reply1", null, null, 1L);
+            PostResponse r2 = postResponse(3L, 11L, PostCategory.COMMENT, "reply2", null, null, 1L);
+            Page<PostResponse> page = new PageImpl<>(List.of(r1, r2),
+                    PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt")), 2);
+            when(postService.getPostComments(eq(1L), any(Pageable.class))).thenReturn(page);
+
+            mockMvc.perform(get("/api/posts/1/comments")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(2))
+                    .andExpect(jsonPath("$.content[0].id").value(2))
+                    .andExpect(jsonPath("$.content[0].parentId").value(1))
+                    .andExpect(jsonPath("$.content[0].postCategory").value("COMMENT"))
+                    .andExpect(jsonPath("$.content[0].content").value("reply1"))
+                    .andExpect(jsonPath("$.content[1].id").value(3))
+                    .andExpect(jsonPath("$.page.size").value(10))
+                    .andExpect(jsonPath("$.page.number").value(0))
+                    .andExpect(jsonPath("$.page.totalElements").value(2))
+                    .andExpect(jsonPath("$.page.totalPages").value(1));
+        }
+
+        @Test
+        @DisplayName("should return 200 with empty page when post has no comments")
+        void shouldReturnEmpty() throws Exception {
+            when(postService.getPostComments(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/posts/1/comments")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(0))
+                    .andExpect(jsonPath("$.page.totalElements").value(0));
+        }
+
+        @Test
+        @DisplayName("should return 404 when PostNotFoundException")
+        void shouldReturn404() throws Exception {
+            when(postService.getPostComments(eq(99L), any(Pageable.class)))
+                    .thenThrow(new PostNotFoundException(99L));
+
+            mockMvc.perform(get("/api/posts/99/comments")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: <99>"));
+        }
+
+        @Test
+        @DisplayName("should return 403 when unauthenticated")
+        void shouldReturn403() throws Exception {
+            mockMvc.perform(get("/api/posts/1/comments"))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("should return 400 for non-numeric postId")
+        void shouldReturn400NonNumeric() throws Exception {
+            mockMvc.perform(get("/api/posts/abc/comments")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 400 for negative postId")
+        void shouldReturn400Negative() throws Exception {
+            mockMvc.perform(get("/api/posts/-1/comments")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 400 for zero postId")
+        void shouldReturn400Zero() throws Exception {
+            mockMvc.perform(get("/api/posts/0/comments")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 500 when service throws unexpected")
+        void shouldReturn500() throws Exception {
+            when(postService.getPostComments(eq(1L), any(Pageable.class)))
+                    .thenThrow(new RuntimeException("fail"));
+
+            mockMvc.perform(get("/api/posts/1/comments")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.detail").value("An unexpected error occurred"));
+        }
+
+        @Test
+        @DisplayName("should use default page=0 size=10 sort createdAt DESC when no paging params")
+        void shouldUseDefaultPageable() throws Exception {
+            when(postService.getPostComments(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/posts/1/comments")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).getPostComments(eq(1L), pageableCaptor.capture());
+            Pageable pageable = pageableCaptor.getValue();
+            assertThat(pageable.getPageNumber()).isZero();
+            assertThat(pageable.getPageSize()).isEqualTo(10);
+            assertThat(pageable.getSort()).isEqualTo(Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+
+        @Test
+        @DisplayName("should pass requested page and size preserving default sort when sort not specified")
+        void shouldPassRequestedPageAndSize() throws Exception {
+            when(postService.getPostComments(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/posts/1/comments")
+                            .param("page", "2")
+                            .param("size", "5")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).getPostComments(eq(1L), pageableCaptor.capture());
+            Pageable pageable = pageableCaptor.getValue();
+            assertThat(pageable.getPageNumber()).isEqualTo(2);
+            assertThat(pageable.getPageSize()).isEqualTo(5);
+            assertThat(pageable.getSort()).isEqualTo(Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+
+        @Test
+        @DisplayName("should allow client sort override")
+        void shouldAllowSortOverride() throws Exception {
+            when(postService.getPostComments(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/posts/1/comments")
+                            .param("sort", "createdAt,asc")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).getPostComments(eq(1L), pageableCaptor.capture());
+            assertThat(pageableCaptor.getValue().getSort())
+                    .isEqualTo(Sort.by(Sort.Direction.ASC, "createdAt"));
+        }
+
+        @Test
+        @DisplayName("should preserve pagination metadata from service")
+        void shouldPreservePaginationMetadata() throws Exception {
+            PostResponse r = postResponse(2L, 10L, PostCategory.COMMENT, "c", null, null, 1L);
+            Page<PostResponse> servicePage = new PageImpl<>(List.of(r),
+                    PageRequest.of(1, 2, Sort.by(Sort.Direction.DESC, "createdAt")), 5);
+            when(postService.getPostComments(eq(1L), any(Pageable.class))).thenReturn(servicePage);
+
+            mockMvc.perform(get("/api/posts/1/comments")
+                            .param("page", "1")
+                            .param("size", "2")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.page.number").value(1))
+                    .andExpect(jsonPath("$.page.size").value(2))
+                    .andExpect(jsonPath("$.page.totalElements").value(5))
+                    .andExpect(jsonPath("$.page.totalPages").value(3));
+        }
+
+        @Test
+        @DisplayName("should return 405 for POST on post comments endpoint")
+        void shouldReturn405ForPost() throws Exception {
+            mockMvc.perform(post("/api/posts/1/comments")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isMethodNotAllowed());
+        }
+    }
+
+    // ===================================================================
     // HTTP contract & security
     // ===================================================================
     @Nested
@@ -1107,6 +1291,7 @@ class PostControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}")).andExpect(status().isForbidden());
             mockMvc.perform(get("/api/users/10/posts")).andExpect(status().isForbidden());
+            mockMvc.perform(get("/api/posts/1/comments")).andExpect(status().isForbidden());
         }
 
         @Test

@@ -230,4 +230,12 @@ public class PostService {
         return postRepository.findPostsByUserId(userId, pageable)
                 .map(PostResponse::new);
     }
+
+    public Page<PostResponse> getPostComments(Long postId, Pageable pageable) {
+        if (!postRepository.existsById(postId)) {
+            throw new PostNotFoundException(postId);
+        }
+        return postRepository.findCommentsByParentId(postId, pageable)
+                .map(PostResponse::new);
+    }
 }

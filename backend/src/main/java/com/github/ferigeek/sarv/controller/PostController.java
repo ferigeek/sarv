@@ -81,4 +81,11 @@ public class PostController {
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return postService.getUserPosts(userId, pageable);
     }
+
+    @GetMapping("/posts/{postId}/comments")
+    public Page<PostResponse> getPostComments(
+            @Positive @PathVariable Long postId,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return postService.getPostComments(postId, pageable);
+    }
 }

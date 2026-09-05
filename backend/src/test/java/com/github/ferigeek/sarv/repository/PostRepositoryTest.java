@@ -64,6 +64,21 @@ class PostRepositoryTest {
         post.setViewCount(0L);
         post.setLikeCount(0L);
         post.setDislikeCount(0L);
+        post.setCommentCount(0L);
+        return postRepository.saveAndFlush(post);
+    }
+
+    private Post newComment(User user, Post parent, String content, OffsetDateTime createdAt) {
+        Post post = new Post();
+        post.setUser(user);
+        post.setPostCategory(PostCategory.COMMENT);
+        post.setContent(content);
+        post.setCreatedAt(createdAt);
+        post.setParent(parent);
+        post.setViewCount(0L);
+        post.setLikeCount(0L);
+        post.setDislikeCount(0L);
+        post.setCommentCount(0L);
         return postRepository.saveAndFlush(post);
     }
 
@@ -171,6 +186,83 @@ class PostRepositoryTest {
             List<Long> ascIds = postRepository.findPostsByUserId(owner.getId(), asc)
                     .map(Post::getId).getContent();
             assertThat(ascIds).containsExactly(oldest.getId(), middle.getId(), newest.getId());
+        }
+    }
+
+    @Nested
+    @DisplayName("findCommentsByParentId")
+    class FindCommentsByParentId {
+
+        @Test
+        @DisplayName("should return only comments of the given post")
+        void shouldReturnOnlyOwnComments() {
+            Post parent = newPost(owner, "parent", OffsetDateTime.now().minusHours(3));
+            Post otherParent = newPost(owner, "other-parent", OffsetDateTime.now().minusHours(2));
+            newComment(owner, parent, "c1", OffsetDateTime.now().minusHours(1));
+            newComment(other, parent, "c2", OffsetDateTime.now());
+            newComment(owner, otherParent, "other", OffsetDateTime.now());
+            newPost(owner, "standalone", OffsetDateTime.now());
+
+            Page<Post> page = postRepository.findCommentsByParentId(
+                    parent.getId(), PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isEqualTo(2);
+            assertThat(page.getContent())
+                    .allSatisfy(post -> assertThat(post.getParent().getId()).isEqualTo(parent.getId()));
+            assertThat(page.getContent())
+                    .map(Post::getContent)
+                    .containsExactlyInAnyOrder("c1", "c2");
+        }
+
+        @Test
+        @DisplayName("should exclude soft-deleted comments")
+        void shouldExcludeSoftDeleted() {
+            Post parent = newPost(owner, "parent", OffsetDateTime.now().minusHours(2));
+            Post visible = newComment(owner, parent, "visible", OffsetDateTime.now().minusHours(1));
+            Post deleted = newComment(owner, parent, "deleted", OffsetDateTime.now());
+            deleted.setDeletedAt(OffsetDateTime.now());
+            postRepository.saveAndFlush(deleted);
+
+            Page<Post> page = postRepository.findCommentsByParentId(
+                    parent.getId(), PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isEqualTo(1);
+            assertThat(page.getContent()).map(Post::getId).containsExactly(visible.getId());
+        }
+
+        @Test
+        @DisplayName("should return empty page for unknown post")
+        void shouldReturnEmptyForUnknownPost() {
+            Post parent = newPost(owner, "parent", OffsetDateTime.now());
+            newComment(owner, parent, "c1", OffsetDateTime.now());
+
+            Page<Post> page = postRepository.findCommentsByParentId(
+                    999_999L, PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isZero();
+            assertThat(page.getContent()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("should honor page and size")
+        void shouldHonorPageAndSize() {
+            Post parent = newPost(owner, "parent", OffsetDateTime.now().minusHours(1));
+            for (int i = 0; i < 5; i++) {
+                newComment(owner, parent, "c-" + i, OffsetDateTime.now().minusMinutes(i));
+            }
+
+            Page<Post> first = postRepository.findCommentsByParentId(
+                    parent.getId(), PageRequest.of(0, 2));
+            Page<Post> second = postRepository.findCommentsByParentId(
+                    parent.getId(), PageRequest.of(1, 2));
+            Page<Post> third = postRepository.findCommentsByParentId(
+                    parent.getId(), PageRequest.of(2, 2));
+
+            assertThat(first.getContent()).hasSize(2);
+            assertThat(second.getContent()).hasSize(2);
+            assertThat(third.getContent()).hasSize(1);
+            assertThat(first.getTotalElements()).isEqualTo(5);
+            assertThat(first.getTotalPages()).isEqualTo(3);
         }
     }
 }

@@ -37,6 +37,14 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     """)
     Page<Post> findPostsByUserId(@Param("userId") Long userId, Pageable pageable);
 
+    @Query("""
+        SELECT post
+        FROM Post post
+        WHERE post.parent.id = :postId
+        AND post.deletedAt IS NULL
+    """)
+    Page<Post> findCommentsByParentId(@Param("postId") Long postId, Pageable pageable);
+
     @Modifying
     @Query("""
         UPDATE Post post
