@@ -9,6 +9,7 @@ import { addReaction, getReaction, removeReaction } from '@/api/reactions'
 import { getUser } from '@/api/users'
 import type { PostResponse, UserResponse, UserReaction } from '@/types/api'
 import AppIcon from './AppIcon.vue'
+import PostCreateModal from './PostCreateModal.vue'
 import RepostConfirm from './RepostConfirm.vue'
 
 const props = withDefaults(
@@ -16,7 +17,7 @@ const props = withDefaults(
   { clickable: true, detailed: false },
 )
 
-const emit = defineEmits<{ reposted: [id: number] }>()
+const emit = defineEmits<{ reposted: [id: number]; quoted: [id: number] }>()
 
 const router = useRouter()
 
@@ -154,6 +155,17 @@ function onReposted(id: number) {
   reposted.value = true
   showRepost.value = false
   emit('reposted', id)
+}
+
+const showQuote = ref(false)
+
+function onQuote() {
+  showQuote.value = true
+}
+
+function onQuoted(id: number) {
+  showQuote.value = false
+  emit('quoted', id)
 }
 
 function clearAvatar() {
@@ -490,10 +502,11 @@ async function onDislike() {
       </button>
 
       <button
-        class="post-action post-action--inert"
+        class="post-action"
         type="button"
         data-testid="post-quote-btn"
-        title="Quote — coming soon"
+        title="Quote this post"
+        @click.stop="onQuote"
       >
         <AppIcon name="share" :size="16" />
         quote
@@ -528,6 +541,14 @@ async function onDislike() {
       :author-label="authorLabel"
       @close="showRepost = false"
       @reposted="onReposted"
+    />
+
+    <PostCreateModal
+      v-if="showQuote"
+      mode="quote"
+      :repost-of-id="post.id"
+      @close="showQuote = false"
+      @created="onQuoted"
     />
   </article>
 </template>

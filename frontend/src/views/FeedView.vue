@@ -149,7 +149,13 @@ onMounted(() => {
 
     <template v-else>
       <div class="feed-list" data-testid="feed-list">
-        <PostCard v-for="p in posts" :key="p.id" :post="p" @reposted="onReposted" />
+        <PostCard
+          v-for="p in posts"
+          :key="p.id"
+          :post="p"
+          @reposted="onReposted"
+          @quoted="onReposted"
+        />
       </div>
 
       <footer class="feed-footer">

@@ -13,22 +13,53 @@ vi.mock('@/api/posts', () => ({
   createPost: vi.fn<(payload: unknown) => Promise<PostResponse>>(),
   getPost: vi.fn<(id: number) => Promise<PostResponse>>(),
   updatePost: vi.fn<() => Promise<PostResponse>>(),
-  deletePost: vi.fn<(id: number) => Promise<void>>(),
+  deletePost: vi.fn<() => Promise<void>>(),
+  repostPost: vi.fn<() => Promise<PostResponse>>(),
+  quotePost: vi.fn<(id: number, payload: unknown) => Promise<PostResponse>>(),
+}))
+
+vi.mock('@/api/users', () => ({
+  getMe: vi.fn<() => Promise<unknown>>(),
+  getUser: vi.fn<(id: number) => Promise<unknown>>(),
+  updateMe: vi.fn<() => Promise<unknown>>(),
+  searchUsers: vi.fn<() => Promise<unknown>>(),
 }))
 
 import { uploadMedia as mockUploadMedia } from '@/api/media'
-import { createPost as mockCreatePost } from '@/api/posts'
+import { createPost as mockCreatePost, getPost as mockGetPost, quotePost as mockQuotePost } from '@/api/posts'
+import { getUser as mockGetUser } from '@/api/users'
 import PostCreateModal from '../PostCreateModal.vue'
 
 const mockedUploadMedia = vi.mocked(mockUploadMedia)
 const mockedCreatePost = vi.mocked(mockCreatePost)
+const mockedGetPost = vi.mocked(mockGetPost)
+const mockedQuotePost = vi.mocked(mockQuotePost)
+const mockedGetUser = vi.mocked(mockGetUser)
 
 function makeFile(name = 'pic.png', type = 'image/png'): File {
   return new File(['hello'], name, { type })
 }
 
-function mountComposer() {
-  return mount(PostCreateModal, { attachTo: document.body })
+function makeQuotedPost(id: number): PostResponse {
+  return {
+    id,
+    userId: 9,
+    postCategory: 'NORMAL',
+    content: 'quoted text',
+    createdAt: '2026-09-02T10:00:00+00:00',
+    updatedAt: null,
+    mediaId: null,
+    repostOfId: null,
+    parentId: null,
+    viewCount: 2,
+    likeCount: 1,
+    dislikeCount: 0,
+    commentCount: 0,
+  }
+}
+
+function mountComposer(props: Record<string, unknown> = {}) {
+  return mount(PostCreateModal, { props, attachTo: document.body })
 }
 
 describe('PostCreateModal', () => {
@@ -178,5 +209,46 @@ describe('PostCreateModal', () => {
 
     expect(wrapper.find('[data-testid="post-create-preview-img"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="post-create-preview-video"]').exists()).toBe(false)
+  })
+
+  it('quote mode shows the quoted post and sends a QUOTE on submit', async () => {
+    mockedGetPost.mockResolvedValue(makeQuotedPost(300))
+    mockedGetUser.mockResolvedValue({
+      id: 9,
+      username: 'bob',
+      displayName: 'Bob',
+      bio: null,
+      gender: 'MALE',
+      location: null,
+      profilePictureId: null,
+      status: 'ACTIVE',
+    })
+    mockedQuotePost.mockResolvedValue({ ...makeQuotedPost(301), postCategory: 'QUOTE' })
+
+    const wrapper = mountComposer({ mode: 'quote', repostOfId: 300 })
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="quote-original"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="quote-original-body"]').text()).toContain('Bob')
+
+    await wrapper.find('[data-testid="post-create-content"]').setValue('my take')
+    await wrapper.find('[data-testid="post-create-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(mockedQuotePost).toHaveBeenCalledWith(300, { content: 'my take', mediaId: null })
+    expect(wrapper.emitted('created')?.[0]).toEqual([301])
+  })
+
+  it('quote mode shows a fallback when the quoted post is gone', async () => {
+    mockedGetPost.mockRejectedValue(new Error('not found'))
+
+    const wrapper = mountComposer({ mode: 'quote', repostOfId: 300 })
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="quote-original-missing"]').exists()).toBe(true)
   })
 })

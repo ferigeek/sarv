@@ -4,16 +4,63 @@ import gsap from 'gsap'
 
 import type { ApiError } from '@/api/client'
 import { uploadMedia } from '@/api/media'
-import { createPost } from '@/api/posts'
+import { createPost, getPost, quotePost } from '@/api/posts'
+import { getUser } from '@/api/users'
+import type { PostResponse, UserResponse } from '@/types/api'
 
 const emit = defineEmits<{ close: []; created: [id: number] }>()
 
 const props = withDefaults(
-  defineProps<{ mode?: 'post' | 'comment'; parentId?: number | null }>(),
-  { mode: 'post', parentId: null },
+  defineProps<{ mode?: 'post' | 'comment' | 'quote'; parentId?: number | null; repostOfId?: number | null }>(),
+  { mode: 'post', parentId: null, repostOfId: null },
 )
 
 const isComment = computed(() => props.mode === 'comment')
+const isQuote = computed(() => props.mode === 'quote')
+
+const composerTitle = computed(() => {
+  if (isComment.value) return 'NEW COMMENT'
+  if (isQuote.value) return 'QUOTE //'
+  return 'NEW POST'
+})
+
+const composerPlaceholder = computed(() => {
+  if (isComment.value) return 'write a comment…'
+  if (isQuote.value) return 'add your take…'
+  return "what's happening?"
+})
+
+/* Quoted original preview (quote mode only, non-interactive) */
+const original = ref<PostResponse | null>(null)
+const originalAuthor = ref<UserResponse | null>(null)
+const originalMissing = ref(false)
+
+const originalSnippet = computed(() => {
+  const c = original.value?.content
+  if (!c) return '(no text)'
+  return c.length > 120 ? `${c.slice(0, 120)}…` : c
+})
+
+async function loadOriginal() {
+  original.value = null
+  originalAuthor.value = null
+  originalMissing.value = false
+  if (!isQuote.value || props.repostOfId === null || props.repostOfId === undefined) return
+  const id = props.repostOfId
+  try {
+    const o = await getPost(id)
+    if (props.repostOfId !== id) return
+    original.value = o
+    try {
+      originalAuthor.value = await getUser(o.userId)
+    } catch {
+      originalAuthor.value = null
+    }
+  } catch {
+    if (props.repostOfId !== id) return
+    originalMissing.value = true
+  }
+}
 
 const panelRef = ref<HTMLElement | null>(null)
 const progressRef = ref<HTMLElement | null>(null)
@@ -110,13 +157,24 @@ async function submit() {
   errorMsg.value = ''
   phase.value = 'publishing'
   try {
-    const created = await createPost({
-      postCategory: isComment.value ? 'COMMENT' : 'NORMAL',
-      content: content.value.trim() || null,
-      mediaId: lastUploadedMediaId.value,
-      parentId: isComment.value ? props.parentId : null,
-      repostOfId: null,
-    })
+    let created
+    if (isQuote.value) {
+      if (props.repostOfId === null || props.repostOfId === undefined) {
+        throw { detail: 'no quoted post — reopen the composer from a post' }
+      }
+      created = await quotePost(props.repostOfId, {
+        content: content.value.trim() || null,
+        mediaId: lastUploadedMediaId.value,
+      })
+    } else {
+      created = await createPost({
+        postCategory: isComment.value ? 'COMMENT' : 'NORMAL',
+        content: content.value.trim() || null,
+        mediaId: lastUploadedMediaId.value,
+        parentId: isComment.value ? props.parentId : null,
+        repostOfId: null,
+      })
+    }
     emit('created', created.id)
     close()
   } catch (e) {
@@ -133,6 +191,7 @@ function onOverlayClick(e: MouseEvent) {
 }
 
 onMounted(() => {
+  void loadOriginal()
   if (!panelRef.value) return
   gsap.fromTo(
     panelRef.value,
@@ -161,19 +220,37 @@ function close() {
   <div class="post-create-overlay" data-testid="post-create-overlay" @click="onOverlayClick">
     <section ref="panelRef" class="panel post-create-panel" data-testid="post-create-modal">
       <header class="post-create__header">
-        <span class="post-create__title">{{ isComment ? 'NEW COMMENT' : 'NEW POST' }}</span>
+        <span class="post-create__title">{{ composerTitle }}</span>
         <button class="btn post-create__close" type="button" data-testid="post-create-close" @click="close">
           ✕
         </button>
       </header>
 
       <div class="post-create__body">
+        <div v-if="isQuote" class="quote-original" data-testid="quote-original">
+          <div v-if="originalMissing" class="quote-original__missing" data-testid="quote-original-missing">
+            original post unavailable
+          </div>
+          <div v-else-if="original" class="quote-original__body" data-testid="quote-original-body">
+            <span class="quote-original__author"
+              >{{ originalAuthor?.displayName ?? `User ${original.userId}` }}
+              <span class="quote-original__username"
+                >@{{ originalAuthor?.username ?? `user${original.userId}` }}</span
+              ></span
+            >
+            <span class="quote-original__snippet">{{ originalSnippet }}</span>
+          </div>
+          <div v-else class="quote-original__missing" data-testid="quote-original-loading">
+            loading quoted post…
+          </div>
+        </div>
+
         <label class="field">
           <span class="field-label">content</span>
           <textarea
             v-model="content"
             class="field-input field-textarea"
-            :placeholder="isComment ? 'write a comment…' : 'what\'s happening?'"
+            :placeholder="composerPlaceholder"
             rows="4"
             data-testid="post-create-content"
             :disabled="phase === 'uploading' || phase === 'publishing'"
@@ -331,6 +408,50 @@ function close() {
   gap: var(--sarv-space-4);
   padding: var(--sarv-space-4);
   background: var(--sarv-panel);
+}
+
+.quote-original {
+  border: 1px solid var(--sarv-border);
+  border-left: 3px solid var(--sarv-blue);
+  background: var(--sarv-bg);
+  overflow: hidden;
+}
+
+.quote-original__body {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.quote-original__author {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sarv-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quote-original__username {
+  font-weight: 400;
+  color: var(--sarv-text-dim);
+}
+
+.quote-original__snippet {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--sarv-text-dim);
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.quote-original__missing {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--sarv-text-dim);
 }
 
 .field {

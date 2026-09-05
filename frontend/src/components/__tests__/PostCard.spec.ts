@@ -251,19 +251,30 @@ describe('PostCard', () => {
     expect(wrapper.find('[data-testid="post-feedback-sad"]').exists()).toBe(true)
   })
 
-  it('repost opens a confirmation while quote is still inert', async () => {
+  it('repost opens a confirmation and quote opens the composer', async () => {
     const wrapper = mount(PostCard, { props: { post: makePost() } })
     await flushPromises()
 
     expect(wrapper.find('[data-testid="post-repost-btn"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="post-quote-btn"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="repost-confirm-modal"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="post-create-modal"]').exists()).toBe(false)
 
     await wrapper.find('[data-testid="post-repost-btn"]').trigger('click')
     await flushPromises()
 
     expect(wrapper.find('[data-testid="repost-confirm-modal"]').exists()).toBe(true)
     expect(mockedAddReaction).not.toHaveBeenCalled()
+
+    await wrapper.find('[data-testid="repost-confirm-cancel"]').trigger('click')
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 250))
+    await flushPromises()
+
+    await wrapper.find('[data-testid="post-quote-btn"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="post-create-modal"]').exists()).toBe(true)
   })
 
   it('confirming a repost calls the API and marks the button reposted', async () => {
