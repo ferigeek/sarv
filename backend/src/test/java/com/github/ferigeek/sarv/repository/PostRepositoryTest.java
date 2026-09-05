@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -30,6 +31,9 @@ class PostRepositoryTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private TestEntityManager entityManager;
 
     private User owner;
     private User other;
@@ -263,6 +267,41 @@ class PostRepositoryTest {
             assertThat(third.getContent()).hasSize(1);
             assertThat(first.getTotalElements()).isEqualTo(5);
             assertThat(first.getTotalPages()).isEqualTo(3);
+        }
+    }
+
+    @Nested
+    @DisplayName("incrementViewCounts")
+    class IncrementViewCounts {
+
+        @Test
+        @DisplayName("should increment view counts of the given posts only")
+        void shouldIncrementGivenPosts() {
+            Post p1 = newPost(owner, "p1", OffsetDateTime.now().minusHours(2));
+            Post p2 = newPost(owner, "p2", OffsetDateTime.now().minusHours(1));
+            Post untouched = newPost(other, "other", OffsetDateTime.now());
+
+            postRepository.incrementViewCounts(List.of(p1.getId(), p2.getId()));
+            // Bulk updates bypass the persistence context, so clear it to read fresh state
+            entityManager.clear();
+
+            assertThat(postRepository.findById(p1.getId()).orElseThrow().getViewCount()).isEqualTo(1L);
+            assertThat(postRepository.findById(p2.getId()).orElseThrow().getViewCount()).isEqualTo(1L);
+            assertThat(postRepository.findById(untouched.getId()).orElseThrow().getViewCount()).isZero();
+        }
+
+        @Test
+        @DisplayName("should accumulate on top of existing view counts")
+        void shouldAccumulate() {
+            Post p = newPost(owner, "p", OffsetDateTime.now());
+            p.setViewCount(5L);
+            postRepository.saveAndFlush(p);
+
+            postRepository.incrementViewCounts(List.of(p.getId()));
+            // Bulk updates bypass the persistence context, so clear it to read fresh state
+            entityManager.clear();
+
+            assertThat(postRepository.findById(p.getId()).orElseThrow().getViewCount()).isEqualTo(6L);
         }
     }
 }

@@ -116,6 +116,60 @@ class FeedServiceRecommendedTest {
         }
 
         @Test
+        @DisplayName("should increment view counts of served posts and return incremented values")
+        void shouldIncrementViewCounts() {
+            Pageable pageable = PageRequest.of(0, 20);
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+            when(recommendationClient.getRecommendations(42L, 0, 20))
+                    .thenReturn(recResponse(List.of("3", "1", "2"), 0, 20, 3));
+            when(postRepository.findAllByIdsFiltered(List.of(3L, 1L, 2L)))
+                    .thenReturn(List.of(post(1L, 1L), post(2L, 1L), post(3L, 1L)));
+
+            Page<PostResponse> res = feedService.getRecommended("alice", pageable);
+
+            verify(postRepository).incrementViewCounts(List.of(3L, 1L, 2L));
+            assertThat(res.getContent()).extracting(PostResponse::getViewCount)
+                    .containsExactly(6L, 6L, 6L);
+        }
+
+        @Test
+        @DisplayName("should only increment view counts of visible posts")
+        void shouldOnlyIncrementVisible() {
+            Pageable pageable = PageRequest.of(0, 20);
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+            when(recommendationClient.getRecommendations(42L, 0, 20))
+                    .thenReturn(recResponse(List.of("1", "2", "3"), 0, 20, 3));
+            Post p1 = post(1L, 1L);
+            Post p2 = post(2L, 1L);
+            p2.setDeletedAt(OffsetDateTime.now());
+            when(postRepository.findAllByIdsFiltered(List.of(1L, 2L, 3L)))
+                    .thenReturn(List.of(p1, p2));
+
+            Page<PostResponse> res = feedService.getRecommended("alice", pageable);
+
+            assertThat(res.getContent()).extracting(PostResponse::getId).containsExactly(1L);
+            verify(postRepository).incrementViewCounts(List.of(1L));
+        }
+
+        @Test
+        @DisplayName("should increment view counts when falling back to chronological")
+        void shouldIncrementWhenFallingBack() {
+            Pageable pageable = PageRequest.of(0, 10);
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+            when(recommendationClient.getRecommendations(42L, 0, 10))
+                    .thenReturn(recResponse(List.of(), 0, 10, 0));
+            Post p = post(99L, 1L);
+            Page<Post> chrono = new PageImpl<>(List.of(p), pageable, 1);
+            when(postRepository.findChronologicalFeed(pageable)).thenReturn(chrono);
+
+            Page<PostResponse> res = feedService.getRecommended("alice", pageable);
+
+            assertThat(res.getContent()).hasSize(1);
+            assertThat(res.getContent().get(0).getViewCount()).isEqualTo(6L);
+            verify(postRepository).incrementViewCounts(List.of(99L));
+        }
+
+        @Test
         @DisplayName("should fallback to chronological when recommendation empty")
         void shouldFallbackWhenEmpty() {
             Pageable pageable = PageRequest.of(0, 10);

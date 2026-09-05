@@ -12,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -33,11 +34,14 @@ public class FeedService {
         this.recommendationClient = recommendationClient;
     }
 
+    @Transactional
     public Page<PostResponse> getChronological(Pageable pageable) {
-        return postRepository.findChronologicalFeed(pageable)
-                .map(PostResponse::new);
+        Page<Post> page = postRepository.findChronologicalFeed(pageable);
+        recordViews(page.getContent().stream().map(Post::getId).toList());
+        return page.map(this::withRecordedView);
     }
 
+    @Transactional
     public Page<PostResponse> getRecommended(String username, Pageable pageable) {
         Long userId = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException("User not found with username: <%s>".formatted(username)))
@@ -55,10 +59,14 @@ public class FeedService {
             List<Post> hyd = postRepository.findAllByIdsFiltered(rankedIds);
             Map<Long, Post> map = hyd.stream().collect(Collectors.toMap(Post::getId, Function.identity(), (a, b) -> a));
 
-            List<PostResponse> content = rankedIds.stream()
+            List<Post> visible = rankedIds.stream()
                     .map(map::get)
                     .filter(p -> p != null && p.getDeletedAt() == null)
-                    .map(PostResponse::new)
+                    .toList();
+            recordViews(visible.stream().map(Post::getId).toList());
+
+            List<PostResponse> content = visible.stream()
+                    .map(this::withRecordedView)
                     .toList();
 
             // Use total from recommendation service for Page metadata; fallback to content size if missing
@@ -75,6 +83,19 @@ public class FeedService {
             log.warn("Failed to fetch recommended feed for user {} (page {} size {}), falling back to chronological: {}", username, pageable.getPageNumber(), pageable.getPageSize(), ex.toString());
             return getChronological(pageable);
         }
+    }
+
+    private void recordViews(List<Long> postIds) {
+        if (postIds.isEmpty()) {
+            return;
+        }
+        postRepository.incrementViewCounts(postIds);
+    }
+
+    private PostResponse withRecordedView(Post post) {
+        PostResponse response = new PostResponse(post);
+        response.setViewCount((response.getViewCount() == null ? 0L : response.getViewCount()) + 1);
+        return response;
     }
 
     private List<Long> extractIds(RecommendationResponse response) {

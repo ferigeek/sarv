@@ -52,4 +52,12 @@ public interface PostRepository extends JpaRepository<Post, Long> {
         WHERE post.id = :postId
     """)
     void incrementCommentCount(@Param("postId") Long postId);
+
+    @Modifying
+    @Query("""
+        UPDATE Post post
+        SET post.viewCount = COALESCE(post.viewCount, 0) + 1
+        WHERE post.id IN :postIds
+    """)
+    void incrementViewCounts(@Param("postIds") List<Long> postIds);
 }
