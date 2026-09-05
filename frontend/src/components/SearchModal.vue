@@ -62,6 +62,7 @@ async function loadAvatars(users: UserSummaryResponse[]) {
 function postSnippet(p: PostResponse): string {
   if (p.content) return p.content.length > 140 ? `${p.content.slice(0, 140)}…` : p.content
   if (p.postCategory === 'REPOST') return '↻ repost'
+  if (p.postCategory === 'QUOTE') return '❝ quote'
   return '(no text)'
 }
 

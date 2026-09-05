@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import gsap from 'gsap'
 
 import { getMediaBlob, getMediaMetadata } from '@/api/media'
+import { getPost } from '@/api/posts'
 import { addReaction, getReaction, removeReaction } from '@/api/reactions'
 import { getUser } from '@/api/users'
 import type { PostResponse, UserResponse, UserReaction } from '@/types/api'
@@ -45,6 +46,83 @@ const createdAtLabel = computed(() => {
 const isVideoMedia = computed(() => mediaMimeType.value?.startsWith('video/') ?? false)
 
 const commentCount = computed(() => props.post.commentCount ?? 0)
+
+/* Category identity: COMMENT / REPOST / QUOTE get a terminal-blue banner,
+   and REPOST / QUOTE embed a one-level preview of the referenced post. */
+const showBanner = computed(
+  () =>
+    props.post.postCategory === 'COMMENT' ||
+    props.post.postCategory === 'REPOST' ||
+    props.post.postCategory === 'QUOTE',
+)
+
+const hasOriginal = computed(
+  () =>
+    (props.post.postCategory === 'REPOST' || props.post.postCategory === 'QUOTE') &&
+    props.post.repostOfId !== null &&
+    props.post.repostOfId !== undefined &&
+    props.post.repostOfId !== props.post.id,
+)
+
+const original = ref<PostResponse | null>(null)
+const originalAuthor = ref<UserResponse | null>(null)
+const originalMissing = ref(false)
+
+const originalSnippet = computed(() => {
+  const c = original.value?.content
+  if (!c) return '(no text)'
+  return c.length > 140 ? `${c.slice(0, 140)}…` : c
+})
+
+const bannerLabel = computed(() => {
+  if (props.post.postCategory === 'COMMENT') {
+    return `▸ COMMENT // on post #${props.post.parentId ?? '?'}`
+  }
+  const refName =
+    originalAuthor.value?.username != null
+      ? `@${originalAuthor.value.username}`
+      : `post #${props.post.repostOfId ?? '?'}` 
+  if (props.post.postCategory === 'REPOST') return `↻ REPOST // of ${refName}`
+  return `❝ QUOTE // of ${refName}`
+})
+
+function bannerTargetId(): number | null {
+  if (props.post.postCategory === 'COMMENT') return props.post.parentId
+  return props.post.repostOfId
+}
+
+function goBanner() {
+  const id = bannerTargetId()
+  if (id === null || id === undefined) return
+  void router.push({ name: 'post-detail', params: { id: String(id) } })
+}
+
+function goOriginal() {
+  if (!original.value) return
+  void router.push({ name: 'post-detail', params: { id: String(original.value.id) } })
+}
+
+async function loadOriginal() {
+  original.value = null
+  originalAuthor.value = null
+  originalMissing.value = false
+  if (!hasOriginal.value) return
+  const id = props.post.repostOfId as number
+  try {
+    const o = await getPost(id)
+    // Ignore stale responses when the card was reused for another post.
+    if (props.post.repostOfId !== id) return
+    original.value = o
+    try {
+      originalAuthor.value = await getUser(o.userId)
+    } catch {
+      originalAuthor.value = null
+    }
+  } catch {
+    if (props.post.repostOfId !== id) return
+    originalMissing.value = true
+  }
+}
 
 function goProfile() {
   void router.push({ name: 'profile', params: { id: String(props.post.userId) } })
@@ -142,9 +220,10 @@ watch(
 )
 
 watch(
-  () => props.post.id,
+  () => [props.post.id, props.post.repostOfId],
   () => {
     void loadReaction()
+    void loadOriginal()
   },
 )
 
@@ -155,6 +234,7 @@ onMounted(() => {
   void loadUser()
   void loadReaction()
   void loadMedia()
+  void loadOriginal()
 })
 
 onBeforeUnmount(() => {
@@ -247,6 +327,16 @@ async function onDislike() {
     :data-testid="`post-card-${post.id}`"
     @click="goDetail"
   >
+    <button
+      v-if="showBanner"
+      class="post-category"
+      type="button"
+      data-testid="post-category-banner"
+      @click.stop="goBanner"
+    >
+      {{ bannerLabel }}
+    </button>
+
     <header class="post-header">
       <button
         class="post-author"
@@ -277,9 +367,46 @@ async function onDislike() {
       <span class="post-time" data-testid="post-time">{{ createdAtLabel }}</span>
     </header>
 
-    <div v-if="post.content" class="post-content" data-testid="post-content">{{ post.content }}</div>
-    <div v-else-if="post.postCategory === 'REPOST'" class="post-content post-content--repost" data-testid="post-content">
-      ↻ repost
+    <div
+      v-if="post.content && post.postCategory !== 'REPOST'"
+      class="post-content"
+      data-testid="post-content"
+    >
+      {{ post.content }}
+    </div>
+
+    <div v-if="hasOriginal" class="post-original" data-testid="post-original">
+      <div
+        v-if="originalMissing"
+        class="post-original__missing"
+        data-testid="post-original-missing"
+      >
+        original post unavailable
+      </div>
+      <button
+        v-else-if="original"
+        class="post-original__body"
+        type="button"
+        data-testid="post-original-body"
+        @click.stop="goOriginal"
+      >
+        <span class="post-original__author"
+          >{{ originalAuthor?.displayName ?? `User ${original.userId}` }}
+          <span class="post-original__username"
+            >@{{ originalAuthor?.username ?? `user${original.userId}` }}</span
+          ></span
+        >
+        <span class="post-original__snippet" data-testid="post-original-content">{{
+          originalSnippet
+        }}</span>
+        <span class="post-original__meta"
+          >▸ {{ original.viewCount }} views · ▲ {{ original.likeCount }} · ▾
+          {{ original.dislikeCount }}</span
+        >
+      </button>
+      <div v-else class="post-original__missing" data-testid="post-original-loading">
+        loading original…
+      </div>
     </div>
 
     <div v-if="mediaUrl" class="post-media" data-testid="post-media" @click.stop>
@@ -480,9 +607,95 @@ async function onDislike() {
   word-break: break-word;
 }
 
-.post-content--repost {
+.post-category {
+  justify-self: start;
+  max-width: 100%;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--sarv-blue);
+  background: color-mix(in srgb, var(--sarv-blue) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sarv-blue) 40%, transparent);
+  cursor: pointer;
+}
+
+.post-category:hover {
+  background: color-mix(in srgb, var(--sarv-blue) 18%, transparent);
+}
+
+.post-category:focus-visible {
+  outline: 1px solid var(--sarv-blue);
+  outline-offset: 2px;
+}
+
+.post-original {
+  border: 1px solid var(--sarv-border);
+  border-left: 3px solid var(--sarv-blue);
+  background: var(--sarv-bg);
+  overflow: hidden;
+}
+
+.post-original__body {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.post-original__body:hover {
+  background: var(--sarv-panel-alt);
+}
+
+.post-original__body:focus-visible {
+  outline: 1px solid var(--sarv-blue);
+  outline-offset: -1px;
+}
+
+.post-original__author {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sarv-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.post-original__username {
+  font-weight: 400;
   color: var(--sarv-text-dim);
-  font-style: italic;
+}
+
+.post-original__snippet {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--sarv-text);
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.post-original__meta {
+  font-size: 11px;
+  color: var(--sarv-text-dim);
+}
+
+.post-original__missing {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--sarv-text-dim);
 }
 
 .post-media {

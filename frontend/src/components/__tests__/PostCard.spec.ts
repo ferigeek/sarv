@@ -10,6 +10,15 @@ vi.mock('@/api/users', () => ({
   searchUsers: vi.fn<(query: string, pageable?: unknown) => Promise<import('@/types/api').Page<import('@/types/api').UserResponse>>>(),
 }))
 
+vi.mock('@/api/posts', () => ({
+  getPost: vi.fn<(id: number) => Promise<PostResponse>>(),
+  createPost: vi.fn<(payload: unknown) => Promise<PostResponse>>(),
+  updatePost: vi.fn<() => Promise<PostResponse>>(),
+  deletePost: vi.fn<() => Promise<void>>(),
+  searchPosts: vi.fn<() => Promise<unknown>>(),
+  getComments: vi.fn<() => Promise<unknown>>(),
+}))
+
 vi.mock('@/api/reactions', () => ({
   addReaction: vi.fn<(postId: number, type: number) => Promise<ReactionResponse>>(),
   getReaction: vi.fn<(postId: number) => Promise<ReactionResponse>>(),
@@ -30,6 +39,7 @@ vi.mock('vue-router', async (importOriginal) => {
 })
 
 import { getMediaBlob as mockGetMediaBlob, getMediaMetadata as mockGetMediaMetadata } from '@/api/media'
+import { getPost as mockGetPost } from '@/api/posts'
 import { addReaction as mockAddReaction, getReaction as mockGetReaction, removeReaction as mockRemoveReaction } from '@/api/reactions'
 import { getUser as mockGetUser } from '@/api/users'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
@@ -39,6 +49,7 @@ registerPixelicons()
 
 const mockedGetUser = vi.mocked(mockGetUser)
 const mockedGetReaction = vi.mocked(mockGetReaction)
+const mockedGetPost = vi.mocked(mockGetPost)
 const mockedAddReaction = vi.mocked(mockAddReaction)
 const mockedRemoveReaction = vi.mocked(mockRemoveReaction)
 const mockedGetMediaBlob = vi.mocked(mockGetMediaBlob)
@@ -101,9 +112,65 @@ describe('PostCard', () => {
   })
 
   it('shows repost placeholder when content is null for REPOST', async () => {
-    const wrapper = mount(PostCard, { props: { post: makePost({ postCategory: 'REPOST', content: null }) } })
+    mockedGetPost.mockResolvedValue(makePost({ id: 300, content: 'original text' }))
+    const wrapper = mount(PostCard, { props: { post: makePost({ postCategory: 'REPOST', content: null, repostOfId: 300 }) } })
     await flushPromises()
-    expect(wrapper.find('[data-testid="post-content"]').text()).toContain('repost')
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="post-category-banner"]').text()).toContain('REPOST')
+    expect(wrapper.find('[data-testid="post-original-content"]').text()).toBe('original text')
+  })
+
+  it('shows a blue banner on comment posts linking to the parent', async () => {
+    const wrapper = mount(PostCard, { props: { post: makePost({ id: 7, postCategory: 'COMMENT', parentId: 200 }) } })
+    await flushPromises()
+
+    const banner = wrapper.find('[data-testid="post-category-banner"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('COMMENT')
+    expect(banner.text()).toContain('#200')
+
+    await banner.trigger('click')
+    expect(pushMock).toHaveBeenCalledWith({ name: 'post-detail', params: { id: '200' } })
+  })
+
+  it('shows no banner on normal posts', async () => {
+    const wrapper = mount(PostCard, { props: { post: makePost() } })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="post-category-banner"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="post-original"]').exists()).toBe(false)
+  })
+
+  it('quote posts render own content plus the embedded original', async () => {
+    mockedGetPost.mockResolvedValue(makePost({ id: 300, content: 'original text' }))
+    const wrapper = mount(PostCard, {
+      props: { post: makePost({ id: 8, postCategory: 'QUOTE', content: 'my take', repostOfId: 300 }) },
+    })
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="post-category-banner"]').text()).toContain('QUOTE')
+    expect(wrapper.find('[data-testid="post-content"]').text()).toBe('my take')
+    expect(wrapper.find('[data-testid="post-original-content"]').text()).toBe('original text')
+
+    await wrapper.find('[data-testid="post-original-body"]').trigger('click')
+    expect(pushMock).toHaveBeenCalledWith({ name: 'post-detail', params: { id: '300' } })
+  })
+
+  it('shows a fallback when the referenced original is unavailable', async () => {
+    mockedGetPost.mockRejectedValue(new Error('not found'))
+    const wrapper = mount(PostCard, {
+      props: { post: makePost({ postCategory: 'REPOST', content: null, repostOfId: 301 }) },
+    })
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="post-original-missing"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="post-original-missing"]').text()).toContain('unavailable')
   })
 
   it('like button is green when already liked and red for disliked', async () => {
