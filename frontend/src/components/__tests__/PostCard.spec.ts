@@ -51,6 +51,7 @@ function makePost(overrides: Partial<PostResponse> = {}): PostResponse {
     viewCount: 5,
     likeCount: 2,
     dislikeCount: 1,
+    commentCount: 0,
     ...overrides,
   }
 }

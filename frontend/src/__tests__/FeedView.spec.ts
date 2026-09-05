@@ -61,6 +61,7 @@ function makePost(id: number, content = `post ${id}`): PostResponse {
     viewCount: 1,
     likeCount: 0,
     dislikeCount: 0,
+    commentCount: 0,
   }
 }
 

@@ -18,6 +18,7 @@ const step = ref<1 | 2>(1)
 /* Step 1 — mandatory */
 const username = ref('')
 const password = ref('')
+const confirmPassword = ref('')
 const email = ref('')
 const displayName = ref('')
 const gender = ref<Gender>('RATHER_NOT_TO_SAY')
@@ -48,6 +49,7 @@ async function onStep1Submit() {
   if (
     !username.value.trim() ||
     !password.value ||
+    !confirmPassword.value ||
     !email.value.trim() ||
     !displayName.value.trim() ||
     !gender.value
@@ -61,11 +63,17 @@ async function onStep1Submit() {
     return
   }
 
+  if (password.value !== confirmPassword.value) {
+    error.value = 'Passwords do not match.'
+    return
+  }
+
   loading.value = true
   try {
     await auth.register({
       username: username.value.trim(),
       password: password.value,
+      confirmPassword: confirmPassword.value,
       email: email.value.trim(),
       displayName: displayName.value.trim(),
       gender: gender.value,
@@ -156,6 +164,18 @@ async function onSkip() {
               autocomplete="new-password"
               placeholder="at least 8 characters"
               data-testid="register-password"
+            />
+          </label>
+
+          <label class="field">
+            <span class="field-label">confirm password *</span>
+            <input
+              v-model="confirmPassword"
+              class="field-input"
+              type="password"
+              autocomplete="new-password"
+              placeholder="repeat password"
+              data-testid="register-confirmPassword"
             />
           </label>
 

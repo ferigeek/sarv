@@ -1,5 +1,14 @@
 import { apiClient } from './client'
-import type { Gender, Page, Pageable, UserResponse, UserSummaryResponse } from '@/types/api'
+import type {
+  Gender,
+  Page,
+  Pageable,
+  PostResponse,
+  ReactionFilter,
+  UserResponse,
+  UserStatsResponse,
+  UserSummaryResponse,
+} from '@/types/api'
 
 export interface UserUpdatePayload {
   displayName: string
@@ -31,5 +40,31 @@ export async function searchUsers(
   const { data } = await apiClient.get<Page<UserSummaryResponse>>('/users', {
     params: { query, ...pageable },
   })
+  return data
+}
+
+export async function getUserPosts(
+  userId: number,
+  pageable: Pageable = {},
+): Promise<Page<PostResponse>> {
+  const { data } = await apiClient.get<Page<PostResponse>>(`/users/${userId}/posts`, {
+    params: pageable,
+  })
+  return data
+}
+
+export async function getReactedPosts(
+  userId: number,
+  filter: ReactionFilter = 'ALL',
+  pageable: Pageable = {},
+): Promise<Page<PostResponse>> {
+  const { data } = await apiClient.get<Page<PostResponse>>(`/users/${userId}/reacted-posts`, {
+    params: { filter, ...pageable },
+  })
+  return data
+}
+
+export async function getUserStats(userId: number): Promise<UserStatsResponse> {
+  const { data } = await apiClient.get<UserStatsResponse>(`/users/${userId}/stats`)
   return data
 }

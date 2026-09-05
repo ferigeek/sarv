@@ -11,6 +11,10 @@ export type ReactionType = 1 | -1
 
 export type UserReaction = -1 | 0 | 1
 
+export type CommentSort = 'NEWEST' | 'MOST_LIKED'
+
+export type ReactionFilter = 'ALL' | 'LIKE' | 'DISLIKE'
+
 export interface UserResponse {
   id: number
   username: string
@@ -50,12 +54,19 @@ export interface PostResponse {
   viewCount: number
   likeCount: number
   dislikeCount: number
+  commentCount: number
 }
 
 export interface ReactionResponse {
   likeCount: number
   dislikeCount: number
   userReaction: UserReaction
+}
+
+export interface UserStatsResponse {
+  userId: number
+  followerCount: number
+  followingCount: number
 }
 
 export interface MediaResponse {

@@ -9,6 +9,7 @@ export interface LoginPayload {
 export interface RegisterPayload {
   username: string
   password: string
+  confirmPassword: string
   email: string
   displayName: string
   gender: Gender

@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { PostCategory, PostResponse } from '@/types/api'
+import type { CommentSort, Page, Pageable, PostCategory, PostResponse } from '@/types/api'
 
 export interface PostCreatePayload {
   postCategory: PostCategory
@@ -31,4 +31,22 @@ export async function updatePost(postId: number, payload: PostUpdatePayload): Pr
 
 export async function deletePost(postId: number): Promise<void> {
   await apiClient.delete(`/posts/${postId}`)
+}
+
+export async function searchPosts(query: string, pageable: Pageable = {}): Promise<Page<PostResponse>> {
+  const { data } = await apiClient.get<Page<PostResponse>>('/posts/search', {
+    params: { query, ...pageable },
+  })
+  return data
+}
+
+export async function getComments(
+  postId: number,
+  sortBy: CommentSort = 'NEWEST',
+  pageable: Pageable = {},
+): Promise<Page<PostResponse>> {
+  const { data } = await apiClient.get<Page<PostResponse>>(`/posts/${postId}/comments`, {
+    params: { sortBy, ...pageable },
+  })
+  return data
 }

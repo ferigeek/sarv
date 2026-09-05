@@ -103,6 +103,7 @@ const userResponse: UserResponse = {
 async function fillRequiredFields(wrapper: VueWrapper) {
   await wrapper.find('[data-testid="register-username"]').setValue('alice')
   await wrapper.find('[data-testid="register-password"]').setValue('secret12')
+  await wrapper.find('[data-testid="register-confirmPassword"]').setValue('secret12')
   await wrapper.find('[data-testid="register-email"]').setValue('a@x.io')
   await wrapper.find('[data-testid="register-displayName"]').setValue('Alice')
 }
@@ -120,6 +121,7 @@ describe('RegisterView', () => {
 
     expect(wrapper.find('[data-testid="register-username"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="register-password"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="register-confirmPassword"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="register-email"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="register-displayName"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="register-gender"]').exists()).toBe(true)
@@ -177,6 +179,38 @@ describe('RegisterView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="register-error"]').text()).toContain('already taken')
+  })
+
+  it('blocks submit when passwords do not match', async () => {
+    const { wrapper, router } = mountRegister()
+    await router.push('/register')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="register-username"]').setValue('alice')
+    await wrapper.find('[data-testid="register-password"]').setValue('secret12')
+    await wrapper.find('[data-testid="register-confirmPassword"]').setValue('other12')
+    await wrapper.find('[data-testid="register-email"]').setValue('a@x.io')
+    await wrapper.find('[data-testid="register-displayName"]').setValue('Alice')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="register-error"]').text()).toContain('do not match')
+    expect(mockedRegister).not.toHaveBeenCalled()
+  })
+
+  it('sends confirmPassword to the backend', async () => {
+    mockedRegister.mockResolvedValue({ id: 1, username: 'alice', displayName: 'Alice', email: 'a@x.io', token: 'tok' })
+    mockedGetMe.mockResolvedValue(userResponse)
+
+    const { wrapper, router } = mountRegister()
+    await router.push('/register')
+    await flushPromises()
+
+    await fillRequiredFields(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(mockedRegister).toHaveBeenCalledWith(expect.objectContaining({ confirmPassword: 'secret12' }))
   })
 
   it('skips the optional step and goes to the feed', async () => {

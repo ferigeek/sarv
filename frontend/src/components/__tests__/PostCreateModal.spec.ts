@@ -60,6 +60,7 @@ describe('PostCreateModal', () => {
       viewCount: 0,
       likeCount: 0,
       dislikeCount: 0,
+      commentCount: 0,
     })
 
     const wrapper = mountComposer()
@@ -98,6 +99,7 @@ describe('PostCreateModal', () => {
       viewCount: 0,
       likeCount: 0,
       dislikeCount: 0,
+      commentCount: 0,
     })
 
     const wrapper = mountComposer()

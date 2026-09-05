@@ -69,6 +69,7 @@ describe('auth store', () => {
     await auth.register({
       username: 'alice',
       password: 'secret12',
+      confirmPassword: 'secret12',
       email: 'alice@x.io',
       displayName: 'Alice',
       gender: 'FEMALE',
