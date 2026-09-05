@@ -82,6 +82,7 @@ Registration request fields: `username` (≥2 chars), `password` (8–50 chars),
 | GET | `/api/users?query=` | bearer | Searches users by username or display name (case-insensitive, partial match), paginated |
 | GET | `/api/users/{userId}/posts` | bearer | Paginated posts of a user, newest first (`size=10, sort=createdAt,DESC`); empty page for unknown users |
 | GET | `/api/users/{userId}/reacted-posts?filter=` | bearer | Paginated posts the user reacted to, newest reactions first; `filter` is `ALL` (default), `LIKE`, or `DISLIKE`; client `sort` is ignored; soft-deleted posts excluded |
+| GET | `/api/users/{userId}/stats` | bearer | Follower and following counts (`{userId, followerCount, followingCount}`), served separately from the profile so count computation never blocks profile rendering |
 
 Profile update fields: `displayName` (required, ≥2 chars), `bio` (optional), `location` (optional), `gender` (required), `profilePictureId` (optional media id). `PUT` semantics are used: fields sent as `null` or blank are cleared, except `displayName` and `gender` which are mandatory.
 
