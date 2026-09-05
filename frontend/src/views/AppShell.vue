@@ -27,6 +27,7 @@ const showCreate = ref(false)
 const topTitle = computed(() => {
   const name = String(route.name ?? '')
   if (name === 'profile') return 'PROFILE'
+  if (name === 'post-detail') return 'POST'
   if (name === 'following') return 'FOLLOWING'
   if (name === 'followers') return 'FOLLOWERS'
   if (name === 'liked') return 'LIKED'

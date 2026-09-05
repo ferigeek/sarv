@@ -21,6 +21,7 @@ export const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: '', name: 'feed', component: () => import('@/views/FeedView.vue') },
+      { path: 'post/:id', name: 'post-detail', component: () => import('@/views/PostDetailView.vue') },
       { path: 'profile/:id?', name: 'profile', component: () => import('@/views/ProfileView.vue') },
       { path: 'liked', name: 'liked', component: () => import('@/views/LikedPostsView.vue') },
       { path: 'following', name: 'following', component: () => import('@/views/FollowingView.vue') },

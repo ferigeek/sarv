@@ -8,6 +8,13 @@ import { createPost } from '@/api/posts'
 
 const emit = defineEmits<{ close: []; created: [id: number] }>()
 
+const props = withDefaults(
+  defineProps<{ mode?: 'post' | 'comment'; parentId?: number | null }>(),
+  { mode: 'post', parentId: null },
+)
+
+const isComment = computed(() => props.mode === 'comment')
+
 const panelRef = ref<HTMLElement | null>(null)
 const progressRef = ref<HTMLElement | null>(null)
 
@@ -104,10 +111,10 @@ async function submit() {
   phase.value = 'publishing'
   try {
     const created = await createPost({
-      postCategory: 'NORMAL',
+      postCategory: isComment.value ? 'COMMENT' : 'NORMAL',
       content: content.value.trim() || null,
       mediaId: lastUploadedMediaId.value,
-      parentId: null,
+      parentId: isComment.value ? props.parentId : null,
       repostOfId: null,
     })
     emit('created', created.id)
@@ -154,7 +161,7 @@ function close() {
   <div class="post-create-overlay" data-testid="post-create-overlay" @click="onOverlayClick">
     <section ref="panelRef" class="panel post-create-panel" data-testid="post-create-modal">
       <header class="post-create__header">
-        <span class="post-create__title">NEW POST</span>
+        <span class="post-create__title">{{ isComment ? 'NEW COMMENT' : 'NEW POST' }}</span>
         <button class="btn post-create__close" type="button" data-testid="post-create-close" @click="close">
           ✕
         </button>
@@ -166,7 +173,7 @@ function close() {
           <textarea
             v-model="content"
             class="field-input field-textarea"
-            placeholder="what's happening?"
+            :placeholder="isComment ? 'write a comment…' : 'what\'s happening?'"
             rows="4"
             data-testid="post-create-content"
             :disabled="phase === 'uploading' || phase === 'publishing'"

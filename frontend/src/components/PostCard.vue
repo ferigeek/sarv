@@ -9,7 +9,10 @@ import { getUser } from '@/api/users'
 import type { PostResponse, UserResponse, UserReaction } from '@/types/api'
 import AppIcon from './AppIcon.vue'
 
-const props = defineProps<{ post: PostResponse }>()
+const props = withDefaults(
+  defineProps<{ post: PostResponse; clickable?: boolean; detailed?: boolean }>(),
+  { clickable: true, detailed: false },
+)
 
 const router = useRouter()
 
@@ -45,6 +48,16 @@ const commentCount = computed(() => props.post.commentCount ?? 0)
 
 function goProfile() {
   void router.push({ name: 'profile', params: { id: String(props.post.userId) } })
+}
+
+function goDetail() {
+  if (!props.clickable || props.detailed) return
+  void router.push({ name: 'post-detail', params: { id: String(props.post.id) } })
+}
+
+function onComment() {
+  if (props.detailed) return
+  void router.push({ name: 'post-detail', params: { id: String(props.post.id) } })
 }
 
 function clearAvatar() {
@@ -228,7 +241,12 @@ async function onDislike() {
 </script>
 
 <template>
-  <article class="post-card panel" :data-testid="`post-card-${post.id}`">
+  <article
+    class="post-card panel"
+    :class="{ 'post-card--clickable': clickable && !detailed }"
+    :data-testid="`post-card-${post.id}`"
+    @click="goDetail"
+  >
     <header class="post-header">
       <button
         class="post-author"
@@ -264,7 +282,7 @@ async function onDislike() {
       ↻ repost
     </div>
 
-    <div v-if="mediaUrl" class="post-media" data-testid="post-media">
+    <div v-if="mediaUrl" class="post-media" data-testid="post-media" @click.stop>
       <video
         v-if="isVideoMedia"
         :src="mediaUrl"
@@ -295,7 +313,7 @@ async function onDislike() {
         data-testid="post-like-btn"
         :aria-pressed="userReaction === 1"
         :disabled="reactionLoading"
-        @click="onLike"
+        @click.stop="onLike"
       >
         <AppIcon name="thumbs-up" :size="16" />
         <span data-testid="post-like-count">{{ likeCount }}</span>
@@ -308,7 +326,7 @@ async function onDislike() {
         data-testid="post-dislike-btn"
         :aria-pressed="userReaction === -1"
         :disabled="reactionLoading"
-        @click="onDislike"
+        @click.stop="onDislike"
       >
         <AppIcon name="thumbs-down" :size="16" />
         <span data-testid="post-dislike-count">{{ dislikeCount }}</span>
@@ -335,10 +353,11 @@ async function onDislike() {
       </button>
 
       <button
-        class="post-action post-action--inert"
+        class="post-action"
         type="button"
         data-testid="post-comment-btn"
-        title="Comment — coming soon"
+        title="View comments and reply"
+        @click.stop="onComment"
       >
         <AppIcon name="comment" :size="16" />
         comment
@@ -365,6 +384,14 @@ async function onDislike() {
   display: grid;
   gap: var(--sarv-space-3);
   overflow: hidden;
+}
+
+.post-card--clickable {
+  cursor: pointer;
+}
+
+.post-card--clickable:hover {
+  border-color: var(--sarv-border-bright);
 }
 
 .post-header {

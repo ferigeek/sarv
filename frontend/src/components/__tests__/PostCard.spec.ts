@@ -181,20 +181,51 @@ describe('PostCard', () => {
     expect(wrapper.find('[data-testid="post-feedback-sad"]').exists()).toBe(true)
   })
 
-  it('inert actions (repost, quote, comment) do nothing', async () => {
+  it('inert actions (repost, quote) do nothing', async () => {
     const wrapper = mount(PostCard, { props: { post: makePost() } })
     await flushPromises()
 
     expect(wrapper.find('[data-testid="post-repost-btn"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="post-quote-btn"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="post-comment-btn"]').exists()).toBe(true)
 
     await wrapper.find('[data-testid="post-repost-btn"]').trigger('click')
     await wrapper.find('[data-testid="post-quote-btn"]').trigger('click')
-    await wrapper.find('[data-testid="post-comment-btn"]').trigger('click')
     await flushPromises()
 
     expect(mockedAddReaction).not.toHaveBeenCalled()
+  })
+
+  it('navigates to the post detail when the card body or comment button is clicked', async () => {
+    const wrapper = mount(PostCard, { props: { post: makePost({ id: 9 }) } })
+    await flushPromises()
+
+    await wrapper.find('[data-testid="post-comment-btn"]').trigger('click')
+    expect(pushMock).toHaveBeenCalledWith({ name: 'post-detail', params: { id: '9' } })
+
+    pushMock.mockClear()
+    await wrapper.find(`[data-testid="post-card-9"]`).trigger('click')
+    expect(pushMock).toHaveBeenCalledWith({ name: 'post-detail', params: { id: '9' } })
+  })
+
+  it('does not navigate to detail when rendered in detailed mode', async () => {
+    const wrapper = mount(PostCard, { props: { post: makePost({ id: 11 }), detailed: true } })
+    await flushPromises()
+
+    await wrapper.find(`[data-testid="post-card-11"]`).trigger('click')
+    await wrapper.find('[data-testid="post-comment-btn"]').trigger('click')
+    expect(pushMock).not.toHaveBeenCalled()
+  })
+
+  it('like/dislike clicks do not trigger detail navigation', async () => {
+    mockedAddReaction.mockResolvedValue({ likeCount: 3, dislikeCount: 1, userReaction: 1 })
+    const wrapper = mount(PostCard, { props: { post: makePost({ id: 12 }) } })
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    await wrapper.find('[data-testid="post-like-btn"]').trigger('click')
+    await flushPromises()
+    expect(pushMock).not.toHaveBeenCalledWith({ name: 'post-detail', params: { id: '12' } })
   })
 
   it('shows media when mediaId is present', async () => {
