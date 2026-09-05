@@ -14,7 +14,7 @@ import SearchSection from './SearchSection.vue'
 import UserSummary from './UserSummary.vue'
 
 const showCreate = ref(false)
-const emit = defineEmits<{ created: [id: number] }>()
+const emit = defineEmits<{ created: [id: number]; 'search-opened': []; 'search-closed': [] }>()
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -46,7 +46,7 @@ function goHome() {
     </button>
 
     <section class="panel left-block" data-testid="left-search">
-      <SearchSection />
+      <SearchSection @search-opened="emit('search-opened')" @search-closed="emit('search-closed')" />
     </section>
 
     <section class="panel left-block" data-testid="left-user-summary">

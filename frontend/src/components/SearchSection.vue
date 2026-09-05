@@ -11,9 +11,26 @@ const query = ref('')
 const activeTab = ref<SearchTab>('username')
 const showModal = ref(false)
 
+const emit = defineEmits<{
+  'search-opened': []
+  'search-closed': []
+}>()
+
 function openModal(tab?: SearchTab) {
   if (tab) activeTab.value = tab
-  showModal.value = true
+  if (!showModal.value) {
+    showModal.value = true
+    emit('search-opened')
+  } else if (tab) {
+    activeTab.value = tab
+  }
+}
+
+function closeModal() {
+  if (showModal.value) {
+    showModal.value = false
+    emit('search-closed')
+  }
 }
 
 function onFocus() {
@@ -25,12 +42,12 @@ function onTab(tab: SearchTab) {
 }
 
 function selectUser(id: number) {
-  showModal.value = false
+  closeModal()
   void router.push({ name: 'profile', params: { id: String(id) } })
 }
 
 function selectPost(id: number) {
-  showModal.value = false
+  closeModal()
   void router.push({ name: 'post-detail', params: { id: String(id) } })
 }
 </script>
@@ -91,7 +108,7 @@ function selectPost(id: number) {
       :active-tab="activeTab"
       @update:query="query = $event"
       @update:active-tab="activeTab = $event"
-      @close="showModal = false"
+      @close="closeModal"
       @select-user="selectUser"
       @select-post="selectPost"
     />

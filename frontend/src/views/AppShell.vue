@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, provide, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, provide, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import LeftSidebar from '@/components/LeftSidebar.vue'
@@ -7,6 +7,7 @@ import MobileBottomNav from '@/components/MobileBottomNav.vue'
 import MobileTopBar from '@/components/MobileTopBar.vue'
 import PostCreateModal from '@/components/PostCreateModal.vue'
 import RightSidebar from '@/components/RightSidebar.vue'
+import SearchModal, { type SearchTab } from '@/components/SearchModal.vue'
 
 const refreshKey = ref(0)
 function onPostCreated(_id?: number) {
@@ -23,6 +24,10 @@ const router = useRouter()
 const leftOpen = ref(false)
 const rightOpen = ref(false)
 const showCreate = ref(false)
+const showSearch = ref(false)
+const searchQuery = ref('')
+const searchTab = ref<SearchTab>('username')
+const leftSearchOpen = ref(false)
 
 const topTitle = computed(() => {
   const name = String(route.name ?? '')
@@ -42,7 +47,9 @@ const activeRoute = computed(() => {
   return 'feed'
 })
 
-const anyDrawerOpen = computed(() => leftOpen.value || rightOpen.value || showCreate.value)
+const anyDrawerOpen = computed(
+  () => leftOpen.value || rightOpen.value || showCreate.value || showSearch.value || leftSearchOpen.value,
+)
 
 function openLeft() {
   rightOpen.value = false
@@ -60,20 +67,47 @@ function closeDrawers() {
 }
 
 function openSearch() {
-  openLeft()
-  void nextTick(() => {
-    const input = document.querySelector<HTMLElement>("[data-testid='search-input']")
-    input?.focus()
-  })
+  // Standalone search: never open the left drawer behind the modal, otherwise
+  // the drawer's scrollbar/border paints above the search window on mobile.
+  closeDrawers()
+  showCreate.value = false
+  showSearch.value = true
+}
+
+function closeSearch() {
+  showSearch.value = false
+}
+
+function selectSearchUser(id: number) {
+  showSearch.value = false
+  void router.push({ name: 'profile', params: { id: String(id) } })
+}
+
+function selectSearchPost(id: number) {
+  showSearch.value = false
+  void router.push({ name: 'post-detail', params: { id: String(id) } })
+}
+
+function onLeftSearchOpened() {
+  // Sidebar-initiated search also ends up alone: close the drawer, the
+  // teleported modal stays visible and keeps the body scroll locked.
+  leftSearchOpen.value = true
+  closeDrawers()
+}
+
+function onLeftSearchClosed() {
+  leftSearchOpen.value = false
 }
 
 function onCreateOpened() {
   closeDrawers()
+  showSearch.value = false
   showCreate.value = true
 }
 
 function onMobileNavigate(name: string) {
   closeDrawers()
+  showSearch.value = false
   if (name === 'feed') {
     void router.push({ name: 'feed' })
   }
@@ -88,6 +122,7 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     closeDrawers()
     showCreate.value = false
+    showSearch.value = false
   }
 }
 
@@ -99,6 +134,7 @@ watch(
   () => route.fullPath,
   () => {
     closeDrawers()
+    showSearch.value = false
   },
 )
 
@@ -125,6 +161,8 @@ onBeforeUnmount(() => {
     <LeftSidebar
       :class="{ 'drawer-open': leftOpen }"
       @created="onPostCreated"
+      @search-opened="onLeftSearchOpened"
+      @search-closed="onLeftSearchClosed"
     />
     <main class="app-center" data-testid="app-center">
       <router-view />
@@ -147,6 +185,17 @@ onBeforeUnmount(() => {
     />
 
     <PostCreateModal v-if="showCreate" @close="showCreate = false" @created="onCreated" />
+
+    <SearchModal
+      v-if="showSearch"
+      :query="searchQuery"
+      :active-tab="searchTab"
+      @update:query="searchQuery = $event"
+      @update:active-tab="searchTab = $event"
+      @close="closeSearch"
+      @select-user="selectSearchUser"
+      @select-post="selectSearchPost"
+    />
   </div>
 </template>
 

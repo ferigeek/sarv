@@ -179,7 +179,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="search-modal-overlay" data-testid="search-modal" @click="onOverlayClick">
+  <!-- Teleported so the ancestor drawer's scrollbar/border never paints above the modal. -->
+  <Teleport to="body">
+    <div class="search-modal-overlay" data-testid="search-modal" @click="onOverlayClick">
     <section ref="panelRef" class="panel search-modal" role="dialog" aria-modal="true" aria-label="Search">
       <header class="search-modal__header">
         <span class="search-modal__title">SEARCH //</span>
@@ -342,7 +344,8 @@ onBeforeUnmount(() => {
         </template>
       </div>
     </section>
-  </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>

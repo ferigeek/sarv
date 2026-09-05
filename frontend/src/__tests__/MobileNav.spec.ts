@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory } from 'vue-router'
@@ -41,6 +41,7 @@ import { getMe as mockGetMe } from '@/api/users'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
 import { createAppRouter } from '@/router'
 import AppShell from '@/views/AppShell.vue'
+import App from '../App.vue'
 
 registerPixelicons()
 
@@ -79,8 +80,23 @@ async function mountShell() {
   return wrapper
 }
 
+// Mounting AppShell directly nests a second AppShell via <router-view/>.
+// For search tests use the real App entry so there is exactly one shell.
+async function mountSingleShell() {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const router = createAppRouter(createMemoryHistory())
+  const wrapper = mount(App, { attachTo: document.body, global: { plugins: [pinia, router] } })
+  await router.isReady()
+  await flushPromises()
+  await new Promise((r) => setTimeout(r, 0))
+  await flushPromises()
+  return wrapper
+}
+
 describe('Mobile navigation (AppShell)', () => {
   beforeEach(() => {
+    document.body.innerHTML = ''
     localStorage.clear()
     vi.clearAllMocks()
     document.body.classList.remove('no-scroll')
@@ -88,6 +104,11 @@ describe('Mobile navigation (AppShell)', () => {
     mockedRecommended.mockResolvedValue(emptyFeed())
     mockedChrono.mockResolvedValue(emptyFeed())
     mockedGetReaction.mockRejectedValue(new Error('no reaction'))
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+    document.body.classList.remove('no-scroll')
   })
 
   it('renders mobile top bar and bottom nav alongside the desktop shell', async () => {
@@ -131,6 +152,46 @@ describe('Mobile navigation (AppShell)', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await flushPromises()
     expect(w.find('[data-testid="post-create-modal"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('opens standalone search from the bottom nav without the left drawer', async () => {
+    const w = await mountSingleShell()
+    await w.find('[data-testid="mobile-nav-search"]').trigger('click')
+    await flushPromises()
+
+    // Drawer stays closed so its scrollbar/border can't paint above the modal.
+    expect(w.find('[data-testid="left-sidebar"].drawer-open').exists()).toBe(false)
+    expect(w.find('[data-testid="drawer-scrim"]').exists()).toBe(false)
+    expect(document.body.querySelector('[data-testid="search-modal"]')).not.toBeNull()
+    expect(document.body.classList.contains('no-scroll')).toBe(true)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(document.body.querySelector('[data-testid="search-modal"]')).toBeNull()
+    w.unmount()
+  })
+
+  it('opens standalone search from the top bar without the left drawer', async () => {
+    const w = await mountSingleShell()
+    await w.find('[data-testid="mobile-topbar-search"]').trigger('click')
+    await flushPromises()
+
+    expect(w.find('[data-testid="left-sidebar"].drawer-open').exists()).toBe(false)
+    expect(document.body.querySelector('[data-testid="search-modal"]')).not.toBeNull()
+    w.unmount()
+  })
+
+  it('sidebar search opens the teleported modal and leaves the drawer closed', async () => {
+    const w = await mountSingleShell()
+    await w.find('[data-testid="mobile-nav-menu"]').trigger('click')
+    expect(w.find('[data-testid="left-sidebar"].drawer-open').exists()).toBe(true)
+
+    await w.find('[data-testid="search-input"]').trigger('focus')
+    await flushPromises()
+
+    expect(w.find('[data-testid="left-sidebar"].drawer-open').exists()).toBe(false)
+    expect(document.body.querySelector('[data-testid="search-modal"]')).not.toBeNull()
     w.unmount()
   })
 })

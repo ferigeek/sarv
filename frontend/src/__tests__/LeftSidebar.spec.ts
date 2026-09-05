@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory } from 'vue-router'
 
@@ -83,6 +83,7 @@ function mountLeftSidebar() {
   setActivePinia(pinia)
   const router = createAppRouter(createMemoryHistory())
   const wrapper = mount(LeftSidebar, {
+    attachTo: document.body,
     global: {
       plugins: [pinia, router],
     },
@@ -90,11 +91,49 @@ function mountLeftSidebar() {
   return { wrapper, router, pinia }
 }
 
+// SearchModal is teleported to document.body so the drawer scrollbar/border
+// never paints above it — query the modal there instead of inside the wrapper.
+function modalEl(testid: string): Element | null {
+  return document.body.querySelector(`[data-testid="${testid}"]`)
+}
+
+function modalExists(testid: string): boolean {
+  return modalEl(testid) !== null
+}
+
+function modalWrapper(testid: string): DOMWrapper<Element> | null {
+  const el = modalEl(testid)
+  return el ? new DOMWrapper(el) : null
+}
+
+async function setModalInput(value: string) {
+  const w = modalWrapper('search-modal-input')
+  if (!w) throw new Error('search-modal-input not found in document.body')
+  await w.setValue(value)
+}
+
+async function clickModal(testid: string) {
+  const w = modalWrapper(testid)
+  if (!w) throw new Error(`${testid} not found in document.body`)
+  await w.trigger('click')
+}
+
+async function mousedownModal(testid: string) {
+  const w = modalWrapper(testid)
+  if (!w) throw new Error(`${testid} not found in document.body`)
+  await w.trigger('mousedown')
+}
+
 describe('LeftSidebar (Phase 4)', () => {
   beforeEach(() => {
+    document.body.innerHTML = ''
     localStorage.clear()
     vi.clearAllMocks()
     mockedGetMediaBlob.mockResolvedValue(new Blob(['fake'], { type: 'image/png' }))
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
   })
 
   it('exposes search with three tabs and opens a centered modal on focus', async () => {
@@ -111,13 +150,13 @@ describe('LeftSidebar (Phase 4)', () => {
     expect(wrapper.find('[data-testid="search-tab-username"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="search-tab-post"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="search-tab-username"]').classes()).toContain('search-tab--active')
-    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(false)
+    expect(modalExists('search-modal')).toBe(false)
 
     await wrapper.find('[data-testid="search-input"]').trigger('focus')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="search-modal-input"]').exists()).toBe(true)
+    expect(modalExists('search-modal')).toBe(true)
+    expect(modalExists('search-modal-input')).toBe(true)
   })
 
   it('searches users by username and shows account results in the modal window', async () => {
@@ -138,16 +177,16 @@ describe('LeftSidebar (Phase 4)', () => {
 
     await wrapper.find('[data-testid="search-input"]').trigger('focus')
     await flushPromises()
-    await wrapper.find('[data-testid="search-modal-input"]').setValue('bob')
+    await setModalInput('bob')
     await flushPromises()
     // wait for debounce 300ms
     await new Promise((r) => setTimeout(r, 350))
     await flushPromises()
 
     expect(mockedSearchUsers).toHaveBeenCalledWith('bob', expect.objectContaining({ size: 8 }))
-    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="search-result-2"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="search-result-3"]').exists()).toBe(true)
+    expect(modalExists('search-modal')).toBe(true)
+    expect(modalExists('search-result-2')).toBe(true)
+    expect(modalExists('search-result-3')).toBe(true)
   })
 
   it('searches post content on the post tab and general combines both', async () => {
@@ -169,24 +208,24 @@ describe('LeftSidebar (Phase 4)', () => {
 
     await wrapper.find('[data-testid="search-tab-post"]').trigger('click')
     await flushPromises()
-    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(true)
+    expect(modalExists('search-modal')).toBe(true)
 
-    await wrapper.find('[data-testid="search-modal-input"]').setValue('hello')
+    await setModalInput('hello')
     await flushPromises()
     await new Promise((r) => setTimeout(r, 350))
     await flushPromises()
 
     expect(mockedSearchPosts).toHaveBeenCalledWith('hello', expect.anything())
-    expect(wrapper.find('[data-testid="search-post-21"]').exists()).toBe(true)
+    expect(modalExists('search-post-21')).toBe(true)
 
-    await wrapper.find('[data-testid="search-modal-tab-general"]').trigger('click')
+    await clickModal('search-modal-tab-general')
     await flushPromises()
     await new Promise((r) => setTimeout(r, 350))
     await flushPromises()
 
     expect(mockedSearchUsers).toHaveBeenCalledWith('hello', expect.anything())
-    expect(wrapper.find('[data-testid="search-result-2"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="search-post-21"]').exists()).toBe(true)
+    expect(modalExists('search-result-2')).toBe(true)
+    expect(modalExists('search-post-21')).toBe(true)
   })
 
   it('navigates to profile when an account result is selected', async () => {
@@ -204,11 +243,11 @@ describe('LeftSidebar (Phase 4)', () => {
 
     await wrapper.find('[data-testid="search-input"]').trigger('focus')
     await flushPromises()
-    await wrapper.find('[data-testid="search-modal-input"]').setValue('dave')
+    await setModalInput('dave')
     await new Promise((r) => setTimeout(r, 350))
     await flushPromises()
 
-    await wrapper.find('[data-testid="search-result-5"]').trigger('mousedown')
+    await mousedownModal('search-result-5')
     await flushPromises()
     {
       const start = Date.now()
@@ -220,7 +259,7 @@ describe('LeftSidebar (Phase 4)', () => {
 
     expect(router.currentRoute.value.name).toBe('profile')
     expect(router.currentRoute.value.params.id).toBe('5')
-    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(false)
+    expect(modalExists('search-modal')).toBe(false)
   })
 
   it('navigates to the post detail when a post result is selected', async () => {
@@ -238,11 +277,11 @@ describe('LeftSidebar (Phase 4)', () => {
 
     await wrapper.find('[data-testid="search-tab-post"]').trigger('click')
     await flushPromises()
-    await wrapper.find('[data-testid="search-modal-input"]').setValue('find me')
+    await setModalInput('find me')
     await new Promise((r) => setTimeout(r, 350))
     await flushPromises()
 
-    await wrapper.find('[data-testid="search-post-22"]').trigger('mousedown')
+    await mousedownModal('search-post-22')
     await flushPromises()
     {
       const start = Date.now()
@@ -266,11 +305,11 @@ describe('LeftSidebar (Phase 4)', () => {
 
     await wrapper.find('[data-testid="search-input"]').trigger('focus')
     await flushPromises()
-    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(true)
+    expect(modalExists('search-modal')).toBe(true)
 
-    await wrapper.find('[data-testid="search-modal-close"]').trigger('click')
+    await clickModal('search-modal-close')
     await flushPromises()
-    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(false)
+    expect(modalExists('search-modal')).toBe(false)
   })
 
   it('shows the authenticated user summary with displayName and username', async () => {
