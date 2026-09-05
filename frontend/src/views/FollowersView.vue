@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
 import { getFollowers } from '@/api/follows'
 import { useAuthStore } from '@/stores/auth'
 import type { UserSummaryResponse } from '@/types/api'
 import UserSummaryList from '@/components/UserSummaryList.vue'
 
+const route = useRoute()
 const auth = useAuthStore()
 
 const users = ref<UserSummaryResponse[]>([])
@@ -15,12 +17,21 @@ const hasMore = ref(true)
 const page = ref(0)
 const size = 20
 
+const targetId = computed(() => {
+  const raw = route.params.id
+  if (raw === undefined || raw === '' || (Array.isArray(raw) && raw.length === 0)) {
+    return auth.user?.id ?? null
+  }
+  return Number(raw)
+})
+
 async function fetchPage(pageNum: number, append: boolean) {
-  if (!auth.user) return
+  const id = targetId.value
+  if (id === null) return
   loading.value = true
   error.value = ''
   try {
-    const data = await getFollowers(auth.user.id, { page: pageNum, size })
+    const data = await getFollowers(id, { page: pageNum, size })
     users.value = append ? [...users.value, ...data.content] : data.content
     hasMore.value = data.page.number + 1 < data.page.totalPages
     if (data.content.length === 0) hasMore.value = false
@@ -38,6 +49,10 @@ function loadMore() {
   if (!hasMore.value || loading.value) return
   void fetchPage(page.value + 1, true)
 }
+
+watch(targetId, () => {
+  void fetchPage(0, false)
+})
 
 onMounted(() => {
   void fetchPage(0, false)

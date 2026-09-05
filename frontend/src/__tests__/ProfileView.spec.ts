@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
-import type { MediaResponse, Page, UserResponse, UserSummaryResponse } from '@/types/api'
+import type { MediaResponse, Page, PostResponse, UserResponse, UserSummaryResponse } from '@/types/api'
 
 let authUser: UserResponse | null = null
 
@@ -11,12 +11,20 @@ vi.mock('@/api/users', () => ({
   getUser: vi.fn<(id: number) => Promise<UserResponse>>(),
   updateMe: vi.fn<(payload: unknown) => Promise<UserResponse>>(),
   searchUsers: vi.fn<(query: string, pageable?: unknown) => Promise<Page<UserResponse>>>(),
+  getUserPosts: vi.fn<(id: number, pageable?: unknown) => Promise<Page<PostResponse>>>(),
+  getUserStats: vi.fn<(id: number) => Promise<import('@/types/api').UserStatsResponse>>(),
 }))
 
 vi.mock('@/api/follows', () => ({
   follow: vi.fn<(id: number) => Promise<void>>(),
   unfollow: vi.fn<(id: number) => Promise<void>>(),
   getFollowing: vi.fn<(id: number, pageable?: unknown) => Promise<Page<UserSummaryResponse>>>(),
+}))
+
+vi.mock('@/api/reactions', () => ({
+  addReaction: vi.fn<() => Promise<unknown>>(),
+  getReaction: vi.fn<() => Promise<import('@/types/api').ReactionResponse>>(),
+  removeReaction: vi.fn<() => Promise<void>>(),
 }))
 
 vi.mock('@/api/media', () => ({
@@ -34,9 +42,13 @@ vi.mock('@/stores/auth', () => ({
 }))
 
 import { follow as mockFollow, getFollowing as mockGetFollowing, unfollow as mockUnfollow } from '@/api/follows'
-import { getUser as mockGetUser, updateMe as mockUpdateMe } from '@/api/users'
+import { getUser as mockGetUser, getUserPosts as mockGetUserPosts, getUserStats as mockGetUserStats, updateMe as mockUpdateMe } from '@/api/users'
 import { getMediaBlob as mockGetMediaBlob } from '@/api/media'
+import { getReaction as mockGetReaction } from '@/api/reactions'
+import { registerPixelicons } from '@/assets/icons/pixelarticons'
 import ProfileView from '@/views/ProfileView.vue'
+
+registerPixelicons()
 
 const mockedGetUser = vi.mocked(mockGetUser)
 const mockedUpdateMe = vi.mocked(mockUpdateMe)
@@ -44,6 +56,9 @@ const mockedGetFollowing = vi.mocked(mockGetFollowing)
 const mockedFollow = vi.mocked(mockFollow)
 const mockedUnfollow = vi.mocked(mockUnfollow)
 const mockedGetMediaBlob = vi.mocked(mockGetMediaBlob)
+const mockedGetUserPosts = vi.mocked(mockGetUserPosts)
+const mockedGetUserStats = vi.mocked(mockGetUserStats)
+const mockedGetReaction = vi.mocked(mockGetReaction)
 
 function makeUser(overrides: Partial<UserResponse> = {}): UserResponse {
   return {
@@ -66,11 +81,39 @@ function makeSummaryList(ids: number[]): Page<UserSummaryResponse> {
   }
 }
 
+function makePost(id: number, userId: number): PostResponse {
+  return {
+    id,
+    userId,
+    postCategory: 'NORMAL',
+    content: `post ${id}`,
+    createdAt: '2026-09-02T10:00:00+00:00',
+    updatedAt: null,
+    mediaId: null,
+    repostOfId: null,
+    parentId: null,
+    viewCount: 1,
+    likeCount: 0,
+    dislikeCount: 0,
+    commentCount: 0,
+  }
+}
+
+function makePostList(ids: number[], userId: number): Page<PostResponse> {
+  return {
+    content: ids.map((id) => makePost(id, userId)),
+    page: { size: 10, number: 0, totalElements: ids.length, totalPages: 1 },
+  }
+}
+
 async function mountProfile(routeId?: string) {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
       { path: '/profile/:id?', name: 'profile', component: ProfileView },
+      { path: '/post/:id', name: 'post-detail', component: { template: '<div/>' } },
+      { path: '/following/:id?', name: 'following', component: { template: '<div/>' } },
+      { path: '/followers/:id?', name: 'followers', component: { template: '<div/>' } },
     ],
   })
   await router.push(routeId ? `/profile/${routeId}` : '/profile')
@@ -89,6 +132,9 @@ describe('ProfileView', () => {
     vi.clearAllMocks()
     authUser = null
     mockedGetMediaBlob.mockResolvedValue(new Blob(['x'], { type: 'image/png' }))
+    mockedGetReaction.mockResolvedValue({ likeCount: 0, dislikeCount: 0, userReaction: 0 })
+    mockedGetUserStats.mockResolvedValue({ userId: 2, followerCount: 7, followingCount: 3 })
+    mockedGetUserPosts.mockImplementation((id: number) => Promise.resolve(makePostList([101, 102], id)))
   })
 
   it('renders profile info for a viewed user', async () => {
@@ -105,8 +151,11 @@ describe('ProfileView', () => {
     // Other user → no edit form, follow button instead
     expect(wrapper.find('[data-testid="profile-edit-toggle"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="profile-follow-btn"]').exists()).toBe(true)
-    // Posts section rendered but inert
-    expect(wrapper.find('[data-testid="profile-posts-inert"]').exists()).toBe(true)
+    // Stats and posts from the new endpoints
+    expect(wrapper.find('[data-testid="profile-stat-followers"]').text()).toContain('7')
+    expect(wrapper.find('[data-testid="profile-stat-following"]').text()).toContain('3')
+    expect(wrapper.find('[data-testid="profile-posts-list"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-testid^="post-card-"]').length).toBe(2)
   })
 
 	it('shows follow when not following and unfollow when already following', async () => {
@@ -153,7 +202,7 @@ describe('ProfileView', () => {
     expect(mockedUnfollow).toHaveBeenCalledWith(2)
   })
 
-	it('self profile shows edit form and saving updates the profile', async () => {
+  it('self profile shows edit form and saving updates the profile', async () => {
     authUser = makeUser({ id: 1 })
     mockedGetUser.mockResolvedValue(makeUser({ id: 1, bio: 'original' }))
     mockedUpdateMe.mockResolvedValue(makeUser({ id: 1, bio: 'updated bio', displayName: 'Alice' }))
@@ -173,5 +222,37 @@ describe('ProfileView', () => {
 
     expect(mockedUpdateMe).toHaveBeenCalledWith(expect.objectContaining({ bio: 'updated bio' }))
     expect(wrapper.find('[data-testid="profile-edit-form"]').exists()).toBe(false)
+  })
+
+  it('shows an empty state when the user has no posts', async () => {
+    authUser = makeUser({ id: 1 })
+    mockedGetUser.mockResolvedValue(makeUser({ id: 2, username: 'bob' }))
+    mockedGetFollowing.mockResolvedValue(makeSummaryList([]))
+    mockedGetUserPosts.mockResolvedValue(makePostList([], 2))
+
+    const { wrapper } = await mountProfile('2')
+
+    expect(wrapper.find('[data-testid="profile-posts-empty"]').exists()).toBe(true)
+  })
+
+  it('stat buttons navigate to that user followers and following lists', async () => {
+    authUser = makeUser({ id: 1 })
+    mockedGetUser.mockResolvedValue(makeUser({ id: 2, username: 'bob' }))
+    mockedGetFollowing.mockResolvedValue(makeSummaryList([]))
+
+    const { wrapper, router } = await mountProfile('2')
+
+    await wrapper.find('[data-testid="profile-stat-followers"]').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.name).toBe('followers')
+    expect(router.currentRoute.value.params.id).toBe('2')
+
+    await router.push('/profile/2')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="profile-stat-following"]').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.name).toBe('following')
+    expect(router.currentRoute.value.params.id).toBe('2')
   })
 })

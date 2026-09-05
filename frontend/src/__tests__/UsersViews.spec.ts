@@ -102,6 +102,23 @@ describe('FollowersView', () => {
     expect(wrapper.find('[data-testid="user-row-3"]').exists()).toBe(true)
     expect(wrapper.findAll('[data-testid^="user-row-"]').length).toBe(2)
   })
+
+  it('loads another user followers when an id is in the route', async () => {
+    mockedGetFollowers.mockResolvedValue(pageOf([9]))
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/followers/:id?', name: 'followers', component: FollowersView }],
+    })
+    await router.push('/followers/7')
+    await router.isReady()
+    const wrapper = mount(FollowersView, { global: { plugins: [router] } })
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    expect(mockedGetFollowers).toHaveBeenCalledWith(7, expect.anything())
+    expect(wrapper.find('[data-testid="user-row-9"]').exists()).toBe(true)
+  })
 })
 
 describe('FollowingView', () => {
@@ -130,5 +147,22 @@ describe('FollowingView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="following-empty"]').exists()).toBe(true)
+  })
+
+  it('loads another user following when an id is in the route', async () => {
+    getFollowingSpy.mockResolvedValue(pageOf([8]))
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/following/:id?', name: 'following', component: FollowingView }],
+    })
+    await router.push('/following/7')
+    await router.isReady()
+    const wrapper = mount(FollowingView, { global: { plugins: [router] } })
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    expect(getFollowingSpy).toHaveBeenCalledWith(7, expect.anything())
+    expect(wrapper.find('[data-testid="user-row-8"]').exists()).toBe(true)
   })
 })

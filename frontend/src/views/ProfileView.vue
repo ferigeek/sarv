@@ -1,22 +1,34 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import type { ApiError } from '@/api/client'
 import { follow, getFollowing, unfollow } from '@/api/follows'
 import { getMediaBlob, uploadMedia } from '@/api/media'
-import { getUser, updateMe } from '@/api/users'
+import { getUser, getUserPosts, getUserStats, updateMe } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
-import type { Gender, UserResponse } from '@/types/api'
+import type { Gender, PostResponse, UserResponse, UserStatsResponse } from '@/types/api'
 import AppIcon from '@/components/AppIcon.vue'
+import PostCard from '@/components/PostCard.vue'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 
 const profile = ref<UserResponse | null>(null)
 const loading = ref(true)
 const error = ref('')
 const isSelf = computed(() => Boolean(auth.user && profile.value && auth.user.id === profile.value.id))
+
+const stats = ref<UserStatsResponse | null>(null)
+
+/* Posts by this user */
+const userPosts = ref<PostResponse[]>([])
+const postsPage = ref(0)
+const postsSize = 10
+const postsHasMore = ref(true)
+const postsLoading = ref(false)
+const postsError = ref('')
 
 /* Follow state derived from the current user's following list ( no isFollowing field on the API).
    FollowingView fetches a fresh page when the profile opens so we can know whether we follow them. */
@@ -84,6 +96,11 @@ async function loadProfile() {
   editMode.value = false
   saveOk.value = false
   saveError.value = ''
+  stats.value = null
+  userPosts.value = []
+  postsPage.value = 0
+  postsHasMore.value = true
+  postsError.value = ''
   try {
     const id = profileId.value
     if (id === null) throw new Error('missing id')
@@ -105,6 +122,7 @@ async function loadProfile() {
       formGender.value = profile.value.gender
     }
     await loadFollowing()
+    await Promise.all([loadStats(), loadPosts(0, false)])
   } catch (e) {
     const err = e as ApiError
     error.value = err.detail ?? err.title ?? 'Failed to load profile.'
@@ -135,9 +153,57 @@ async function onToggleFollow() {
       await follow(profile.value.id)
     }
     await loadFollowing()
+    await loadStats()
   } finally {
     followLoading.value = false
   }
+}
+
+async function loadStats() {
+  if (!profile.value) {
+    stats.value = null
+    return
+  }
+  try {
+    stats.value = await getUserStats(profile.value.id)
+  } catch {
+    stats.value = null
+  }
+}
+
+async function loadPosts(pageNum: number, append: boolean) {
+  if (!profile.value) return
+  if (postsLoading.value && append) return
+  postsLoading.value = true
+  postsError.value = ''
+  try {
+    const data = await getUserPosts(profile.value.id, { page: pageNum, size: postsSize })
+    userPosts.value = append ? [...userPosts.value, ...data.content] : data.content
+    postsHasMore.value = data.page.number + 1 < data.page.totalPages
+    if (data.content.length === 0) postsHasMore.value = false
+    postsPage.value = pageNum
+  } catch (e) {
+    const err = e as ApiError
+    postsError.value = err.detail ?? err.title ?? 'Failed to load posts.'
+    if (!append) userPosts.value = []
+  } finally {
+    postsLoading.value = false
+  }
+}
+
+function loadMorePosts() {
+  if (!postsHasMore.value || postsLoading.value) return
+  void loadPosts(postsPage.value + 1, true)
+}
+
+function goFollowers() {
+  if (!profile.value) return
+  void router.push({ name: 'followers', params: { id: String(profile.value.id) } })
+}
+
+function goFollowing() {
+  if (!profile.value) return
+  void router.push({ name: 'following', params: { id: String(profile.value.id) } })
 }
 
 async function onSave() {
@@ -224,6 +290,24 @@ onBeforeUnmount(() => {
               ◈ {{ profile.location }}
             </p>
             <span v-if="profile.gender" class="profile-gender" data-testid="profile-gender">{{ profile.gender }}</span>
+            <div v-if="stats" class="profile-stats">
+              <button
+                class="profile-stat"
+                type="button"
+                data-testid="profile-stat-followers"
+                @click="goFollowers"
+              >
+                <strong>{{ stats.followerCount }}</strong> followers
+              </button>
+              <button
+                class="profile-stat"
+                type="button"
+                data-testid="profile-stat-following"
+                @click="goFollowing"
+              >
+                <strong>{{ stats.followingCount }}</strong> following
+              </button>
+            </div>
           </div>
         </div>
 
@@ -326,15 +410,61 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <!-- Posts by user — backend endpoint not available yet; rendered but inert -->
+      <!-- Posts by this user -->
       <section class="panel profile-posts" data-testid="profile-posts">
         <header class="profile-posts__header">
           <span class="profile-posts__title">POSTS</span>
           <span class="profile-posts__meta">BY {{ profile.username }}</span>
         </header>
-        <div class="profile-posts__body" data-testid="profile-posts-inert">
-          posts by this user — coming soon
+        <div
+          v-if="postsLoading && userPosts.length === 0"
+          class="profile-posts__body"
+          data-testid="profile-posts-loading"
+        >
+          loading posts…
         </div>
+        <div
+          v-else-if="postsError && userPosts.length === 0"
+          class="profile-posts__body profile-posts__body--error"
+          data-testid="profile-posts-error"
+        >
+          {{ postsError }}
+          <button class="btn" type="button" data-testid="profile-posts-retry" @click="loadPosts(0, false)">
+            retry
+          </button>
+        </div>
+        <div
+          v-else-if="userPosts.length === 0"
+          class="profile-posts__body"
+          data-testid="profile-posts-empty"
+        >
+          no posts yet
+        </div>
+        <template v-else>
+          <div class="profile-posts__list" data-testid="profile-posts-list">
+            <PostCard v-for="p in userPosts" :key="p.id" :post="p" />
+          </div>
+          <footer class="profile-posts__footer">
+            <div
+              v-if="postsError"
+              class="profile-posts__body profile-posts__body--error"
+              data-testid="profile-posts-error-more"
+            >
+              {{ postsError }}
+            </div>
+            <button
+              v-if="postsHasMore"
+              class="btn"
+              type="button"
+              data-testid="profile-posts-load-more"
+              :disabled="postsLoading"
+              @click="loadMorePosts"
+            >
+              {{ postsLoading ? 'loading…' : 'load more' }}
+            </button>
+            <span v-else class="profile-posts__end" data-testid="profile-posts-end">— end of posts —</span>
+          </footer>
+        </template>
       </section>
     </template>
   </section>
@@ -434,6 +564,34 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
 }
 
+.profile-stats {
+  display: flex;
+  gap: var(--sarv-space-4);
+  margin-top: var(--sarv-space-2);
+}
+
+.profile-stat {
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--sarv-text-dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.profile-stat strong {
+  color: var(--sarv-text);
+}
+
+.profile-stat:hover {
+  color: var(--sarv-green);
+}
+
+.profile-stat:focus-visible {
+  outline: 1px solid var(--sarv-green);
+  outline-offset: 2px;
+}
+
 .profile-header__actions {
   display: flex;
   justify-content: flex-end;
@@ -531,6 +689,31 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: var(--sarv-text-dim);
   background: var(--sarv-bg);
+}
+
+.profile-posts__body--error {
+  color: #ff8fa3;
+  display: grid;
+  gap: var(--sarv-space-3);
+  justify-items: center;
+}
+
+.profile-posts__list {
+  display: grid;
+  gap: 1px;
+}
+
+.profile-posts__footer {
+  display: grid;
+  gap: var(--sarv-space-3);
+  padding: var(--sarv-space-4);
+  justify-items: center;
+}
+
+.profile-posts__end {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--sarv-text-faint);
 }
 
 @media (max-width: 640px) {
