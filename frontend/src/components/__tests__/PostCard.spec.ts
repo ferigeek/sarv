@@ -176,6 +176,47 @@ describe('PostCard', () => {
     expect(wrapper.find('[data-testid="post-original-missing"]').text()).toContain('unavailable')
   })
 
+  it('shows a media toggle on the preview when the original has media attached', async () => {
+    mockedGetPost.mockResolvedValue(makePost({ id: 300, content: 'with media', mediaId: 77 }))
+    const wrapper = mount(PostCard, {
+      props: { post: makePost({ postCategory: 'QUOTE', content: 'look', repostOfId: 300 }) },
+    })
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    const toggle = wrapper.find('[data-testid="post-original-media-toggle"]')
+    expect(toggle.exists()).toBe(true)
+    expect(wrapper.find('[data-testid="post-original-media"]').exists()).toBe(false)
+
+    pushMock.mockClear()
+    await toggle.trigger('click')
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 20))
+    await flushPromises()
+
+    expect(mockedGetMediaBlob).toHaveBeenCalledWith(77)
+    expect(wrapper.find('[data-testid="post-original-media-img"]').exists()).toBe(true)
+    // Expanding media must not navigate to any detail view
+    expect(pushMock).not.toHaveBeenCalled()
+
+    await wrapper.find('[data-testid="post-original-media-toggle"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="post-original-media"]').exists()).toBe(false)
+  })
+
+  it('shows no media toggle when the original has no media', async () => {
+    mockedGetPost.mockResolvedValue(makePost({ id: 300, content: 'plain' }))
+    const wrapper = mount(PostCard, {
+      props: { post: makePost({ postCategory: 'REPOST', content: null, repostOfId: 300 }) },
+    })
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="post-original-media-toggle"]').exists()).toBe(false)
+  })
+
   it('like button is green when already liked and red for disliked', async () => {
     mockedGetReaction.mockResolvedValue({ likeCount: 5, dislikeCount: 0, userReaction: 1 })
     const wrapper = mount(PostCard, { props: { post: makePost({ likeCount: 5 }) } })

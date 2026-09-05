@@ -72,6 +72,54 @@ const original = ref<PostResponse | null>(null)
 const originalAuthor = ref<UserResponse | null>(null)
 const originalMissing = ref(false)
 
+/* Expandable media of the embedded original (quote/repost previews are
+   text-only, with an explicit indicator + toggle when media is attached). */
+const originalMediaUrl = ref<string | null>(null)
+const originalMediaMime = ref<string | null>(null)
+const originalMediaOpen = ref(false)
+const originalMediaLoading = ref(false)
+const originalMediaError = ref(false)
+let originalMediaObjectUrl: string | null = null
+
+const isOriginalVideo = computed(() => originalMediaMime.value?.startsWith('video/') ?? false)
+
+function clearOriginalMedia() {
+  if (originalMediaObjectUrl) {
+    URL.revokeObjectURL(originalMediaObjectUrl)
+    originalMediaObjectUrl = null
+  }
+  originalMediaUrl.value = null
+  originalMediaMime.value = null
+}
+
+async function toggleOriginalMedia() {
+  if (!original.value?.mediaId) return
+  if (originalMediaOpen.value) {
+    originalMediaOpen.value = false
+    return
+  }
+  const mediaId = original.value.mediaId
+  originalMediaOpen.value = true
+  originalMediaError.value = false
+  if (originalMediaUrl.value) return
+  originalMediaLoading.value = true
+  try {
+    const [metadata, blob] = await Promise.all([
+      getMediaMetadata(mediaId).catch(() => null),
+      getMediaBlob(mediaId),
+    ])
+    if (!originalMediaOpen.value || original.value?.mediaId !== mediaId) return
+    originalMediaObjectUrl = URL.createObjectURL(blob)
+    originalMediaUrl.value = originalMediaObjectUrl
+    originalMediaMime.value = metadata?.mimeType ?? (blob.type || null)
+  } catch {
+    if (original.value?.mediaId !== mediaId) return
+    originalMediaError.value = true
+  } finally {
+    originalMediaLoading.value = false
+  }
+}
+
 const originalSnippet = computed(() => {
   const c = original.value?.content
   if (!c) return '(no text)'
@@ -110,6 +158,9 @@ async function loadOriginal() {
   original.value = null
   originalAuthor.value = null
   originalMissing.value = false
+  originalMediaOpen.value = false
+  originalMediaError.value = false
+  clearOriginalMedia()
   if (!hasOriginal.value) return
   const id = props.post.repostOfId as number
   try {
@@ -270,6 +321,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   clearAvatar()
   clearMedia()
+  clearOriginalMedia()
 })
 
 async function showFeedback(type: 'smile' | 'sad') {
@@ -436,6 +488,42 @@ async function onDislike() {
       </button>
       <div v-else class="post-original__missing" data-testid="post-original-loading">
         loading original…
+      </div>
+      <button
+        v-if="original?.mediaId"
+        class="post-original__media-toggle"
+        type="button"
+        data-testid="post-original-media-toggle"
+        :aria-expanded="originalMediaOpen"
+        @click.stop="toggleOriginalMedia"
+      >
+        <AppIcon name="image" :size="14" aria-hidden="true" />
+        {{ originalMediaOpen ? 'hide attached media' : 'show attached media' }}
+      </button>
+      <div
+        v-if="originalMediaOpen"
+        class="post-original__media"
+        data-testid="post-original-media"
+        @click.stop
+      >
+        <div v-if="originalMediaLoading" class="post-original__missing">loading media…</div>
+        <div v-else-if="originalMediaError" class="post-original__missing">media unavailable</div>
+        <video
+          v-else-if="isOriginalVideo && originalMediaUrl"
+          :src="originalMediaUrl"
+          controls
+          preload="metadata"
+          playsinline
+          class="post-original__media-video"
+          data-testid="post-original-media-video"
+        />
+        <img
+          v-else-if="originalMediaUrl"
+          :src="originalMediaUrl"
+          alt="attached media"
+          class="post-original__media-img"
+          data-testid="post-original-media-img"
+        />
       </div>
     </div>
 
@@ -745,6 +833,46 @@ async function onDislike() {
   padding: 10px 12px;
   font-size: 12px;
   color: var(--sarv-text-dim);
+}
+
+.post-original__media-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 12px 10px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sarv-blue);
+  background: color-mix(in srgb, var(--sarv-blue) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sarv-blue) 40%, transparent);
+  cursor: pointer;
+}
+
+.post-original__media-toggle:hover {
+  background: color-mix(in srgb, var(--sarv-blue) 18%, transparent);
+}
+
+.post-original__media-toggle:focus-visible {
+  outline: 1px solid var(--sarv-blue);
+  outline-offset: 2px;
+}
+
+.post-original__media {
+  margin: 0 12px 12px;
+  border: 1px solid var(--sarv-border);
+  background: #000;
+  overflow: hidden;
+}
+
+.post-original__media-img,
+.post-original__media-video {
+  display: block;
+  width: 100%;
+  max-height: 300px;
+  object-fit: contain;
 }
 
 .post-media {
