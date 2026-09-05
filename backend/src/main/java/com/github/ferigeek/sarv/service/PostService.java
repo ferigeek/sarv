@@ -12,6 +12,8 @@ import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.PostRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -216,5 +218,10 @@ public class PostService {
         }
 
         return new PostResponse(postRepository.save(post));
+    }
+
+    public Page<PostResponse> getUserPosts(Long userId, Pageable pageable) {
+        return postRepository.findPostsByUserId(userId, pageable)
+                .map(PostResponse::new);
     }
 }

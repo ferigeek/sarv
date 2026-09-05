@@ -9,6 +9,10 @@ import com.github.ferigeek.sarv.service.PostService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,7 +24,7 @@ import java.net.URI;
 
 @Validated
 @RestController
-@RequestMapping("/api/posts")
+@RequestMapping("/api")
 public class PostController {
 
     private final PostService postService;
@@ -30,13 +34,13 @@ public class PostController {
         this.postService = postService;
     }
 
-    @GetMapping("/{postId}")
+    @GetMapping("/posts/{postId}")
     @LogEvent(EventType.VIEW_POST)
     public PostResponse getPost(@Positive @PathVariable Long postId) {
         return postService.getPost(postId);
     }
 
-    @PostMapping
+    @PostMapping("/posts")
     @LogEvent(EventType.CREATE_POST)
     public ResponseEntity<?> createPost(
             @Valid @RequestBody PostRequest postRequest,
@@ -45,7 +49,7 @@ public class PostController {
         return ResponseEntity.created(URI.create("/api/posts/" + postResponse.getId())).body(postResponse);
     }
 
-    @DeleteMapping("/{postId}")
+    @DeleteMapping("/posts/{postId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deletePost(
             @Positive @PathVariable Long postId,
@@ -63,11 +67,18 @@ public class PostController {
     data is set to its previous value, and if it's needed to be deleted,
     it is set to null.
      */
-    @PutMapping("/{postId}")
+    @PutMapping("/posts/{postId}")
     public PostResponse updatePost(
             @Positive @PathVariable Long postId,
             @Valid @RequestBody PostUpdateRequest postUpdateRequest,
             @AuthenticationPrincipal UserDetails userDetails) {
         return postService.updatePost(postId, postUpdateRequest, userDetails.getUsername());
+    }
+
+    @GetMapping("/users/{userId}/posts")
+    public Page<PostResponse> getUserPosts(
+            @Positive @PathVariable Long userId,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return postService.getUserPosts(userId, pageable);
     }
 }
