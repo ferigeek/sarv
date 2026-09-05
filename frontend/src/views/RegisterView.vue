@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import type { ApiError } from '@/api/client'
@@ -34,6 +34,21 @@ const bio = ref('')
 const location = ref('')
 const file = ref<File | null>(null)
 const fileName = ref('')
+const fileInput = ref<HTMLInputElement | null>(null)
+const filePreview = ref<string | null>(null)
+let filePreviewObjectUrl: string | null = null
+
+function clearFilePreview() {
+  if (filePreviewObjectUrl) {
+    URL.revokeObjectURL(filePreviewObjectUrl)
+    filePreviewObjectUrl = null
+  }
+  filePreview.value = null
+}
+
+function onPickFile() {
+  fileInput.value?.click()
+}
 
 function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
@@ -41,7 +56,18 @@ function onFileChange(e: Event) {
   file.value = f
   fileName.value = f?.name ?? ''
   error.value = ''
+  clearFilePreview()
+  if (f) {
+    filePreviewObjectUrl = URL.createObjectURL(f)
+    filePreview.value = filePreviewObjectUrl
+  }
+  // Reset so re-selecting the same file still fires change
+  input.value = ''
 }
+
+onBeforeUnmount(() => {
+  clearFilePreview()
+})
 
 async function onStep1Submit() {
   error.value = ''
@@ -261,17 +287,39 @@ async function onSkip() {
             />
           </label>
 
-          <label class="field">
+          <div class="field">
             <span class="field-label">profile picture</span>
+            <div class="file-pick">
+              <img
+                v-if="filePreview"
+                :src="filePreview"
+                alt="selected profile picture"
+                class="file-thumb"
+                data-testid="register-file-preview"
+              />
+              <button
+                class="btn"
+                type="button"
+                data-testid="register-file-pick"
+                :disabled="loading"
+                @click="onPickFile"
+              >
+                + choose picture
+              </button>
+              <span v-if="fileName" class="file-name" data-testid="register-file-name">{{ fileName }}</span>
+              <span v-else class="file-name file-name--empty">no file chosen</span>
+            </div>
             <input
-              class="field-input"
+              ref="fileInput"
+              class="file-pick__input"
               type="file"
               accept="image/*"
+              tabindex="-1"
+              aria-hidden="true"
               data-testid="register-file"
               @change="onFileChange"
             />
-            <span v-if="fileName" class="file-name" data-testid="register-file-name">{{ fileName }}</span>
-          </label>
+          </div>
 
           <p v-if="error" class="auth-error" data-testid="register-error">{{ error }}</p>
 
@@ -384,6 +432,31 @@ async function onSkip() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.file-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--sarv-space-3);
+  padding: 10px 12px;
+  background: var(--sarv-bg);
+  border: 1px solid var(--sarv-border-bright);
+}
+
+.file-pick__input {
+  display: none;
+}
+
+.file-thumb {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border: 1px solid var(--sarv-border-bright);
+}
+
+.file-name--empty {
+  color: var(--sarv-text-faint);
 }
 
 .auth-error {

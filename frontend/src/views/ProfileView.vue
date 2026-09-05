@@ -38,6 +38,7 @@ const followLoading = ref(false)
 const avatarUrl = ref<string | null>(null)
 let avatarObjectUrl: string | null = null
 const avatarFile = ref<File | null>(null)
+const avatarInput = ref<HTMLInputElement | null>(null)
 const avatarPreview = ref<string | null>(null)
 let avatarPreviewObjectUrl: string | null = null
 
@@ -141,6 +142,12 @@ function onAvatarPick(e: Event) {
   avatarPreviewObjectUrl = URL.createObjectURL(f)
   avatarPreview.value = avatarPreviewObjectUrl
   saveOk.value = false
+  // Reset so re-selecting the same file still fires change
+  input.value = ''
+}
+
+function onPickAvatar() {
+  avatarInput.value?.click()
 }
 
 async function onToggleFollow() {
@@ -379,17 +386,39 @@ onBeforeUnmount(() => {
           </select>
         </label>
 
-        <label class="field">
+        <div class="field">
           <span class="field-label">profile picture</span>
+          <div class="file-pick">
+            <img
+              v-if="avatarPreview"
+              :src="avatarPreview"
+              alt="selected profile picture"
+              class="file-thumb"
+              data-testid="profile-edit-preview"
+            />
+            <button
+              class="btn"
+              type="button"
+              data-testid="profile-edit-pick"
+              :disabled="saving"
+              @click="onPickAvatar"
+            >
+              + choose picture
+            </button>
+            <span v-if="avatarFile" class="file-name" data-testid="profile-edit-file-name">{{ avatarFile.name }}</span>
+            <span v-else class="file-name file-name--empty">no file chosen</span>
+          </div>
           <input
-            class="field-input"
+            ref="avatarInput"
+            class="file-pick__input"
             type="file"
             accept="image/*"
+            tabindex="-1"
+            aria-hidden="true"
             data-testid="profile-edit-file"
             @change="onAvatarPick"
           />
-          <span v-if="avatarFile" class="file-name" data-testid="profile-edit-file-name">{{ avatarFile.name }}</span>
-        </label>
+        </div>
 
         <p v-if="saveError" class="profile-save-error" data-testid="profile-edit-error">{{ saveError }}</p>
         <p v-if="saveOk" class="profile-save-ok" data-testid="profile-edit-ok">profile updated ✓</p>
@@ -635,6 +664,31 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.file-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--sarv-space-3);
+  padding: 10px 12px;
+  background: var(--sarv-bg);
+  border: 1px solid var(--sarv-border-bright);
+}
+
+.file-pick__input {
+  display: none;
+}
+
+.file-thumb {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border: 1px solid var(--sarv-border-bright);
+}
+
+.file-name--empty {
+  color: var(--sarv-text-faint);
 }
 
 .profile-save-error {
