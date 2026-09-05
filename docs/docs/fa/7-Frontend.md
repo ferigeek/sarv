@@ -12,12 +12,13 @@
 
 فرانت‌اند یک تک‌صفحه‌ای (SPA) با TypeScript و Vue 3 و Vite است و مسئول موارد زیر است:
 
-- ورود و ثبت‌نام دومرحله‌ای (نشست JWT)
+- ورود و ثبت‌نام دومرحله‌ای (نشست JWT، تأیید تکرار رمز عبور)
 - فید پست‌ها با دو زبانه **For You** (پیشنهادی) و **Latest** (زمانی)
-- پست‌ها: مشاهده، ایجاد (متن و/یا رسانه)، لایک/دیسلایک با بازخورد متحرک
-- پروفایل‌ها: مشاهده، ویرایش پروفایل خود، فهرست دنبال‌کنندگان/دنبال‌شوندگان، تاریخچه پست‌های لایک‌شده
-- جست‌وجوی کاربر (با نام کاربری/نام نمایشی؛ زبانه‌های عمومی و محتوای پست رزرو شده‌اند)
-- آپلود رسانه (با نوار پیشرفت) و نمایش رسانه/عکس پروفایل
+- پست‌ها: صفحه جزئیات با رشته نظرات، ایجاد (معمولی/نظر/نقل‌قول/بازنشر، متن و/یا رسانه)، لایک/دیسلایک با بازخورد متحرک
+- هویت دسته‌بندی: بنرهای آبی ترمینالی و پیش‌نمایش پست اصلی برای پست‌های نظر/بازنشر/نقل‌قول
+- پروفایل‌ها: مشاهده، آمار دنبال‌کردن، فهرست پست‌های خود، ویرایش پروفایل خود، فهرست دنبال‌کنندگان/دنبال‌شوندگان هر کاربر، تاریخچه واکنش‌ها (فیلتر لایک/دیسلایک/همه)
+- جست‌وجو در مودال وسط صفحه: زبانه‌های عمومی ترکیبی، نام کاربری/نام نمایشی و محتوای پست
+- آپلود رسانه (با نوار پیشرفت) و نمایش رسانه/عکس پروفایل، از جمله نمایش تاشوی رسانه در پیش‌نمایش‌های جاسازی‌شده
 - مدیریت نشست: ذخیره توکن، گاردهای احراز هویت، هدایت هنگام انقضای نشست
 
 همه داده‌ها از REST API هسته مرکزی (`/api`، به [5-Backend.md](./5-Backend.md) مراجعه کنید) می‌آیند. فرانت‌اند هیچ وضعیت تجاری مستقلی نگه نمی‌دارد — بک‌اند مرجع حقیقت برای کاربران، پست‌ها، واکنش‌ها، دنبال‌کردن‌ها و رسانه‌هاست. زبان بصری (هندسه مربعی، هویت سبز ماتریکسی/هکری، انیمیشن فراوان) در `frontend/Design.md` تعریف شده است.
@@ -53,12 +54,13 @@ router/       جدول مسیرها + گاردهای احراز هویت (index.
 stores/       استورهای Pinia (فقط auth.ts — تنها استور مشترک)
 types/        تایپ‌های منطبق با بک‌اند (api.ts: کاربر/پست/واکنش/رسانه، Page)
 utils/        توکن (token.ts — کمک‌تابع‌های localStorage)
-views/        صفحه‌های سطح مسیر (AppShell، Feed، Login، Register، Profile،
-              LikedPosts، Following، Followers)
+views/        صفحه‌های سطح مسیر (AppShell، Feed، PostDetail، Login، Register،
+              Profile، LikedPosts، Following، Followers)
 components/   رابط‌های قابل‌استفاده‌مجدد (LeftSidebar، RightSidebar، PostCard،
-              PostCreateModal، SearchSection، UserSummary/List، NavigationMenu،
-              SarvLogo، HotTopicsPanel، PlatformNewsPanel، AmbientNetwork،
-              MobileTopBar، MobileBottomNav، AppIcon)
+              PostCreateModal، RepostConfirm، SearchSection، SearchModal،
+              UserSummary/List، NavigationMenu، SarvLogo، HotTopicsPanel،
+              PlatformNewsPanel، AmbientNetwork، MobileTopBar، MobileBottomNav،
+              AppIcon)
 assets/       استایل پایه (main.css — توکن‌های طراحی) و icons/pixelarticons.ts
 __tests__/    تست‌های یونیت نماها/استور/روتر؛ components/__tests__/ برای کامپوننت‌ها
 App.vue       ریشه (<router-view> + بازیابی نشست)
@@ -78,10 +80,11 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 | `/login` | `login` | `LoginView.vue` | عمومی |
 | `/register` | `register` | `RegisterView.vue` | عمومی |
 | `/` | `feed` (فرزند `''`) | `AppShell.vue` ← `FeedView.vue` | احراز هویت |
+| `/post/:id` | `post-detail` | `PostDetailView.vue` | احراز هویت |
 | `/profile/:id?` | `profile` | `ProfileView.vue` | احراز هویت (`:id?` خالی یعنی خود کاربر) |
 | `/liked` | `liked` | `LikedPostsView.vue` | احراز هویت |
-| `/following` | `following` | `FollowingView.vue` | احراز هویت |
-| `/followers` | `followers` | `FollowersView.vue` | احراز هویت |
+| `/following/:id?` | `following` | `FollowingView.vue` | احراز هویت (`:id?` خالی یعنی خود کاربر) |
+| `/followers/:id?` | `followers` | `FollowersView.vue` | احراز هویت (`:id?` خالی یعنی خود کاربر) |
 | `/:pathMatch(.*)*` | — | هدایت به `login` | — |
 
 گارد ناوبری (`router/index.ts:36`):
@@ -108,8 +111,8 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 رابط ثبت‌نام (`views/RegisterView.vue`، دومرحله‌ای مطابق `Design.md §§12`):
 
-- **مرحله ۱ (اجباری):** `username`، `password` (حداقل ۸ کاراکتر، بررسی سمت کلاینت)، `email`، `displayName`، `gender` ← `auth.register()` ← رفتن به مرحله ۲.
-- **مرحله ۲ (اختیاری):** `bio` (حداکثر ۲۵۵)، `location` (حداکثر ۳۰)، عکس پروفایل (`accept="image/*"`). اگر چیزی وارد شده باشد، ابتدا عکس با `POST /api/media` آپلود و سپس پروفایل با `PUT /api/users/me` ذخیره می‌شود؛ وگرنه هیچ درخواستی فرستاده نمی‌شود. دکمه **رد شدن** مستقیم به فید می‌رود.
+- **مرحله ۱ (اجباری):** `username`، `password` (حداقل ۸ کاراکتر، بررسی سمت کلاینت)، `confirmPassword` (باید با رمز مطابقت داشته باشد، بررسی سمت کلاینت؛ بک‌اند مغایرت را با ۴۰۰ رد می‌کند)، `email`، `displayName`، `gender` ← `auth.register()` ← رفتن به مرحله ۲.
+- **مرحله ۲ (اختیاری):** `bio` (حداکثر ۲۵۵)، `location` (حداکثر ۳۰)، عکس پروفایل (`accept="image/*"` با انتخاب‌گر استایل‌شده و پیش‌نمایش زنده، نه کنترل خام مرورگر). اگر چیزی وارد شده باشد، ابتدا عکس با `POST /api/media` آپلود و سپس پروفایل با `PUT /api/users/me` ذخیره می‌شود؛ وگرنه هیچ درخواستی فرستاده نمی‌شود. دکمه **رد شدن** مستقیم به فید می‌رود.
 
 ---
 
@@ -120,14 +123,14 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 | ماژول | توابع | اندپوینت‌های بک‌اند |
 |--------|--------|---------------------|
 | `api/auth.ts` | `login`، `register` | `POST /api/auth/login`، `POST /api/auth/register` |
-| `api/users.ts` | `getMe`، `getUser`، `updateMe`، `searchUsers(query, pageable)` | `GET /api/users/me`، `GET /api/users/{id}`، `PUT /api/users/me`، `GET /api/users?query=` |
+| `api/users.ts` | `getMe`، `getUser`، `updateMe`، `searchUsers(query, pageable)`، `getUserPosts`، `getReactedPosts(filter)`، `getUserStats` | `GET /api/users/me`، `GET /api/users/{id}`، `PUT /api/users/me`، `GET /api/users?query=`، `GET /api/users/{id}/posts`، `GET /api/users/{id}/reacted-posts?filter=`، `GET /api/users/{id}/stats` |
 | `api/feed.ts` | `getChronologicalFeed`، `getRecommendedFeed` | `GET /api/feed/chronological`، `GET /api/feed/recommended` |
-| `api/posts.ts` | `getPost`، `createPost`، `updatePost`، `deletePost` | `GET/POST /api/posts`، `PUT/DELETE /api/posts/{id}` |
+| `api/posts.ts` | `getPost`، `createPost`، `updatePost`، `deletePost`، `searchPosts`، `getComments`، `repostPost`، `quotePost` | `GET/POST /api/posts`، `PUT/DELETE /api/posts/{id}`، `GET /api/posts/search?query=`، `GET /api/posts/{id}/comments?sortBy=`، بازنشر/نقل‌قول با `POST /api/posts` |
 | `api/reactions.ts` | `addReaction(1\|-1)`، `getReaction`، `removeReaction` | `POST/GET/DELETE /api/posts/{id}/reactions` |
 | `api/follows.ts` | `getFollowers`، `getFollowing`، `follow`، `unfollow` | `GET/POST/DELETE /api/users/{id}/followers`، `GET /api/users/{id}/following` |
 | `api/media.ts` | `uploadMedia(file, onProgress?)`، `getMediaBlob`، `getMediaMetadata` | `POST /api/media` (multipart با فیلد `file`)، `GET /api/media/{id}`، `GET /api/media/{id}/metadata` |
 
-تایپ‌های `types/api.ts:4` فیلدبه‌فیلد با بک‌اند مطابق‌اند (`Gender`، `UserStatus`، `PostCategory`، `ReactionType`، `UserResponse`، `UserSummaryResponse`، `PostResponse`، `ReactionResponse`، `MediaResponse` و `Page<T>` با `page { size, number, totalElements, totalPages }`).
+تایپ‌های `types/api.ts:4` فیلدبه‌فیلد با بک‌اند مطابق‌اند (`Gender`، `UserStatus`، `PostCategory`، `CommentSort`، `ReactionFilter`، `UserResponse`، `UserSummaryResponse`، `UserStatsResponse`، `PostResponse` شامل `commentCount`، `ReactionResponse`، `MediaResponse` و `Page<T>` با `page { size, number, totalElements, totalPages }`).
 
 ### رفتار فید
 
@@ -144,10 +147,26 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 2. **اول آپلود:** دکمه `⇪ upload media` صدای `POST /api/media` را با کال‌بک پیشرفت می‌زند که نوار پیشرفت پیکسلی GSAP را جلو می‌برد (`media.ts:8`، `PostCreateModal.vue:80`).
 3. **بعد ثبت:** `createPost({ postCategory: 'NORMAL'، content، mediaId، parentId: null، repostOfId: null })`. دکمه ثبت تا وقتی متن یا `mediaId` آپلودشده نباشد غیرفعال است.
 
+سازنده سه حالت دارد (`PostCreateModal.vue:12` — همان پنجره، همان گردش اول-رسانه):
+
+- **post** (پیش‌فرض): پست `NORMAL` مثل بالا.
+- **comment** (با `parentId`، بازشونده از صفحه جزئیات پست): `COMMENT` با `parentId` و بدون `repostOfId`.
+- **quote** (با `repostOfId`، بازشونده از دکمه نقل‌قول کارت): پیش‌نمایش غیرتعاملی پست نقل‌شده در بالا، بعد متن (اجباری — بک‌اند نقل‌قول خالی را رد می‌کند) به‌علاوه رسانه اختیاری با کمک‌تابع `quotePost`.
+
+### صفحه جزئیات پست و نظرات
+
+`PostDetailView.vue` پست را با `PostCard` در حالت `detailed` نشان می‌دهد و زیر آن رشته نظرات است: `GET /api/posts/{id}/comments?sortBy=` با کلید **جدیدترین** (پیش‌فرض) / **پُرلایک‌ترین**، صفحه‌بندی «بارگذاری بیشتر» (`size = 10`)، حالت خالی دعوت‌کننده به اولین نظر، و دکمه نوشتن نظر که سازنده را در حالت نظر باز می‌کند (پس از انتشار، پست و نظرات تازه می‌شوند). کلیک روی بدنه کارت فید (یا دکمه نظرش) به اینجا می‌آید؛ لایک/دیسلایک، لینک نویسنده و رسانه جلوی انتشار کلیک را می‌گیرند.
+
+### بازنشر
+
+دکمه بازنشر کارت پنجره تأیید `RepostConfirm.vue` را باز می‌کند (قطعه‌ای از پست، دکمه‌های `repost`/`cancel`، بستن با `Escape`/پس‌زمینه) و تأیید، `postCategory: 'REPOST'` با محتوای null را با `repostPost` می‌فرستد. موفقیت دکمه را آبی ترمینالی می‌کند و رویداد `reposted` می‌دهد تا فید تازه شود؛ خطاها در همان پنجره می‌مانند با امکان تلاش مجدد.
+
 ### واکنش‌ها، دنبال‌کردن‌ها، پروفایل‌ها، نمایش رسانه
 
-- `PostCard.vue:73` هنگام mount وضعیت واکنش هر پست (`likeCount/dislikeCount/userReaction`)، پروفایل نویسنده، باینری آواتار و باینری رسانه پست را لود می‌کند؛ لایک یعنی شست بالا (سبز در حالت فعال)، دیسلایک یعنی شست پایین (قرمز در حالت فعال) با بازخورد پیکسلی شاد/غمگین GSAP پس از موفقیت (مطابق `Design.md §7.3`).
-- `ProfileView.vue:42`: حذف `:id?` یعنی پروفایل خود کاربر؛ وضعیت دنبال‌کردن از صفحه اول فهرست دنبال‌شوندگان خود بیننده مشتق می‌شود (API فیلد `isFollowing` ندارد). پروفایل خودی فرم ویرایش دارد (`displayName`، `bio`، `location`، `gender`، آپلود آواتار ← `updateMe`)؛ فقط همین فیلدها قابل ویرایش‌اند.
+- `PostCard.vue:73` هنگام mount وضعیت واکنش هر پست (`likeCount/dislikeCount/userReaction`)، پروفایل نویسنده، باینری آواتار و باینری رسانه پست را لود می‌کند؛ لایک یعنی شست بالا (سبز در حالت فعال)، دیسلایک یعنی شست پایین (قرمز در حالت فعال) با بازخورد پیکسلی شاد/غمگین GSAP پس از موفقیت (مطابق `Design.md §7.3`). سربرگ نویسنده به `profile/:userId` می‌رود؛ بدنه کارت و دکمه نظر به `post-detail` می‌روند.
+- هویت دسته‌بندی: پست‌های `COMMENT`/`REPOST`/`QUOTE` نواری آبی ترمینالی (`--sarv-blue`) در بالای کارت دارند که به پست والد/ارجاع‌شده لینک می‌شود؛ کارت‌های بازنشر/نقل‌قول پیش‌نمایش تک‌سطحی از پست اصلی دارند (نویسنده، قطعه متن، شمارنده‌ها) با پیام جایگزین «پست اصلی در دسترس نیست» و کلید «نمایش رسانه پیوست» که تصویر/ویدیوی اصلی را در همان‌جا باز می‌کند، وقتی رسانه دارد.
+- `ProfileView.vue:42`: حذف `:id?` یعنی پروفایل خود کاربر؛ وضعیت دنبال‌کردن از صفحه اول فهرست دنبال‌شوندگان خود بیننده مشتق می‌شود (API فیلد `isFollowing` ندارد). سربرگ آمار دنبال‌کردن (`GET /api/users/{id}/stats`) را نشان می‌دهد که به فهرست‌های دنبال‌کنندگان/دنبال‌شوندگان همان کاربر لینک‌اند و بعد از آن فهرست صفحه‌بندی‌شده پست‌های خود کاربر (`GET /api/users/{id}/posts` با استفاده مجدد از `PostCard`) می‌آید. پروفایل خودی فرم ویرایش دارد (`displayName`، `bio`، `location`، `gender`، آواتار با انتخاب‌گر استایل‌شده و پیش‌نمایش زنده ← `updateMe`)؛ فقط همین فیلدها قابل ویرایش‌اند.
+- `LikedPostsView.vue` تاریخچه پست‌های واکنش‌نشان‌داده‌شده است (`GET /api/users/{id}/reacted-posts`) با زبانه‌های **لایک‌شده** (پیش‌فرض) / **دیسلایک‌شده** / **همه**؛ برچسب آیتم ناوبری «recent reactions» است.
 - آواتارها و رسانه پست‌ها به‌صورت blob (`GET /api/media/{id}`) گرفته و با `URL.createObjectURL` نمایش داده می‌شوند و هنگام تعویض/unmount آزاد می‌شوند.
 
 ---
@@ -158,19 +177,22 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 |------|------|--------|
 | پوسته | `views/AppShell.vue` | چیدمان سه‌ستونه، کشوهای موبایل، میزبان مودال ایجاد پست |
 | فید | `views/FeedView.vue` | زبانه‌های For You / Latest، حالت‌های تلاش‌مجدد + خالی + بارگذاری بیشتر |
+| جزئیات پست | `views/PostDetailView.vue` | پست + رشته نظرات با کلید مرتب‌سازی، سازنده نظر |
 | ورود / ثبت‌نام | `views/LoginView.vue`، `views/RegisterView.vue` | جعبه‌های احراز هویت وسط‌چین |
-| پروفایل | `views/ProfileView.vue` | مشاهده + ویرایش خودی، دنبال‌کردن/لغو دنبال‌کردن |
-| لایک‌شده‌ها / دنبال‌شوندگان / دنبال‌کنندگان | `views/LikedPostsView.vue`، `views/FollowingView.vue`، `views/FollowersView.vue` | فهرست‌های صفحه‌بندی‌شده `UserSummaryList` / پست |
+| پروفایل | `views/ProfileView.vue` | آمار، پست‌های خود، مشاهده + ویرایش خودی، دنبال‌کردن/لغو دنبال‌کردن |
+| واکنش‌ها / دنبال‌شوندگان / دنبال‌کنندگان | `views/LikedPostsView.vue`، `views/FollowingView.vue`، `views/FollowersView.vue` | فید پست‌های واکنش‌نشان‌داده‌شده با فیلتر؛ فهرست‌های دنبال‌کردن هر کاربر |
 
 | کامپوننت | نقش (ارجاع Design.md) |
 |-----------|------------------------|
-| `LeftSidebar.vue` + `SearchSection.vue`، `UserSummary.vue`، `NavigationMenu.vue` | جست‌وجو (بالا)، خلاصه کاربر، اکشن ایجاد پست، ناوبری پروفایل/لایک‌ها/دنبال‌کردن‌ها (§4) |
-| `PostCard.vue`، `PostCreateModal.vue` | پست‌های فید، شمارنده‌ها، اکشن‌ها (§7)؛ پنجره ایجاد در همان صفحه (§8) |
+| `LeftSidebar.vue` + `SearchSection.vue`، `SearchModal.vue`، `UserSummary.vue`، `NavigationMenu.vue` | محرک‌های جست‌وجو + مودال نتایج وسط‌چین، خلاصه کاربر، اکشن ایجاد پست، ناوبری خانه/پروفایل/واکنش‌ها/دنبال‌کردن‌ها (§4) |
+| `PostCard.vue`، `PostCreateModal.vue`، `RepostConfirm.vue` | پست‌های فید، بنرها، پیش‌نمایش‌ها، شمارنده‌ها، اکشن‌ها (§7)؛ پنجره‌های ایجاد/نظر/نقل‌قول و تأیید بازنشر در همان صفحه (§8) |
 | `RightSidebar.vue` + `SarvLogo.vue`، `HotTopicsPanel.vue`، `PlatformNewsPanel.vue` | نام متحرک Sarv، داغ‌ترین موضوعات، اخبار پلتفرم (§9) |
-| `UserSummaryList.vue` | ردیف‌های مشترک آواتار/نام‌کاربری/نام‌نمایشی (§6) |
-| `MobileTopBar.vue`، `MobileBottomNav.vue`، `AmbientNetwork.vue`، `AppIcon.vue` | کروم ریسپانسیو، افکت پس‌زمینه، آیکون‌های شست/جست‌وجو/کاربر |
+| `UserSummaryList.vue` | ردیف‌های مشترک آواتار/نام‌کاربری/نام‌نمایشی با کلیک به پروفایل (§6) |
+| `MobileTopBar.vue`، `MobileBottomNav.vue`، `AmbientNetwork.vue`، `AppIcon.vue` | کروم ریسپانسیو، افکت پس‌زمینه، آیکون‌های شست/جست‌وجو/کاربر/خانه/تصویر |
 
-جست‌وجو (`SearchSection.vue:33`): سه زبانه مطابق مشخصات — **username** زنده است (دیباونس ۳۰۰ میلی‌ثانیه، `GET /api/users?query=`، حداکثر ۸ نتیجه، کلیک ← پروفایل)؛ **general** و **post** نگهدارنده «به‌زودی» هستند (هنوز اندپوینت بک‌اند ندارند). نتایج در پنل همان صفحه باز می‌شوند مطابق `Design.md §4.1`.
+بلوک برند بالای سایدبار چپ (لوگو + شعار) به فید می‌رود، مثل آیتم پررنگ `home` ناوبری با آیکونش.
+
+جست‌وجو (`SearchModal.vue`، بازشونده از ورودی/زبانه‌های سایدبار): پنجره‌ای ثابت روی مرکز صفحه با همان سه زبانه — **username** (`GET /api/users?query=`، حداکثر ۸ نتیجه، کلیک ← پروفایل)، **post** (`GET /api/posts/search?query=`، ردیف‌های کوچک، کلیک ← جزئیات پست)، و **general** که هر دو را ترکیب می‌کند با میان‌برهای «دیدن همه». دیباونس ۳۰۰ میلی‌ثانیه، بستن با `Escape`/پس‌زمینه/دکمه بستن، آواتار برای ردیف‌های کاربری.
 
 داده سایدبار راست (`HotTopicsPanel.vue:7`، `PlatformNewsPanel.vue:8`): فعلاً **فهرست‌های ثابت نگهدارنده** (۵ تگ موضوعی، ۳ رکورد انتشار) — هنوز API تحلیل/موضوعات وجود ندارد. کلیک روی آن‌ها کاری نمی‌کند، مطابق قانون «کنترل‌های پیاده‌سازی‌نشده کاری نمی‌کنند» (`Design.md §13`).
 
@@ -184,7 +206,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 ## استایل و زبان بصری
 
-`assets/main.css` توکن‌های طراحی Sarv را تعریف می‌کند (`--sarv-green`، `--sarv-panel/bg/border`، `--sarv-glow`، مقیاس فاصله‌گذاری) که همه استایل‌های scoped کامپوننت‌ها مصرف می‌کنند. پیاده‌سازی از قیدهای `frontend/Design.md` پیروی می‌کند: هندسه مربعی تیز (بدون کارت/دکمه گرد)، زیبایی ترمینالی سبزروی‌تیره، آیکون‌های پیکسل‌آرت (`assets/icons/pixelarticons.ts`، ثبت‌شده در `main.ts:11`) و حرکت مبتنی بر GSAP (ساخته‌شدن لوگو، باز/بسته‌شدن مودال، بازخورد لایک/دیسلایک، نوار اسکن آپلود). راهبرد ریسپانسیو سلسله‌مراتب «فید وسط بزرگ‌ترین است» را حفظ می‌کند: سایدبارها به‌جای فشرده‌کردن فید به کشو تبدیل می‌شوند (`AppShell.vue:173`، `Design.md §14`).
+`assets/main.css` توکن‌های طراحی Sarv را تعریف می‌کند (`--sarv-green`، `--sarv-blue` برای هویت دسته‌بندی پست، `--sarv-panel/bg/border`، `--sarv-glow`، مقیاس فاصله‌گذاری) که همه استایل‌های scoped کامپوننت‌ها مصرف می‌کنند. پیاده‌سازی از قیدهای `frontend/Design.md` پیروی می‌کند: هندسه مربعی تیز (بدون کارت/دکمه گرد)، زیبایی ترمینالی سبزروی‌تیره، آیکون‌های پیکسل‌آرت (`assets/icons/pixelarticons.ts`، ثبت‌شده در `main.ts:11`) و حرکت مبتنی بر GSAP (ساخته‌شدن لوگو، باز/بسته‌شدن مودال، بازخورد لایک/دیسلایک، نوار اسکن آپلود). راهبرد ریسپانسیو سلسله‌مراتب «فید وسط بزرگ‌ترین است» را حفظ می‌کند: سایدبارها به‌جای فشرده‌کردن فید به کشو تبدیل می‌شوند (`AppShell.vue:173`، `Design.md §14`).
 
 ---
 
@@ -194,7 +216,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 - فید: هنگام خالی‌بودن خطای تمام‌صفحه با دکمه `retry`، هنگام صفحه‌بندی خطای درون‌خطی با حفظ فهرست (`FeedView.vue:139`).
 - سازنده پست: شکست آپلود و انتشار فاز `error` می‌سازد با پیام و مسدودشدن ثبت تا ریست.
 - تصاویر/رسانه‌های ناموجود بی‌صدا به حالت آیکون/خالی برمی‌گردند (لود آواتار/رسانه catch و پاک می‌شود).
-- رابط‌های پیاده‌سازی‌نشده (زبانه‌های general/post جست‌وجو، اکشن‌های بازنشر/نقل‌قول/نظر، ردیف‌های ثابت سایدبار) رندر می‌شوند ولی کاری نمی‌کنند — هیچ رفتار جعلی بک‌اند اختراع نمی‌شود.
+- رابط‌های پیاده‌سازی‌نشده (ردیف‌های ثابت سایدبار) رندر می‌شوند ولی کاری نمی‌کنند — هیچ رفتار جعلی بک‌اند اختراع نمی‌شود.
 
 ---
 
@@ -202,7 +224,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 | مجموعه | پوشش | دستور |
 |--------|------|--------|
-| یونیت (Vitest، jsdom) | `src/__tests__/` (استور احراز هویت، گاردهای روتر، لاگین/ثبت‌نام/پروفایل/فید/پوسته/سایدبار/موبایل) + `src/components/__tests__/` (PostCard، PostCreateModal، AppIcon، UserSummaryList) | `npm run test:unit` |
+| یونیت (Vitest، jsdom) | `src/__tests__/` (استور احراز هویت، گاردهای روتر، لاگین/ثبت‌نام/پروفایل/فید/جزئیات‌پست/واکنش‌ها/پوسته/سایدبار/موبایل) + `src/components/__tests__/` (PostCard، PostCreateModal، RepostConfirm، AppIcon، UserSummaryList) | `npm run test:unit` |
 | سراسری (Playwright) | `e2e/vue.spec.ts`، `e2e/mobile.spec.ts`، `e2e/sticky-tabs.spec.ts` (کرومیوم، فایرفاکس، وب‌کیت؛ سرور dev محلی، preview در CI) | `npm run test:e2e` |
 | بررسی تایپ | `vue-tsc --build` (بخشی از `npm run build`) | `npm run type-check` |
 | لینت | `oxlint` + `eslint` (قوانین Vue و TS) | `npm run lint` |
@@ -226,13 +248,11 @@ docker compose up --build
 
 ## وضعیت پیاده‌سازی
 
-**پیاده‌سازی‌شده:** احراز هویت (ورود، ثبت‌نام دومرحله‌ای شامل آواتار/بیو/موقعیت اختیاری)، گاردها + انقضای نشست، فید For You/Latest با fallback سمت کلاینت، ایجاد پست (اول رسانه + پیشرفت)، لایک/دیسلایک با شمارنده + بازخورد، مشاهده/ویرایش پروفایل، صفحه‌های دنبال‌کنندگان/دنبال‌شوندگان/لایک‌شده‌ها، جست‌وجوی زنده نام کاربری، رندر blob آواتار/رسانه، پوسته ریسپانسیو + کشوها، مجموعه‌های یونیت + سراسری، استقرار Docker/nginx.
+**پیاده‌سازی‌شده:** احراز هویت (ورود، ثبت‌نام دومرحله‌ای شامل تأیید رمز و آواتار/بیو/موقعیت اختیاری)، گاردها + انقضای نشست، فید For You/Latest با fallback سمت کلاینت، ایجاد پست (اول رسانه + پیشرفت، حالت‌های معمولی/نظر/نقل‌قول)، صفحه جزئیات پست با رشته نظرات + مرتب‌سازی + سازنده، بازنشر با تأیید، بنرهای دسته‌بندی + پیش‌نمایش پست اصلی با کلید رسانه، لایک/دیسلایک با شمارنده‌ها (شامل شمارنده نظر) + بازخورد، مشاهده/ویرایش پروفایل با آمار دنبال‌کردن + پست‌های خود، فهرست‌های دنبال‌کنندگان/دنبال‌شوندگان هر کاربر، تاریخچه پست‌های واکنش‌نشان‌داده‌شده با فیلتر، مودال جست‌وجوی کامل سه‌زبانه، رندر blob آواتار/رسانه، انتخاب‌گرهای استایل‌شده عکس، پوسته ریسپانسیو + کشوها، مجموعه‌های یونیت + سراسری، استقرار Docker/nginx.
 
 **طراحی‌شده ولی هنوز وصل‌نشده (رابط هست، کاری نمی‌کند یا نگهدارنده نشان می‌دهد):**
 
-- زبانه‌های عمومی و جست‌وجوی محتوای پست (`SearchSection.vue:174` با پیام «به‌زودی» — اندپوینت بک‌اند ندارد).
 - محتوای موضوعات داغ و اخبار پلتفرم (فهرست‌های ثابت در `HotTopicsPanel.vue:7` و `PlatformNewsPanel.vue:8` — API تحلیل/موضوعات برنامه‌ریزی‌شده و ساخته‌نشده است).
-- اکشن‌های بازنشر / نقل‌قول / نظر روی پست‌ها (دکمه‌ها مطابق `Design.md §7.4` رندر می‌شوند؛ فقط ایجاد `NORMAL` پیاده شده است).
 - ویرایش/حذف پست از رابط کاربری (لافاصله‌های API در `api/posts.ts:27` هست ولی دکمه‌ای در UI نیست).
 
 همچنین به [5-Backend.md](./5-Backend.md)، [3-Architecture.md](./3-Architecture.md) و [6-Recommendation.md](./6-Recommendation.md) مراجعه کنید.

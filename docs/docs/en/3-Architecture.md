@@ -146,7 +146,7 @@ As a result, each category of data is stored in the environment most suitable fo
 | Component | Status |
 |-----------|--------|
 | Core Backend (users, auth, posts, reactions, follows, media) | Implemented |
-| Frontend web client (auth, feed tabs, posts, reactions, profiles, search, media) | Implemented (AI-generated; topics/news content and repost/quote/comment still placeholders — see [7-Frontend.md](./7-Frontend.md)) |
+| Frontend web client (auth, feed tabs, posts, reactions, profiles, search, media) | Implemented (AI-generated; topics/news content still placeholder — see [7-Frontend.md](./7-Frontend.md)) |
 | Media storage on local filesystem | Implemented |
 | Event logging (`event_logs`) | Implemented — `REQUEST_FEED` with `metadata {feed_type, page, size, total_elements}` |
 | Feed generation (chronological / smart feed) | Implemented — `GET /api/feed/chronological` and `GET /api/feed/recommended` with `Page<PostResponse>` and graceful fallback |

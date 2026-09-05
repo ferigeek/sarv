@@ -12,12 +12,13 @@ It covers the technology stack, project structure, routing and layout, authentic
 
 The Frontend is a single-page application (SPA) written in TypeScript with Vue 3 and Vite. It is responsible for:
 
-- Login and two-step registration (JWT session)
+- Login and two-step registration (JWT session, password confirmation)
 - Post feed with **For You** (recommended) and **Latest** (chronological) tabs
-- Posts: viewing, creating (content and/or media), like/dislike with animated feedback
-- Profiles: viewing, editing own profile, followers/following lists, liked-posts history
-- User search (by username/display name; general and post-content tabs reserved)
-- Media upload (with progress) and media/profile-picture rendering
+- Posts: detail view with comments thread, creating (normal/comment/quote/repost, content and/or media), like/dislike with animated feedback
+- Category identity: terminal-blue banners and embedded originals for comment/repost/quote posts
+- Profiles: viewing, follow stats, own-posts list, editing own profile, per-user followers/following lists, reacted-posts history (liked/disliked/all filter)
+- Search in a centered modal: combined general, username/display-name, and post-content tabs
+- Media upload (with progress) and media/profile-picture rendering, incl. expandable media on embedded originals
 - Session handling: token storage, auth guards, expired-session redirect
 
 All data comes from the Core Backend REST API (`/api`, see [5-Backend.md](./5-Backend.md)). The frontend keeps no business state of its own — the backend is the source of truth for users, posts, reactions, follows, and media. The visual language (square geometry, green Matrix/hacker identity, heavy animation) is defined by `frontend/Design.md`.
@@ -53,12 +54,12 @@ router/       Route table + auth guards (index.ts)
 stores/       Pinia stores (auth.ts — the only shared store)
 types/        Backend-mirroring types (api.ts: User/Post/Reaction/Media, Page)
 utils/        token.ts (localStorage helpers)
-views/        Route-level screens (AppShell, Feed, Login, Register, Profile,
-              LikedPosts, Following, Followers)
+views/        Route-level screens (AppShell, Feed, PostDetail, Login, Register,
+              Profile, LikedPosts, Following, Followers)
 components/   Reusable UI (LeftSidebar, RightSidebar, PostCard, PostCreateModal,
-              SearchSection, UserSummary/List, NavigationMenu, SarvLogo,
-              HotTopicsPanel, PlatformNewsPanel, AmbientNetwork,
-              MobileTopBar, MobileBottomNav, AppIcon)
+              RepostConfirm, SearchSection, SearchModal, UserSummary/List,
+              NavigationMenu, SarvLogo, HotTopicsPanel, PlatformNewsPanel,
+              AmbientNetwork, MobileTopBar, MobileBottomNav, AppIcon)
 assets/       main.css (design tokens + base styles), icons/pixelarticons.ts
 __tests__/    Unit tests for views/stores/router; components/__tests__/ for components
 App.vue       Root (<router-view> + session rehydration)
@@ -78,10 +79,11 @@ Route table (`router/index.ts:5`):
 | `/login` | `login` | `LoginView.vue` | public |
 | `/register` | `register` | `RegisterView.vue` | public |
 | `/` | `feed` (child `''`) | `AppShell.vue` → `FeedView.vue` | auth |
+| `/post/:id` | `post-detail` | `PostDetailView.vue` | auth |
 | `/profile/:id?` | `profile` | `ProfileView.vue` | auth (`:id?` omitted = self) |
 | `/liked` | `liked` | `LikedPostsView.vue` | auth |
-| `/following` | `following` | `FollowingView.vue` | auth |
-| `/followers` | `followers` | `FollowersView.vue` | auth |
+| `/following/:id?` | `following` | `FollowingView.vue` | auth (`:id?` omitted = self) |
+| `/followers/:id?` | `followers` | `FollowersView.vue` | auth (`:id?` omitted = self) |
 | `/:pathMatch(.*)*` | — | redirect → `login` | — |
 
 Navigation guard (`router/index.ts:36`):
@@ -108,8 +110,8 @@ Login UI (`views/LoginView.vue`): centered box, username + password, `401` → "
 
 Registration UI (`views/RegisterView.vue`, two steps per `Design.md §§12`):
 
-- **Step 1 (mandatory):** `username`, `password` (≥ 8 chars, client-checked), `email`, `displayName`, `gender` → `auth.register()` → advances to step 2.
-- **Step 2 (optional):** `bio` (≤ 255), `location` (≤ 30), profile picture (`accept="image/*"`). If anything was provided, the picture is uploaded first (`POST /api/media`) and `PUT /api/users/me` saves the profile; otherwise nothing is sent. **Skip** goes straight to the feed.
+- **Step 1 (mandatory):** `username`, `password` (≥ 8 chars, client-checked), `confirmPassword` (must match, client-checked; the backend rejects mismatches with 400), `email`, `displayName`, `gender` → `auth.register()` → advances to step 2.
+- **Step 2 (optional):** `bio` (≤ 255), `location` (≤ 30), profile picture (`accept="image/*"` via a styled picker with live thumbnail preview, not the native file control). If anything was provided, the picture is uploaded first (`POST /api/media`) and `PUT /api/users/me` saves the profile; otherwise nothing is sent. **Skip** goes straight to the feed.
 
 ---
 
@@ -120,14 +122,14 @@ Registration UI (`views/RegisterView.vue`, two steps per `Design.md §§12`):
 | Module | Functions | Backend endpoints |
 |--------|-----------|-------------------|
 | `api/auth.ts` | `login`, `register` | `POST /api/auth/login`, `POST /api/auth/register` |
-| `api/users.ts` | `getMe`, `getUser`, `updateMe`, `searchUsers(query, pageable)` | `GET /api/users/me`, `GET /api/users/{id}`, `PUT /api/users/me`, `GET /api/users?query=` |
+| `api/users.ts` | `getMe`, `getUser`, `updateMe`, `searchUsers(query, pageable)`, `getUserPosts`, `getReactedPosts(filter)`, `getUserStats` | `GET /api/users/me`, `GET /api/users/{id}`, `PUT /api/users/me`, `GET /api/users?query=`, `GET /api/users/{id}/posts`, `GET /api/users/{id}/reacted-posts?filter=`, `GET /api/users/{id}/stats` |
 | `api/feed.ts` | `getChronologicalFeed`, `getRecommendedFeed` | `GET /api/feed/chronological`, `GET /api/feed/recommended` |
-| `api/posts.ts` | `getPost`, `createPost`, `updatePost`, `deletePost` | `GET/POST /api/posts`, `PUT/DELETE /api/posts/{id}` |
+| `api/posts.ts` | `getPost`, `createPost`, `updatePost`, `deletePost`, `searchPosts`, `getComments`, `repostPost`, `quotePost` | `GET/POST /api/posts`, `PUT/DELETE /api/posts/{id}`, `GET /api/posts/search?query=`, `GET /api/posts/{id}/comments?sortBy=`, repost/quote via `POST /api/posts` |
 | `api/reactions.ts` | `addReaction(1\|-1)`, `getReaction`, `removeReaction` | `POST/GET/DELETE /api/posts/{id}/reactions` |
 | `api/follows.ts` | `getFollowers`, `getFollowing`, `follow`, `unfollow` | `GET/POST/DELETE /api/users/{id}/followers`, `GET /api/users/{id}/following` |
 | `api/media.ts` | `uploadMedia(file, onProgress?)`, `getMediaBlob`, `getMediaMetadata` | `POST /api/media` (multipart `file`), `GET /api/media/{id}`, `GET /api/media/{id}/metadata` |
 
-Types in `types/api.ts:4` mirror the backend field-for-field (`Gender`, `UserStatus`, `PostCategory`, `ReactionType`, `UserResponse`, `UserSummaryResponse`, `PostResponse`, `ReactionResponse`, `MediaResponse`, `Page<T>` with `page { size, number, totalElements, totalPages }`).
+Types in `types/api.ts:4` mirror the backend field-for-field (`Gender`, `UserStatus`, `PostCategory`, `CommentSort`, `ReactionFilter`, `UserResponse`, `UserSummaryResponse`, `UserStatsResponse`, `PostResponse` incl. `commentCount`, `ReactionResponse`, `MediaResponse`, `Page<T>` with `page { size, number, totalElements, totalPages }`).
 
 ### Feed behavior
 
@@ -144,10 +146,26 @@ Types in `types/api.ts:4` mirror the backend field-for-field (`Gender`, `UserSta
 2. **Upload first:** `⇪ upload media` calls `POST /api/media` with a progress callback driving a pixel-striped GSAP progress bar (`media.ts:8`, `PostCreateModal.vue:80`).
 3. **Then submit:** `createPost({ postCategory: 'NORMAL', content, mediaId, parentId: null, repostOfId: null })`. Submit is disabled until content or an uploaded `mediaId` exists.
 
+The composer has three modes (`PostCreateModal.vue:12`, same window, same media-first flow):
+
+- **post** (default): `NORMAL` post as above.
+- **comment** (`parentId` set, opened from the post detail): `COMMENT` with `parentId`, no `repostOfId`.
+- **quote** (`repostOfId` set, opened from a card's quote button): non-interactive preview of the quoted post on top, then content (required — the backend rejects empty quotes) plus optional media via the `quotePost` helper.
+
+### Post detail & comments
+
+`PostDetailView.vue` renders the post via `PostCard` in `detailed` mode, then the comments thread underneath: `GET /api/posts/{id}/comments?sortBy=` with a **newest** (default) / **most liked** toggle, paginated `load more` (`size = 10`), an empty state inviting the first comment, and a write-a-comment button opening the composer in comment mode (reloads post + comments on publish). Clicking a feed card (or its comment button) navigates here; like/dislike, author link, and media stop propagation.
+
+### Repost
+
+The card's repost button opens a `RepostConfirm.vue` window (quoted snippet, `repost`/`cancel`, `Escape`/backdrop closes) and confirming sends `postCategory: 'REPOST'` with null content/media via `repostPost`. Success marks the button in terminal blue and emits `reposted` so the feed refreshes; failures stay in-window with retry.
+
 ### Reactions, follows, profiles, media rendering
 
-- `PostCard.vue:73` loads per-post reaction state (`likeCount/dislikeCount/userReaction`), author profile, avatar blob, and post media blob on mount; like = thumbs-up (green when active), dislike = thumbs-down (red when active), with pixelated smile/sad GSAP feedback after success (per `Design.md §7.3`).
-- `ProfileView.vue:42`: `:id?` omitted resolves to self; follow state is derived from the first page of the viewer's own following list (the API has no `isFollowing` field). Self profiles get an edit form (`displayName`, `bio`, `location`, `gender`, avatar upload → `updateMe`); only these fields are editable.
+- `PostCard.vue:73` loads per-post reaction state (`likeCount/dislikeCount/userReaction`), author profile, avatar blob, and post media blob on mount; like = thumbs-up (green when active), dislike = thumbs-down (red when active), with pixelated smile/sad GSAP feedback after success (per `Design.md §7.3`). Author header navigates to `profile/:userId`; card body and comment button navigate to `post-detail`.
+- Category identity: `COMMENT`/`REPOST`/`QUOTE` posts render a terminal-blue (`--sarv-blue`) banner strip on top of the card linking to the parent/referenced post; repost/quote cards embed a one-level preview of the original (author, snippet, counts) with an `original post unavailable` fallback, plus a `show attached media` toggle that loads and shows the original's image/video inline when it has media.
+- `ProfileView.vue:42`: `:id?` omitted resolves to self; follow state is derived from the first page of the viewer's own following list (the API has no `isFollowing` field). The header shows follow stats (`GET /api/users/{id}/stats`) linking to that user's followers/following lists, followed by a paginated own-posts list (`GET /api/users/{id}/posts`, reusing `PostCard`). Self profiles get an edit form (`displayName`, `bio`, `location`, `gender`, avatar via a styled picker with live preview → `updateMe`); only these fields are editable.
+- `LikedPostsView.vue` is the reacted-posts history (`GET /api/users/{id}/reacted-posts`) with **liked** (default) / **disliked** / **all** filter tabs; the nav item is labeled "recent reactions".
 - Avatars and post media are fetched as blobs (`GET /api/media/{id}`) and rendered via `URL.createObjectURL`, revoked on change/unmount.
 
 ---
@@ -158,19 +176,22 @@ Types in `types/api.ts:4` mirror the backend field-for-field (`Gender`, `UserSta
 |--------|------|-------|
 | Shell | `views/AppShell.vue` | 3-column layout, mobile drawers, create-post modal host |
 | Feed | `views/FeedView.vue` | For You / Latest tabs, retry + empty + load-more states |
+| Post detail | `views/PostDetailView.vue` | Post + comments thread with sort toggle, comment composer |
 | Login / Register | `views/LoginView.vue`, `views/RegisterView.vue` | Centered auth boxes |
-| Profile | `views/ProfileView.vue` | View + self-edit, follow/unfollow |
-| Liked / Following / Followers | `views/LikedPostsView.vue`, `views/FollowingView.vue`, `views/FollowersView.vue` | Paginated `UserSummaryList` / post lists |
+| Profile | `views/ProfileView.vue` | Stats, own posts, view + self-edit, follow/unfollow |
+| Reacted / Following / Followers | `views/LikedPostsView.vue`, `views/FollowingView.vue`, `views/FollowersView.vue` | Filterable reacted-posts feed; per-user follow lists |
 
 | Component | Role (Design.md ref) |
 |-----------|----------------------|
-| `LeftSidebar.vue` + `SearchSection.vue`, `UserSummary.vue`, `NavigationMenu.vue` | Search (top), user summary, create-post action, profile/liked/following/followers nav (§4) |
-| `PostCard.vue`, `PostCreateModal.vue` | Feed posts, counts, actions (§7); same-page creation window (§8) |
+| `LeftSidebar.vue` + `SearchSection.vue`, `SearchModal.vue`, `UserSummary.vue`, `NavigationMenu.vue` | Search triggers + centered results modal, user summary, create-post action, home/profile/reactions/following/followers nav (§4) |
+| `PostCard.vue`, `PostCreateModal.vue`, `RepostConfirm.vue` | Feed posts, banners, previews, counts, actions (§7); same-page creation/comment/quote windows and repost confirmation (§8) |
 | `RightSidebar.vue` + `SarvLogo.vue`, `HotTopicsPanel.vue`, `PlatformNewsPanel.vue` | Animated Sarv name, hottest topics, platform news (§9) |
-| `UserSummaryList.vue` | Shared avatar/username/displayName rows (§6) |
-| `MobileTopBar.vue`, `MobileBottomNav.vue`, `AmbientNetwork.vue`, `AppIcon.vue` | Responsive chrome, background effect, thumbs/search/user icons |
+| `UserSummaryList.vue` | Shared avatar/username/displayName rows, identity click-through to profiles (§6) |
+| `MobileTopBar.vue`, `MobileBottomNav.vue`, `AmbientNetwork.vue`, `AppIcon.vue` | Responsive chrome, background effect, thumbs/search/user/home/image icons |
 
-Search (`SearchSection.vue:33`): three tabs as specified — **username** is live (debounced 300 ms, `GET /api/users?query=`, top 8, click → profile); **general** and **post** render "coming soon" placeholders (no backend endpoint exists yet). Results open in a same-page panel per `Design.md §4.1`.
+The brand block at the top of the left sidebar (logo + tagline) navigates to the feed, as does the highlighted `home` nav item with its icon.
+
+Search (`SearchModal.vue`, opened from the sidebar input/tabs): a window fixed over the center of the screen with the same three tabs — **username** (`GET /api/users?query=`, top 8, click → profile), **post** (`GET /api/posts/search?query=`, mini rows, click → post detail), and **general** combining both with see-all shortcuts. Debounced 300 ms, `Escape`/backdrop/close-button dismiss, avatars for account rows.
 
 Right sidebar data (`HotTopicsPanel.vue:7`, `PlatformNewsPanel.vue:8`): currently **static placeholder lists** (5 themed tags, 3 release entries) — no analytics/topics API exists yet. Clicking them does nothing, per the "unimplemented controls do nothing" rule (`Design.md §13`).
 
@@ -184,7 +205,7 @@ Only one shared store exists: `useAuthStore` (`stores/auth.ts:9` — `token`, `u
 
 ## Styling & Visual Language
 
-`assets/main.css` defines the Sarv design tokens (`--sarv-green`, `--sarv-panel/bg/border`, `--sarv-glow`, spacing scale) consumed by all scoped component styles. The implementation follows `frontend/Design.md` constraints: sharp square geometry (no pill/rounded cards), green-on-dark terminal aesthetic, pixel-art icons (`assets/icons/pixelarticons.ts`, registered in `main.ts:11`), and GSAP-driven motion (logo construction, modal open/close, like/dislike feedback, upload scan bar). Responsive strategy preserves the center-feed hierarchy: sidebars collapse to drawers instead of squeezing the feed (`AppShell.vue:173`, `Design.md §14`).
+`assets/main.css` defines the Sarv design tokens (`--sarv-green`, `--sarv-blue` for post-category identity, `--sarv-panel/bg/border`, `--sarv-glow`, spacing scale) consumed by all scoped component styles. The implementation follows `frontend/Design.md` constraints: sharp square geometry (no pill/rounded cards), green-on-dark terminal aesthetic, pixel-art icons (`assets/icons/pixelarticons.ts`, registered in `main.ts:11`), and GSAP-driven motion (logo construction, modal open/close, like/dislike feedback, upload scan bar). Responsive strategy preserves the center-feed hierarchy: sidebars collapse to drawers instead of squeezing the feed (`AppShell.vue:173`, `Design.md §14`).
 
 ---
 
@@ -194,7 +215,7 @@ Only one shared store exists: `useAuthStore` (`stores/auth.ts:9` — `token`, `u
 - Feed: full-page error with `retry` when empty, inline error + preserved list when paginating (`FeedView.vue:139`).
 - Composer: upload and publish failures set `phase: 'error'` with a message and block submit until reset.
 - Missing images/media fail silently to icon/empty state (avatar/media loads catch and clear).
-- Unimplemented UI (general/post search tabs, repost/quote/comment actions, static sidebar rows) renders but performs no action — no mock backend behavior is invented.
+- Unimplemented UI (static sidebar rows) renders but performs no action — no mock backend behavior is invented.
 
 ---
 
@@ -202,7 +223,7 @@ Only one shared store exists: `useAuthStore` (`stores/auth.ts:9` — `token`, `u
 
 | Suite | Scope | Command |
 |-------|-------|---------|
-| Unit (Vitest, jsdom) | `src/__tests__/` (auth store, router guards, Login/Register/Profile/Feed/shell/sidebar/mobile) + `src/components/__tests__/` (PostCard, PostCreateModal, AppIcon, UserSummaryList) | `npm run test:unit` |
+| Unit (Vitest, jsdom) | `src/__tests__/` (auth store, router guards, Login/Register/Profile/Feed/PostDetail/Liked/shell/sidebar/mobile) + `src/components/__tests__/` (PostCard, PostCreateModal, RepostConfirm, AppIcon, UserSummaryList) | `npm run test:unit` |
 | E2E (Playwright) | `e2e/vue.spec.ts`, `e2e/mobile.spec.ts`, `e2e/sticky-tabs.spec.ts` (chromium, firefox, webkit; dev server locally, preview on CI) | `npm run test:e2e` |
 | Type-check | `vue-tsc --build` (part of `npm run build`) | `npm run type-check` |
 | Lint | `oxlint` + `eslint` (Vue + TS rules) | `npm run lint` |
@@ -226,13 +247,11 @@ docker compose up --build
 
 ## Implementation Status
 
-**Implemented:** auth (login, 2-step register incl. optional avatar/bio/location), guards + session expiry, For You/Latest feed with client fallback, post create (media-first + progress), like/dislike with counts + feedback, profile view/edit, followers/following/liked screens, live username search, avatar/media blob rendering, responsive shell + drawers, unit + e2e suites, Docker/nginx deployment.
+**Implemented:** auth (login, 2-step register incl. password confirmation and optional avatar/bio/location), guards + session expiry, For You/Latest feed with client fallback, post create (media-first + progress, normal/comment/quote modes), post detail with comments thread + sorting + composer, repost with confirmation, category banners + embedded originals with media toggle, like/dislike with counts (incl. comment counts) + feedback, profile view/edit with follow stats + own posts, per-user followers/following lists, reacted-posts history with filter, full three-tab search modal, avatar/media blob rendering, styled picture pickers, responsive shell + drawers, unit + e2e suites, Docker/nginx deployment.
 
 **Designed but not yet wired (UI exists, does nothing or shows placeholders):**
 
-- General and post-content search tabs (`SearchSection.vue:174` "coming soon" — no backend endpoint).
 - Hot topics and platform news content (static lists in `HotTopicsPanel.vue:7`, `PlatformNewsPanel.vue:8` — analytics/topics API is planned, not built).
-- Repost / quote / comment actions on posts (buttons render per `Design.md §7.4`; only `NORMAL` creation is implemented).
 - Post edit/delete from the UI (API wrappers exist in `api/posts.ts:27`, no UI controls yet).
 
 See also [5-Backend.md](./5-Backend.md), [3-Architecture.md](./3-Architecture.md), and [6-Recommendation.md](./6-Recommendation.md).
