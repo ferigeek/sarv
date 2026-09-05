@@ -277,6 +277,22 @@ describe('PostCard', () => {
     expect(wrapper.find('[data-testid="post-create-modal"]').exists()).toBe(true)
   })
 
+  it('clicks inside the quote composer do not navigate to the behind post', async () => {
+    const wrapper = mount(PostCard, { props: { post: makePost({ id: 13 }) } })
+    await flushPromises()
+
+    await wrapper.find('[data-testid="post-quote-btn"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="post-create-modal"]').exists()).toBe(true)
+
+    pushMock.mockClear()
+    await wrapper.find('[data-testid="post-create-content"]').trigger('click')
+    await wrapper.find('[data-testid="post-create-content"]').setValue('typing…')
+    await flushPromises()
+
+    expect(pushMock).not.toHaveBeenCalled()
+  })
+
   it('confirming a repost calls the API and marks the button reposted', async () => {
     mockedRepostPost.mockResolvedValue(makePost({ id: 99, postCategory: 'REPOST', content: null }))
     const wrapper = mount(PostCard, { props: { post: makePost({ id: 4 }) } })

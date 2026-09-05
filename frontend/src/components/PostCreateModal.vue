@@ -217,7 +217,7 @@ function close() {
 </script>
 
 <template>
-  <div class="post-create-overlay" data-testid="post-create-overlay" @click="onOverlayClick">
+  <div class="post-create-overlay" data-testid="post-create-overlay" @click.stop="onOverlayClick">
     <section ref="panelRef" class="panel post-create-panel" data-testid="post-create-modal">
       <header class="post-create__header">
         <span class="post-create__title">{{ composerTitle }}</span>

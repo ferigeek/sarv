@@ -121,13 +121,10 @@ function goLiked() {
 .left-nav__item--home {
   color: var(--sarv-text);
   font-weight: 700;
-  background: var(--sarv-panel-alt);
-  border-color: var(--sarv-border-bright);
 }
 
 .left-nav__item--home:hover {
   color: #fff;
-  border-color: var(--sarv-green-dim);
 }
 
 .left-nav__icon {
