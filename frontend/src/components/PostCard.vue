@@ -9,11 +9,14 @@ import { addReaction, getReaction, removeReaction } from '@/api/reactions'
 import { getUser } from '@/api/users'
 import type { PostResponse, UserResponse, UserReaction } from '@/types/api'
 import AppIcon from './AppIcon.vue'
+import RepostConfirm from './RepostConfirm.vue'
 
 const props = withDefaults(
   defineProps<{ post: PostResponse; clickable?: boolean; detailed?: boolean }>(),
   { clickable: true, detailed: false },
 )
+
+const emit = defineEmits<{ reposted: [id: number] }>()
 
 const router = useRouter()
 
@@ -136,6 +139,21 @@ function goDetail() {
 function onComment() {
   if (props.detailed) return
   void router.push({ name: 'post-detail', params: { id: String(props.post.id) } })
+}
+
+const showRepost = ref(false)
+const reposted = ref(false)
+
+const authorLabel = computed(() => user.value?.displayName ?? `User ${props.post.userId}`)
+
+function onRepost() {
+  showRepost.value = true
+}
+
+function onReposted(id: number) {
+  reposted.value = true
+  showRepost.value = false
+  emit('reposted', id)
 }
 
 function clearAvatar() {
@@ -460,13 +478,15 @@ async function onDislike() {
       </button>
 
       <button
-        class="post-action post-action--inert"
+        class="post-action"
+        :class="{ 'post-action--reposted': reposted }"
         type="button"
         data-testid="post-repost-btn"
-        title="Repost — coming soon"
+        :title="reposted ? 'Reposted ✓' : 'Repost this post'"
+        @click.stop="onRepost"
       >
         <AppIcon name="repeat" :size="16" />
-        repost
+        {{ reposted ? 'reposted ✓' : 'repost' }}
       </button>
 
       <button
@@ -501,6 +521,14 @@ async function onDislike() {
     >
       <span class="post-feedback__emoji">{{ feedback === 'smile' ? '☺' : '☹' }}</span>
     </div>
+
+    <RepostConfirm
+      v-if="showRepost"
+      :post="post"
+      :author-label="authorLabel"
+      @close="showRepost = false"
+      @reposted="onReposted"
+    />
   </article>
 </template>
 
@@ -766,6 +794,12 @@ async function onDislike() {
   color: var(--sarv-red);
   border-color: color-mix(in srgb, var(--sarv-red) 30%, transparent);
   background: color-mix(in srgb, var(--sarv-red) 8%, transparent);
+}
+
+.post-action--reposted {
+  color: var(--sarv-blue);
+  border-color: color-mix(in srgb, var(--sarv-blue) 30%, transparent);
+  background: color-mix(in srgb, var(--sarv-blue) 8%, transparent);
 }
 
 .post-action--inert {

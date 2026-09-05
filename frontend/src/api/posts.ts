@@ -33,6 +33,29 @@ export async function deletePost(postId: number): Promise<void> {
   await apiClient.delete(`/posts/${postId}`)
 }
 
+export async function repostPost(postId: number): Promise<PostResponse> {
+  return createPost({
+    postCategory: 'REPOST',
+    content: null,
+    mediaId: null,
+    parentId: null,
+    repostOfId: postId,
+  })
+}
+
+export async function quotePost(
+  postId: number,
+  payload: { content?: string | null; mediaId?: number | null },
+): Promise<PostResponse> {
+  return createPost({
+    postCategory: 'QUOTE',
+    content: payload.content ?? null,
+    mediaId: payload.mediaId ?? null,
+    parentId: null,
+    repostOfId: postId,
+  })
+}
+
 export async function searchPosts(query: string, pageable: Pageable = {}): Promise<Page<PostResponse>> {
   const { data } = await apiClient.get<Page<PostResponse>>('/posts/search', {
     params: { query, ...pageable },

@@ -17,6 +17,8 @@ vi.mock('@/api/posts', () => ({
   deletePost: vi.fn<() => Promise<void>>(),
   searchPosts: vi.fn<() => Promise<unknown>>(),
   getComments: vi.fn<() => Promise<unknown>>(),
+  repostPost: vi.fn<(id: number) => Promise<PostResponse>>(),
+  quotePost: vi.fn<() => Promise<PostResponse>>(),
 }))
 
 vi.mock('@/api/reactions', () => ({
@@ -39,7 +41,7 @@ vi.mock('vue-router', async (importOriginal) => {
 })
 
 import { getMediaBlob as mockGetMediaBlob, getMediaMetadata as mockGetMediaMetadata } from '@/api/media'
-import { getPost as mockGetPost } from '@/api/posts'
+import { getPost as mockGetPost, repostPost as mockRepostPost } from '@/api/posts'
 import { addReaction as mockAddReaction, getReaction as mockGetReaction, removeReaction as mockRemoveReaction } from '@/api/reactions'
 import { getUser as mockGetUser } from '@/api/users'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
@@ -50,6 +52,7 @@ registerPixelicons()
 const mockedGetUser = vi.mocked(mockGetUser)
 const mockedGetReaction = vi.mocked(mockGetReaction)
 const mockedGetPost = vi.mocked(mockGetPost)
+const mockedRepostPost = vi.mocked(mockRepostPost)
 const mockedAddReaction = vi.mocked(mockAddReaction)
 const mockedRemoveReaction = vi.mocked(mockRemoveReaction)
 const mockedGetMediaBlob = vi.mocked(mockGetMediaBlob)
@@ -248,18 +251,37 @@ describe('PostCard', () => {
     expect(wrapper.find('[data-testid="post-feedback-sad"]').exists()).toBe(true)
   })
 
-  it('inert actions (repost, quote) do nothing', async () => {
+  it('repost opens a confirmation while quote is still inert', async () => {
     const wrapper = mount(PostCard, { props: { post: makePost() } })
     await flushPromises()
 
     expect(wrapper.find('[data-testid="post-repost-btn"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="post-quote-btn"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="repost-confirm-modal"]').exists()).toBe(false)
 
     await wrapper.find('[data-testid="post-repost-btn"]').trigger('click')
-    await wrapper.find('[data-testid="post-quote-btn"]').trigger('click')
     await flushPromises()
 
+    expect(wrapper.find('[data-testid="repost-confirm-modal"]').exists()).toBe(true)
     expect(mockedAddReaction).not.toHaveBeenCalled()
+  })
+
+  it('confirming a repost calls the API and marks the button reposted', async () => {
+    mockedRepostPost.mockResolvedValue(makePost({ id: 99, postCategory: 'REPOST', content: null }))
+    const wrapper = mount(PostCard, { props: { post: makePost({ id: 4 }) } })
+    await flushPromises()
+
+    await wrapper.find('[data-testid="post-repost-btn"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="repost-confirm-submit"]').trigger('click')
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 250))
+    await flushPromises()
+
+    expect(mockedRepostPost).toHaveBeenCalledWith(4)
+    expect(wrapper.find('[data-testid="post-repost-btn"]').classes()).toContain('post-action--reposted')
+    expect(wrapper.emitted('reposted')?.[0]).toEqual([99])
   })
 
   it('navigates to the post detail when the card body or comment button is clicked', async () => {
