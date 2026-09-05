@@ -19,9 +19,9 @@ function goFollowers() {
   void router.push({ name: 'followers' })
 }
 
-// liked history has no backend — intentionally no navigation (inert)
+// reacted-posts history is backed by GET /users/{id}/reacted-posts
 function goLiked() {
-  // no-op per spec: UI exists but does nothing yet
+  void router.push({ name: 'liked' })
 }
 </script>
 
@@ -41,7 +41,7 @@ function goLiked() {
       </li>
       <li>
         <button
-          class="left-nav__item left-nav__item--muted"
+          class="left-nav__item"
           type="button"
           data-testid="left-nav-liked"
           @click="goLiked"

@@ -343,7 +343,7 @@ describe('LeftSidebar (Phase 4)', () => {
     expect(wrapper.find('[data-testid="post-create-modal"]').exists()).toBe(false)
   })
 
-  it('navigation: profile, following and followers navigate; liked is inert', async () => {
+  it('navigation: profile, liked, following and followers navigate', async () => {
     setAuthenticated()
     const { wrapper, router } = mountLeftSidebar()
     await router.push('/')
@@ -361,6 +361,17 @@ describe('LeftSidebar (Phase 4)', () => {
       }
     }
     expect(router.currentRoute.value.name).toBe('profile')
+
+    await wrapper.find('[data-testid="left-nav-liked"]').trigger('click')
+    await flushPromises()
+    {
+      const start = Date.now()
+      while (router.currentRoute.value.name !== 'liked' && Date.now() - start < 1000) {
+        await new Promise((r) => setTimeout(r, 20))
+        await flushPromises()
+      }
+    }
+    expect(router.currentRoute.value.name).toBe('liked')
 
     await wrapper.find('[data-testid="left-nav-following"]').trigger('click')
     await flushPromises()
@@ -383,10 +394,5 @@ describe('LeftSidebar (Phase 4)', () => {
       }
     }
     expect(router.currentRoute.value.name).toBe('followers')
-
-    const before = router.currentRoute.value.fullPath
-    await wrapper.find('[data-testid="left-nav-liked"]').trigger('click')
-    await flushPromises()
-    expect(router.currentRoute.value.fullPath).toBe(before)
   })
 })
