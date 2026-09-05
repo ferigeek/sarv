@@ -84,7 +84,7 @@ class AuthControllerTest {
     }
 
     private UserRegisterRequest validRegister() {
-        return new UserRegisterRequest("ferigeek", "strongPass123", "feri@example.com", "Feri Geek", Gender.MALE);
+        return new UserRegisterRequest("ferigeek", "strongPass123", "strongPass123", "feri@example.com", "Feri Geek", Gender.MALE);
     }
 
     // =======================================================================
@@ -387,7 +387,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 400 when username is blank")
         void shouldReturn400WhenUsernameBlank() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("", "strongPass123", "feri@example.com", "Feri Geek", Gender.MALE);
+            UserRegisterRequest req = new UserRegisterRequest("", "strongPass123", "strongPass123", "feri@example.com", "Feri Geek", Gender.MALE);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -399,7 +399,7 @@ class AuthControllerTest {
         @DisplayName("should return 400 when username missing")
         void shouldReturn400WhenUsernameMissing() throws Exception {
             String json = """
-                    {"password":"strongPass123","email":"feri@example.com","displayName":"Feri Geek","gender":"MALE"}
+                    {"password":"strongPass123","confirmPassword":"strongPass123","email":"feri@example.com","displayName":"Feri Geek","gender":"MALE"}
                     """;
 
             mockMvc.perform(post("/api/auth/register")
@@ -411,7 +411,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 400 when username too short")
         void shouldReturn400WhenUsernameTooShort() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("a", "strongPass123", "feri@example.com", "Feri Geek", Gender.MALE);
+            UserRegisterRequest req = new UserRegisterRequest("a", "strongPass123", "strongPass123", "feri@example.com", "Feri Geek", Gender.MALE);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -422,7 +422,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 400 when username whitespace")
         void shouldReturn400WhenUsernameWhitespace() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("   ", "strongPass123", "feri@example.com", "Feri Geek", Gender.MALE);
+            UserRegisterRequest req = new UserRegisterRequest("   ", "strongPass123", "strongPass123", "feri@example.com", "Feri Geek", Gender.MALE);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -433,7 +433,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 400 when password blank")
         void shouldReturn400WhenPasswordBlank() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "", "feri@example.com", "Feri Geek", Gender.MALE);
+            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "", "", "feri@example.com", "Feri Geek", Gender.MALE);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -457,7 +457,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 400 when password too short")
         void shouldReturn400WhenPasswordTooShort() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "short", "feri@example.com", "Feri Geek", Gender.MALE);
+            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "short", "short", "feri@example.com", "Feri Geek", Gender.MALE);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -468,7 +468,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 400 when password too long")
         void shouldReturn400WhenPasswordTooLong() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "a".repeat(51), "feri@example.com", "Feri Geek", Gender.MALE);
+            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "a".repeat(51), "a".repeat(51), "feri@example.com", "Feri Geek", Gender.MALE);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -477,9 +477,46 @@ class AuthControllerTest {
         }
 
         @Test
+        @DisplayName("should return 400 when confirmPassword is missing")
+        void shouldReturn400WhenConfirmPasswordMissing() throws Exception {
+            String json = """
+                    {"username":"ferigeek","password":"strongPass123","email":"feri@example.com","displayName":"Feri Geek","gender":"MALE"}
+                    """;
+
+            mockMvc.perform(post("/api/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 400 when confirmPassword is blank")
+        void shouldReturn400WhenConfirmPasswordBlank() throws Exception {
+            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "", "feri@example.com", "Feri Geek", Gender.MALE);
+
+            mockMvc.perform(post("/api/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(req)))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 400 when password and confirmation do not match")
+        void shouldReturn400WhenPasswordsDoNotMatch() throws Exception {
+            when(authService.register(any())).thenThrow(new IllegalArgumentException("Passwords do not match"));
+
+            mockMvc.perform(post("/api/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(validRegister())))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail").value("Passwords do not match"))
+                    .andExpect(jsonPath("$.status").value(400));
+        }
+
+        @Test
         @DisplayName("should return 400 when email blank")
         void shouldReturn400WhenEmailBlank() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "", "Feri Geek", Gender.MALE);
+            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "strongPass123", "", "Feri Geek", Gender.MALE);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -491,7 +528,7 @@ class AuthControllerTest {
         @DisplayName("should return 400 when email missing")
         void shouldReturn400WhenEmailMissing() throws Exception {
             String json = """
-                    {"username":"ferigeek","password":"strongPass123","displayName":"Feri Geek","gender":"MALE"}
+                    {"username":"ferigeek","password":"strongPass123","confirmPassword":"strongPass123","displayName":"Feri Geek","gender":"MALE"}
                     """;
 
             mockMvc.perform(post("/api/auth/register")
@@ -503,7 +540,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 400 when email invalid format")
         void shouldReturn400WhenEmailInvalid() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "not-an-email", "Feri Geek", Gender.MALE);
+            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "strongPass123", "not-an-email", "Feri Geek", Gender.MALE);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -514,7 +551,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 400 when email invalid with missing @")
         void shouldReturn400WhenEmailInvalidMissingAt() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "feriexample.com", "Feri Geek", Gender.MALE);
+            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "strongPass123", "feriexample.com", "Feri Geek", Gender.MALE);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -525,7 +562,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 400 when displayName blank")
         void shouldReturn400WhenDisplayNameBlank() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "feri@example.com", "", Gender.MALE);
+            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "strongPass123", "feri@example.com", "", Gender.MALE);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -549,7 +586,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 400 when displayName too short")
         void shouldReturn400WhenDisplayNameTooShort() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "feri@example.com", "a", Gender.MALE);
+            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "strongPass123", "feri@example.com", "a", Gender.MALE);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -560,7 +597,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 400 when displayName whitespace")
         void shouldReturn400WhenDisplayNameWhitespace() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "feri@example.com", "   ", Gender.MALE);
+            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "strongPass123", "feri@example.com", "   ", Gender.MALE);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -571,7 +608,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 400 when gender is null")
         void shouldReturn400WhenGenderNull() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "feri@example.com", "Feri Geek", null);
+            UserRegisterRequest req = new UserRegisterRequest("ferigeek", "strongPass123", "strongPass123", "feri@example.com", "Feri Geek", null);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -583,7 +620,7 @@ class AuthControllerTest {
         @DisplayName("should return 400 when gender missing")
         void shouldReturn400WhenGenderMissing() throws Exception {
             String json = """
-                    {"username":"ferigeek","password":"strongPass123","email":"feri@example.com","displayName":"Feri Geek"}
+                    {"username":"ferigeek","password":"strongPass123","confirmPassword":"strongPass123","email":"feri@example.com","displayName":"Feri Geek"}
                     """;
 
             mockMvc.perform(post("/api/auth/register")
@@ -596,7 +633,7 @@ class AuthControllerTest {
         @DisplayName("should return 400 when gender invalid value")
         void shouldReturn400WhenGenderInvalid() throws Exception {
             String json = """
-                    {"username":"ferigeek","password":"strongPass123","email":"feri@example.com","displayName":"Feri Geek","gender":"UNKNOWN"}
+                    {"username":"ferigeek","password":"strongPass123","confirmPassword":"strongPass123","email":"feri@example.com","displayName":"Feri Geek","gender":"UNKNOWN"}
                     """;
 
             mockMvc.perform(post("/api/auth/register")
@@ -634,7 +671,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 400 when multiple fields invalid")
         void shouldReturn400WhenMultipleFieldsInvalid() throws Exception {
-            UserRegisterRequest req = new UserRegisterRequest("", "short", "bad", "", null);
+            UserRegisterRequest req = new UserRegisterRequest("", "short", "short", "bad", "", null);
 
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -648,7 +685,7 @@ class AuthControllerTest {
             for (Gender g : Gender.values()) {
                 when(authService.register(any())).thenReturn(
                         new UserRegisterResponse(1L, "user", "Display", "a@b.com", "tok"));
-                UserRegisterRequest req = new UserRegisterRequest("validUser", "strongPass123", "a@b.com", "Display", g);
+                UserRegisterRequest req = new UserRegisterRequest("validUser", "strongPass123", "strongPass123", "a@b.com", "Display", g);
                 mockMvc.perform(post("/api/auth/register")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(json(req)))
@@ -660,13 +697,13 @@ class AuthControllerTest {
         @DisplayName("should accept boundary values: username 2, password 8/50, displayName 2")
         void shouldAcceptBoundaries() throws Exception {
             when(authService.register(any())).thenReturn(successResponse());
-            UserRegisterRequest min = new UserRegisterRequest("ab", "12345678", "a@b.com", "ab", Gender.FEMALE);
+            UserRegisterRequest min = new UserRegisterRequest("ab", "12345678", "12345678", "a@b.com", "ab", Gender.FEMALE);
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(min)))
                     .andExpect(status().isOk());
 
-            UserRegisterRequest maxPass = new UserRegisterRequest("ab", "a".repeat(50), "a@b.com", "ab", Gender.FEMALE);
+            UserRegisterRequest maxPass = new UserRegisterRequest("ab", "a".repeat(50), "a".repeat(50), "a@b.com", "ab", Gender.FEMALE);
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(maxPass)))

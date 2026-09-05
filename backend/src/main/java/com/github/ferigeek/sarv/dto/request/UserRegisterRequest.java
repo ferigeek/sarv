@@ -23,6 +23,10 @@ public class UserRegisterRequest {
     private String password;
 
     @NotBlank
+    @Size(min = 8, max = 50)
+    private String confirmPassword;
+
+    @NotBlank
     @Email
     private String email;
 

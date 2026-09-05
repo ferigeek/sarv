@@ -54,6 +54,7 @@ class AuthServiceTest {
         registerRequest = new UserRegisterRequest(
                 "ferigeek",
                 "strongPass123",
+                "strongPass123",
                 "feri@example.com",
                 "Feri Geek",
                 Gender.MALE
@@ -339,7 +340,7 @@ class AuthServiceTest {
         @DisplayName("should preserve gender from request")
         void shouldPreserveGender() {
             for (Gender g : Gender.values()) {
-                UserRegisterRequest req = new UserRegisterRequest("user" + g, "pass12345", g.name().toLowerCase() + "@ex.com", "Display", g);
+                UserRegisterRequest req = new UserRegisterRequest("user" + g, "pass12345", "pass12345", g.name().toLowerCase() + "@ex.com", "Display", g);
                 when(userRepository.existsByUsername(anyString())).thenReturn(false);
                 when(passwordEncoder.encode(anyString())).thenReturn("hash");
                 when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -440,11 +441,29 @@ class AuthServiceTest {
             when(userDetails.getUsername()).thenReturn("Ferigeek");
             when(jwtUtil.generateToken(anyString())).thenReturn("tok");
 
-            UserRegisterRequest req = new UserRegisterRequest("Ferigeek", "pass12345", "a@b.com", "Disp", Gender.MALE);
+            UserRegisterRequest req = new UserRegisterRequest("Ferigeek", "pass12345", "pass12345", "a@b.com", "Disp", Gender.MALE);
             authService.register(req);
 
             verify(userRepository).existsByUsername("Ferigeek");
             verify(userRepository, never()).existsByUsername("ferigeek");
+        }
+
+        @Test
+        @DisplayName("should throw IllegalArgumentException when password and confirmation do not match")
+        void shouldThrowWhenPasswordsDoNotMatch() {
+            UserRegisterRequest req = new UserRegisterRequest(
+                    "ferigeek", "strongPass123", "differentPass123",
+                    "feri@example.com", "Feri Geek", Gender.MALE);
+
+            IllegalArgumentException ex = assertThrows(
+                    IllegalArgumentException.class, () -> authService.register(req));
+
+            assertThat(ex.getMessage()).isEqualTo("Passwords do not match");
+            verify(userRepository, never()).existsByUsername(anyString());
+            verify(passwordEncoder, never()).encode(anyString());
+            verify(userRepository, never()).save(any());
+            verify(authenticationManager, never()).authenticate(any());
+            verify(jwtUtil, never()).generateToken(anyString());
         }
     }
 }

@@ -52,6 +52,10 @@ public class AuthService {
     }
 
     public UserRegisterResponse register(UserRegisterRequest userRegisterRequest) {
+        if (!userRegisterRequest.getPassword().equals(userRegisterRequest.getConfirmPassword())) {
+            throw new IllegalArgumentException("Passwords do not match");
+        }
+
         if (userRepository.existsByUsername(userRegisterRequest.getUsername())) {
             throw new UsernameAlreadyExistsException();
         }
