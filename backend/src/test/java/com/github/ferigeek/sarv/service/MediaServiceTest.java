@@ -20,6 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.Resource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -238,6 +239,45 @@ class MediaServiceTest {
             ArgumentCaptor<Media> captor = ArgumentCaptor.forClass(Media.class);
             verify(mediaRepository).save(captor.capture());
             assertThat(captor.getValue().getSize()).isZero();
+        }
+
+        @Test
+        @DisplayName("should return existing media without insert when content already uploaded")
+        void shouldDedupExistingContent() throws Exception {
+            byte[] bytes = "samecontent".getBytes();
+            when(multipartFile.getBytes()).thenReturn(bytes);
+            when(multipartFile.getContentType()).thenReturn("image/png");
+            when(multipartFile.getOriginalFilename()).thenReturn("copy.png");
+            StoredObject stored = new StoredObject("dupSha", "image/png", bytes.length, "dupSha");
+            when(objectStorageService.uploadObject(eq(bytes), eq("image/png"))).thenReturn(stored);
+            when(mediaRepository.findBySha256("dupSha")).thenReturn(Optional.of(media));
+
+            MediaResponse res = mediaService.uploadMedia(multipartFile, "alice");
+
+            assertThat(res.getId()).isEqualTo(10L);
+            assertThat(res.getUrl()).isEqualTo("/api/media/10");
+            verify(mediaRepository, never()).save(any(Media.class));
+            verify(userRepository, never()).findByUsername(anyString());
+        }
+
+        @Test
+        @DisplayName("should return winner row when concurrent duplicate insert loses the race")
+        void shouldRecoverFromRaceOnInsert() throws Exception {
+            byte[] bytes = "racecontent".getBytes();
+            when(multipartFile.getBytes()).thenReturn(bytes);
+            when(multipartFile.getContentType()).thenReturn("image/png");
+            when(multipartFile.getOriginalFilename()).thenReturn("race.png");
+            StoredObject stored = new StoredObject("raceSha", "image/png", bytes.length, "raceSha");
+            when(objectStorageService.uploadObject(eq(bytes), eq("image/png"))).thenReturn(stored);
+            when(mediaRepository.findBySha256("raceSha")).thenReturn(Optional.empty(), Optional.of(media));
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(owner));
+            when(mediaRepository.save(any(Media.class)))
+                    .thenThrow(new DataIntegrityViolationException("duplicate sha_256"));
+
+            MediaResponse res = mediaService.uploadMedia(multipartFile, "alice");
+
+            assertThat(res.getId()).isEqualTo(10L);
+            assertThat(res.getUrl()).isEqualTo("/api/media/10");
         }
     }
 

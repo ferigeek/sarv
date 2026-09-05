@@ -186,7 +186,7 @@ Both endpoints log `REQUEST_FEED` with `metadata {feed_type: chronological|recom
 | GET | `/api/media/{mediaId}` | bearer | Streams the stored file with its MIME type |
 | GET | `/api/media/{mediaId}/metadata` | bearer | Returns metadata: `id`, `size`, `name`, `mimeType`, `createdAt` |
 
-Uploads are content-addressed by SHA-256, so identical content is stored only once.
+Uploads are content-addressed by SHA-256, so identical content is stored only once. Re-uploading bytes that already exist returns the existing `{id, url}` with `201 Created` instead of failing — no duplicate `Media` row is created (a concurrent-race fallback resolves to the winner's row).
 
 ---
 
