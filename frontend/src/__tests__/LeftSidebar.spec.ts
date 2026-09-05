@@ -3,13 +3,22 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory } from 'vue-router'
 
-import type { Page, UserResponse, UserSummaryResponse } from '@/types/api'
+import type { Page, PostResponse, UserResponse, UserSummaryResponse } from '@/types/api'
 
 vi.mock('@/api/users', () => ({
   getMe: vi.fn<() => Promise<UserResponse>>(),
   getUser: vi.fn<(id: number) => Promise<UserResponse>>(),
   updateMe: vi.fn<(payload: unknown) => Promise<UserResponse>>(),
   searchUsers: vi.fn<(query: string, pageable?: unknown) => Promise<Page<UserSummaryResponse>>>(),
+}))
+
+vi.mock('@/api/posts', () => ({
+  getPost: vi.fn<() => Promise<unknown>>(),
+  createPost: vi.fn<() => Promise<unknown>>(),
+  updatePost: vi.fn<() => Promise<unknown>>(),
+  deletePost: vi.fn<() => Promise<void>>(),
+  searchPosts: vi.fn<(query: string, pageable?: unknown) => Promise<Page<import('@/types/api').PostResponse>>>(),
+  getComments: vi.fn<() => Promise<unknown>>(),
 }))
 
 vi.mock('@/api/media', () => ({
@@ -24,6 +33,7 @@ vi.mock('@/api/auth', () => ({
 }))
 
 import { getMediaBlob as mockGetMediaBlob } from '@/api/media'
+import { searchPosts as mockSearchPosts } from '@/api/posts'
 import { getMe as mockGetMe, searchUsers as mockSearchUsers } from '@/api/users'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
 import LeftSidebar from '@/components/LeftSidebar.vue'
@@ -33,7 +43,26 @@ registerPixelicons()
 
 const mockedGetMe = vi.mocked(mockGetMe)
 const mockedSearchUsers = vi.mocked(mockSearchUsers)
+const mockedSearchPosts = vi.mocked(mockSearchPosts)
 const mockedGetMediaBlob = vi.mocked(mockGetMediaBlob)
+
+function makePostResult(id: number, content = `post ${id}`): PostResponse {
+  return {
+    id,
+    userId: 9,
+    postCategory: 'NORMAL',
+    content,
+    createdAt: '2026-09-02T10:00:00+00:00',
+    updatedAt: null,
+    mediaId: null,
+    repostOfId: null,
+    parentId: null,
+    viewCount: 2,
+    likeCount: 1,
+    dislikeCount: 0,
+    commentCount: 0,
+  }
+}
 
 function setAuthenticated(withAvatar = false) {
   localStorage.setItem('sarv.jwt', 'test-jwt')
@@ -68,7 +97,7 @@ describe('LeftSidebar (Phase 4)', () => {
     mockedGetMediaBlob.mockResolvedValue(new Blob(['fake'], { type: 'image/png' }))
   })
 
-  it('exposes search with three tabs and a panel on the same page', async () => {
+  it('exposes search with three tabs and opens a centered modal on focus', async () => {
     setAuthenticated()
     const { wrapper, router } = mountLeftSidebar()
     await router.push('/')
@@ -82,9 +111,16 @@ describe('LeftSidebar (Phase 4)', () => {
     expect(wrapper.find('[data-testid="search-tab-username"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="search-tab-post"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="search-tab-username"]').classes()).toContain('search-tab--active')
+    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="search-input"]').trigger('focus')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="search-modal-input"]').exists()).toBe(true)
   })
 
-  it('searches users by username and shows results in the same-page panel', async () => {
+  it('searches users by username and shows account results in the modal window', async () => {
     setAuthenticated()
     mockedSearchUsers.mockResolvedValue({
       content: [
@@ -100,45 +136,60 @@ describe('LeftSidebar (Phase 4)', () => {
     await new Promise((r) => setTimeout(r, 0))
     await flushPromises()
 
-    const input = wrapper.find('[data-testid="search-input"]')
-    await input.setValue('bob')
-    await input.trigger('focus')
+    await wrapper.find('[data-testid="search-input"]').trigger('focus')
+    await flushPromises()
+    await wrapper.find('[data-testid="search-modal-input"]').setValue('bob')
     await flushPromises()
     // wait for debounce 300ms
     await new Promise((r) => setTimeout(r, 350))
     await flushPromises()
 
     expect(mockedSearchUsers).toHaveBeenCalledWith('bob', expect.objectContaining({ size: 8 }))
-    expect(wrapper.find('[data-testid="search-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="search-result-2"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="search-result-3"]').exists()).toBe(true)
   })
 
-  it('shows coming soon for general and post tabs (inert)', async () => {
+  it('searches post content on the post tab and general combines both', async () => {
     setAuthenticated()
+    mockedSearchPosts.mockResolvedValue({
+      content: [makePostResult(21, 'hello world post')],
+      page: { size: 8, number: 0, totalElements: 1, totalPages: 1 },
+    })
+    mockedSearchUsers.mockResolvedValue({
+      content: [{ id: 2, username: 'bob', displayName: 'Bob', profilePictureId: null }],
+      page: { size: 5, number: 0, totalElements: 1, totalPages: 1 },
+    })
+
     const { wrapper, router } = mountLeftSidebar()
     await router.push('/')
     await flushPromises()
     await new Promise((r) => setTimeout(r, 0))
     await flushPromises()
 
-    await wrapper.find('[data-testid="search-tab-general"]').trigger('click')
-    await flushPromises()
-    await wrapper.find('[data-testid="search-input"]').setValue('hello')
-    await wrapper.find('[data-testid="search-input"]').trigger('focus')
-    await flushPromises()
-    expect(wrapper.find('[data-testid="search-coming-soon"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="search-coming-soon"]').text()).toContain('general search')
-
     await wrapper.find('[data-testid="search-tab-post"]').trigger('click')
     await flushPromises()
-    expect(wrapper.find('[data-testid="search-coming-soon"]').text()).toContain('post search')
+    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(true)
 
-    // No API call for inert tabs
-    expect(mockedSearchUsers).not.toHaveBeenCalled()
+    await wrapper.find('[data-testid="search-modal-input"]').setValue('hello')
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+
+    expect(mockedSearchPosts).toHaveBeenCalledWith('hello', expect.anything())
+    expect(wrapper.find('[data-testid="search-post-21"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="search-modal-tab-general"]').trigger('click')
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+
+    expect(mockedSearchUsers).toHaveBeenCalledWith('hello', expect.anything())
+    expect(wrapper.find('[data-testid="search-result-2"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="search-post-21"]').exists()).toBe(true)
   })
 
-  it('navigates to profile when a search result is selected, without leaving the panel via navigation', async () => {
+  it('navigates to profile when an account result is selected', async () => {
     setAuthenticated()
     mockedSearchUsers.mockResolvedValue({
       content: [{ id: 5, username: 'dave', displayName: 'Dave', profilePictureId: null }],
@@ -151,9 +202,9 @@ describe('LeftSidebar (Phase 4)', () => {
     await new Promise((r) => setTimeout(r, 0))
     await flushPromises()
 
-    const input = wrapper.find('[data-testid="search-input"]')
-    await input.setValue('dave')
-    await input.trigger('focus')
+    await wrapper.find('[data-testid="search-input"]').trigger('focus')
+    await flushPromises()
+    await wrapper.find('[data-testid="search-modal-input"]').setValue('dave')
     await new Promise((r) => setTimeout(r, 350))
     await flushPromises()
 
@@ -169,6 +220,57 @@ describe('LeftSidebar (Phase 4)', () => {
 
     expect(router.currentRoute.value.name).toBe('profile')
     expect(router.currentRoute.value.params.id).toBe('5')
+    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(false)
+  })
+
+  it('navigates to the post detail when a post result is selected', async () => {
+    setAuthenticated()
+    mockedSearchPosts.mockResolvedValue({
+      content: [makePostResult(22, 'find me')],
+      page: { size: 8, number: 0, totalElements: 1, totalPages: 1 },
+    })
+
+    const { wrapper, router } = mountLeftSidebar()
+    await router.push('/')
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    await wrapper.find('[data-testid="search-tab-post"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-testid="search-modal-input"]').setValue('find me')
+    await new Promise((r) => setTimeout(r, 350))
+    await flushPromises()
+
+    await wrapper.find('[data-testid="search-post-22"]').trigger('mousedown')
+    await flushPromises()
+    {
+      const start = Date.now()
+      while (router.currentRoute.value.name !== 'post-detail' && Date.now() - start < 1000) {
+        await new Promise((r) => setTimeout(r, 20))
+        await flushPromises()
+      }
+    }
+
+    expect(router.currentRoute.value.name).toBe('post-detail')
+    expect(router.currentRoute.value.params.id).toBe('22')
+  })
+
+  it('closes the search modal with the close button', async () => {
+    setAuthenticated()
+    const { wrapper, router } = mountLeftSidebar()
+    await router.push('/')
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    await wrapper.find('[data-testid="search-input"]').trigger('focus')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="search-modal-close"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="search-modal"]').exists()).toBe(false)
   })
 
   it('shows the authenticated user summary with displayName and username', async () => {

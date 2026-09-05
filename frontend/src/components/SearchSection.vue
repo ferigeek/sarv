@@ -1,79 +1,37 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { searchUsers } from '@/api/users'
-import type { UserSummaryResponse } from '@/types/api'
 import AppIcon from './AppIcon.vue'
-
-type Tab = 'general' | 'username' | 'post'
+import SearchModal, { type SearchTab } from './SearchModal.vue'
 
 const router = useRouter()
 
 const query = ref('')
-const activeTab = ref<Tab>('username')
-const results = ref<UserSummaryResponse[]>([])
-const loading = ref(false)
-const error = ref('')
-const showPanel = ref(false)
+const activeTab = ref<SearchTab>('username')
+const showModal = ref(false)
 
-let debounce: ReturnType<typeof setTimeout> | null = null
+function openModal(tab?: SearchTab) {
+  if (tab) activeTab.value = tab
+  showModal.value = true
+}
 
 function onFocus() {
-  showPanel.value = true
+  openModal()
 }
 
-function onBlur() {
-  // Delay hide to allow clicking results
-  setTimeout(() => {
-    showPanel.value = false
-  }, 150)
+function onTab(tab: SearchTab) {
+  openModal(tab)
 }
 
-watch([query, activeTab], () => {
-  error.value = ''
-  if (debounce) clearTimeout(debounce)
-
-  if (activeTab.value !== 'username') {
-    results.value = []
-    loading.value = false
-    return
-  }
-
-  const q = query.value.trim()
-  if (!q) {
-    results.value = []
-    loading.value = false
-    return
-  }
-
-  loading.value = true
-  debounce = setTimeout(async () => {
-    try {
-      const page = await searchUsers(q, { size: 8 })
-      results.value = page.content
-      error.value = ''
-    } catch (e) {
-      results.value = []
-      error.value = e instanceof Error ? e.message : 'Search failed.'
-      // ApiError has detail
-      const detail = (e as { detail?: string })?.detail
-      if (detail) error.value = detail
-    } finally {
-      loading.value = false
-    }
-  }, 300)
-})
-
-function selectUser(user: UserSummaryResponse) {
-  showPanel.value = false
-  query.value = ''
-  void router.push({ name: 'profile', params: { id: String(user.id) } })
+function selectUser(id: number) {
+  showModal.value = false
+  void router.push({ name: 'profile', params: { id: String(id) } })
 }
 
-function onTab(tab: Tab) {
-  activeTab.value = tab
-  showPanel.value = true
+function selectPost(id: number) {
+  showModal.value = false
+  void router.push({ name: 'post-detail', params: { id: String(id) } })
 }
 </script>
 
@@ -88,7 +46,6 @@ function onTab(tab: Tab) {
         placeholder="SEARCH //"
         data-testid="search-input"
         @focus="onFocus"
-        @blur="onBlur"
       />
     </div>
 
@@ -128,55 +85,16 @@ function onTab(tab: Tab) {
       </button>
     </div>
 
-    <div
-      v-if="showPanel && (query.trim() || activeTab !== 'username')"
-      class="search-panel panel"
-      data-testid="search-panel"
-    >
-      <template v-if="activeTab === 'username'">
-        <div v-if="loading" class="search-panel__state" data-testid="search-loading">searching…</div>
-        <div v-else-if="error" class="search-panel__state search-panel__state--error" data-testid="search-error">
-          {{ error }}
-        </div>
-        <div
-          v-else-if="!query.trim()"
-          class="search-panel__state"
-          data-testid="search-empty"
-        >
-          type to search users
-        </div>
-        <div
-          v-else-if="results.length === 0"
-          class="search-panel__state"
-          data-testid="search-no-results"
-        >
-          no users found
-        </div>
-        <ul v-else class="search-results">
-          <li
-            v-for="u in results"
-            :key="u.id"
-            class="search-result"
-            :data-testid="`search-result-${u.id}`"
-            @mousedown.prevent="selectUser(u)"
-          >
-            <span class="search-result__avatar" aria-hidden="true">
-              <AppIcon name="user" :size="18" />
-            </span>
-            <span class="search-result__text">
-              <span class="search-result__name">{{ u.displayName }}</span>
-              <span class="search-result__username">@{{ u.username }}</span>
-            </span>
-          </li>
-        </ul>
-      </template>
-
-      <template v-else>
-        <div class="search-panel__state" data-testid="search-coming-soon">
-          {{ activeTab === 'general' ? 'general search' : 'post search' }} — coming soon
-        </div>
-      </template>
-    </div>
+    <SearchModal
+      v-if="showModal"
+      :query="query"
+      :active-tab="activeTab"
+      @update:query="query = $event"
+      @update:active-tab="activeTab = $event"
+      @close="showModal = false"
+      @select-user="selectUser"
+      @select-post="selectPost"
+    />
   </div>
 </template>
 
@@ -250,89 +168,5 @@ function onTab(tab: Tab) {
   background: var(--sarv-green-faint);
   color: var(--sarv-green);
   border-bottom: 1px solid var(--sarv-green-dim);
-}
-
-.search-panel {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 20;
-  max-height: 260px;
-  overflow-y: auto;
-  background: var(--sarv-panel);
-  border-color: var(--sarv-green-dark);
-  box-shadow: var(--sarv-glow);
-  padding: var(--sarv-space-2);
-}
-
-.search-panel__state {
-  padding: var(--sarv-space-3);
-  font-size: 12px;
-  color: var(--sarv-text-dim);
-  text-align: center;
-}
-
-.search-panel__state--error {
-  color: #ff8fa3;
-}
-
-.search-results {
-  display: grid;
-  gap: 1px;
-}
-
-.search-result {
-  display: flex;
-  align-items: center;
-  gap: var(--sarv-space-3);
-  padding: 8px 8px;
-  border: 1px solid transparent;
-  cursor: pointer;
-}
-
-.search-result:hover {
-  background: var(--sarv-panel-alt);
-  border-color: var(--sarv-border);
-}
-
-.search-result__avatar {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  background: var(--sarv-bg);
-  border: 1px solid var(--sarv-border);
-  color: var(--sarv-text-dim);
-  flex-shrink: 0;
-}
-
-.search-result__text {
-  display: grid;
-  gap: 1px;
-  min-width: 0;
-}
-
-.search-result__name {
-  font-size: 12px;
-  color: var(--sarv-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.search-result__username {
-  font-size: 11px;
-  color: var(--sarv-text-dim);
-}
-
-@media (max-width: 640px) {
-  .search-panel {
-    max-height: 50dvh;
-  }
-
-  .search-result {
-    min-height: 44px;
-  }
 }
 </style>
