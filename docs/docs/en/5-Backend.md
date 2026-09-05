@@ -70,7 +70,7 @@ All endpoints are prefixed with `/api`. Except where marked **public**, every en
 | POST | `/api/auth/register` | public | Registers a new user and returns the created profile together with a JWT token |
 | POST | `/api/auth/login` | public | Authenticates the user and returns a JWT token string |
 
-Registration request fields: `username` (≥2 chars), `password` (8–50 chars), `email`, `displayName` (≥2 chars), `gender` (`MALE`, `FEMALE`, `RATHER_NOT_TO_SAY`). Duplicate usernames are rejected with `409 Conflict`. A `LOGIN` event is logged on every successful login; registration performs an automatic login and therefore also produces a `LOGIN` event.
+Registration request fields: `username` (≥2 chars), `password` (8–50 chars), `confirmPassword` (must match `password`), `email`, `displayName` (≥2 chars), `gender` (`MALE`, `FEMALE`, `RATHER_NOT_TO_SAY`). Duplicate usernames are rejected with `409 Conflict`. A `LOGIN` event is logged on every successful login; registration performs an automatic login and therefore also produces a `LOGIN` event.
 
 ### Users & Profiles (`/api/users`)
 
@@ -80,6 +80,8 @@ Registration request fields: `username` (≥2 chars), `password` (8–50 chars),
 | GET | `/api/users/me` | bearer | Returns the profile of the authenticated user; logs `VIEW_PROFILE` |
 | PUT | `/api/users/me` | bearer | Updates the authenticated user's profile |
 | GET | `/api/users?query=` | bearer | Searches users by username or display name (case-insensitive, partial match), paginated |
+| GET | `/api/users/{userId}/posts` | bearer | Paginated posts of a user, newest first (`size=10, sort=createdAt,DESC`); empty page for unknown users |
+| GET | `/api/users/{userId}/reacted-posts?filter=` | bearer | Paginated posts the user reacted to, newest reactions first; `filter` is `ALL` (default), `LIKE`, or `DISLIKE`; client `sort` is ignored; soft-deleted posts excluded |
 
 Profile update fields: `displayName` (required, ≥2 chars), `bio` (optional), `location` (optional), `gender` (required), `profilePictureId` (optional media id). `PUT` semantics are used: fields sent as `null` or blank are cleared, except `displayName` and `gender` which are mandatory.
 
@@ -99,7 +101,9 @@ Self-following is prevented by a database check constraint.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/posts/{postId}` | bearer | Returns the post and increments its `view_count`; logs `VIEW_POST` |
+| GET | `/api/posts/search?query=` | bearer | Searches post text (case-insensitive, partial match), paginated; blank `query` is rejected with `400`; default `size=10, sort=createdAt,DESC` |
 | POST | `/api/posts` | bearer | Creates a post; `201 Created` with a `Location` header; logs `CREATE_POST` |
+| GET | `/api/posts/{postId}/comments?sortBy=` | bearer | Paginated comments of a post; `sortBy` is `NEWEST` (default, `createdAt DESC`) or `MOST_LIKED` (`likeCount DESC`); client `sort` is ignored |
 | PUT | `/api/posts/{postId}` | bearer | Updates the post's content/media; owner only (`403` otherwise) |
 | DELETE | `/api/posts/{postId}` | bearer | Soft-deletes the post; owner only |
 
@@ -112,7 +116,7 @@ A post is created from: `postCategory`, `content` (max 280 chars), `mediaId`, `p
 | QUOTE | at least one required | forbidden | required |
 | REPOST | both forbidden | forbidden | required |
 
-Invalid combinations are rejected with `400 Bad Request` (`PostNotValidException`). Post update uses `PUT` semantics so that a field can be explicitly cleared with `null`. Deleting a post sets `deleted_at` and clears the author reference (soft delete).
+Invalid combinations are rejected with `400 Bad Request` (`PostNotValidException`). Creating a `COMMENT` atomically increments the parent post's `comment_count`. Post update uses `PUT` semantics so that a field can be explicitly cleared with `null`. Deleting a post sets `deleted_at` and clears the author reference (soft delete).
 
 ### Reactions (`/api/posts/{postId}/reactions`)
 
@@ -148,7 +152,8 @@ Both endpoints require `Authorization: Bearer <token>` and return `Page<PostResp
       "parentId": null,
       "viewCount": 5,
       "likeCount": 2,
-      "dislikeCount": 1
+      "dislikeCount": 1,
+      "commentCount": 0
     }
   ],
   "page": { "size": 20, "number": 0, "totalElements": 100, "totalPages": 5 }
@@ -160,6 +165,7 @@ Both endpoints require `Authorization: Bearer <token>` and return `Page<PostResp
 
 **Business rules:**
 - Soft-delete filter — both `findChronologicalFeed` and `findAllByIdsFiltered` filter `deletedAt IS NULL`.
+- View counting — every post served from either feed endpoint gets one view via an atomic bulk increment (`incrementViewCounts`), and the returned `PostResponse` already reflects it; deleted/missing hydrated posts are excluded from the increment.
 - Rank-order preservation — recommended hydrates via `findAllByIdsFiltered` and reorders in-memory to preserve `score desc` order; invalid `post_id` strings are skipped, deleted/missing posts are dropped but `total` still reflects recommendation `total` (may cause pagination holes on last page).
 - Pagination — chronological `total` = DB count; recommended `total` = recommendation `total` before filtering (fallback to `content.size()` if legacy).
 
@@ -237,13 +243,13 @@ Each `ProblemDetail` includes `status`, `title`, `detail`, and `instance` (the r
 
 ## Pagination
 
-List endpoints return Spring Data `Page` objects with `page`, `size`, `totalElements`, and `totalPages`. Default page size is 20; sorting defaults: user search by `username`, followers by `follower.username`, following by `followed.username`, chronological feed by `createdAt DESC`; recommended feed is **unsorted** (ranking by `score desc` server-side, any client `sort` is ignored). Clients can override with standard `page`, `size`, `sort` query parameters; recommended forwards `page/size` to the recommendation service (`size` 1–100) and uses its `total` for page metadata.
+List endpoints return Spring Data `Page` objects with `page`, `size`, `totalElements`, and `totalPages`. Default page size is 20; sorting defaults: user search by `username`, user posts and post search by `createdAt DESC`, post comments by server-driven `sortBy` (`NEWEST`/`MOST_LIKED`), followers by `follower.username`, following by `followed.username`, chronological feed by `createdAt DESC`; reacted posts and recommended feed are **unsorted** (ordering by reaction date newest-first and `score desc` server-side respectively, any client `sort` is ignored). Clients can override with standard `page`, `size`, `sort` query parameters except where the ordering is server-driven; recommended forwards `page/size` to the recommendation service (`size` 1–100) and uses its `total` for page metadata.
 
 ---
 
 ## Database & Migrations
 
-- Schema is managed exclusively by Flyway migrations in `backend/src/main/resources/db/migration/` (`V1` initial schema through `V5` indexes).
+- Schema is managed exclusively by Flyway migrations in `backend/src/main/resources/db/migration/` (`V1` initial schema through `V6` comment count).
 - Hibernate is configured with `ddl-auto=validate`, so entity mappings are checked against the migrated schema at startup.
 - The full schema is described in [4-Database.md](./4-Database.md).
 
@@ -272,8 +278,9 @@ File uploads are limited to 50 MB per request (`spring.servlet.multipart`).
 
 The test suite covers:
 
-- **Controller tests** with MockMvc for all controllers including `FeedController` (chronological 13 cases and recommended 13 cases: pagination, auth, 404, 405, identical `Page<PostResponse>` shape, sort-ignored).
-- **Service unit tests** for Auth, User, Follow, Post, Reaction, Media, `Feed` (chronological 8 cases and recommended 10 cases: rank-order hydration, empty/exception fallback to chronological, invalid `post_id` skip, deleted filtering, `UserNotFound` propagation, total metadata), and `CustomUserDetailsService`.
+- **Controller tests** with MockMvc for all controllers including `FeedController` (chronological and recommended: pagination, auth, 404, 405, identical `Page<PostResponse>` shape, sort-ignored) and `PostController` (user posts, post comments with `sortBy`, reacted posts with `filter`, post search, validation, auth, pagination metadata).
+- **Service unit tests** for Auth, User, Follow, Post, Reaction, Media, and `Feed` (chronological: rank-independent mapping, view-count recording; recommended: rank-order hydration, empty/exception fallback to chronological, invalid `post_id` skip, deleted filtering, visible-only view increments, `UserNotFound` propagation, total metadata), plus `CustomUserDetailsService`.
+- **Repository tests** for post listings (user posts, comments with ordering, reacted posts with reaction-type filtering, content search), view/comment counter increments, and pagination.
 - H2 is used as the test database (runtime scope); Flyway migrations are disabled and `recommendation.base-url=http://localhost:8000` is stubbed in `src/test/resources/application.properties`.
 
 Run the tests from the `backend/` directory:

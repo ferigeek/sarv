@@ -40,8 +40,9 @@ Each post belongs to a user.
 
 Posts also carry aggregate counters that are maintained by the backend:
 
-- view_count (incremented on every post view)
+- view_count (incremented on every single-post view and for every post served from a feed)
 - like_count / dislike_count (adjusted when reactions are added, removed, or switched)
+- comment_count (incremented atomically when a COMMENT on the post is created; added in V6)
 
 ### Reactions
 Stores user reactions to posts.
