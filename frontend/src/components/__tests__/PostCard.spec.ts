@@ -17,10 +17,17 @@ vi.mock('@/api/reactions', () => ({
 }))
 
 vi.mock('@/api/media', () => ({
-  uploadMedia: vi.fn<(file: File) => Promise<import('@/types/api').MediaResponse>>(),
+  uploadMedia: vi.fn<() => Promise<import('@/types/api').MediaResponse>>(),
   getMediaBlob: vi.fn<() => Promise<Blob>>(),
   getMediaMetadata: vi.fn<() => Promise<import('@/types/api').MediaMetadataResponse>>(),
 }))
+
+const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn<() => Promise<unknown>>() }))
+
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return { ...actual, useRouter: () => ({ push: pushMock }) }
+})
 
 import { getMediaBlob as mockGetMediaBlob, getMediaMetadata as mockGetMediaMetadata } from '@/api/media'
 import { addReaction as mockAddReaction, getReaction as mockGetReaction, removeReaction as mockRemoveReaction } from '@/api/reactions'
@@ -247,5 +254,20 @@ describe('PostCard', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="post-media-video"]').exists()).toBe(true)
+  })
+
+  it('navigates to the author profile when the author header is clicked', async () => {
+    const wrapper = mount(PostCard, { props: { post: makePost({ userId: 10 }) } })
+    await flushPromises()
+
+    await wrapper.find('[data-testid="post-author-link"]').trigger('click')
+    expect(pushMock).toHaveBeenCalledWith({ name: 'profile', params: { id: '10' } })
+  })
+
+  it('displays the comment count from the post', async () => {
+    const wrapper = mount(PostCard, { props: { post: makePost({ commentCount: 4 }) } })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="post-comment-count"]').text()).toContain('4')
   })
 })

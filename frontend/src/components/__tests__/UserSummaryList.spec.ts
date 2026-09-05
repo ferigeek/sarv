@@ -106,4 +106,11 @@ describe('UserSummaryList', () => {
     const { wrapper } = await mountList([makeSummary(1)])
     expect(wrapper.find('[data-testid="user-follow-1"]').exists()).toBe(false)
   })
+
+  it('navigates to the profile when the user identity is clicked', async () => {
+    const { wrapper, router } = await mountList([makeSummary(2)])
+    const push = vi.spyOn(router, 'push')
+    await wrapper.find('[data-testid="user-profile-2"]').trigger('click')
+    expect(push).toHaveBeenCalledWith({ name: 'profile', params: { id: '2' } })
+  })
 })

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import gsap from 'gsap'
 
 import { getMediaBlob, getMediaMetadata } from '@/api/media'
@@ -9,6 +10,8 @@ import type { PostResponse, UserResponse, UserReaction } from '@/types/api'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps<{ post: PostResponse }>()
+
+const router = useRouter()
 
 const user = ref<UserResponse | null>(null)
 const avatarUrl = ref<string | null>(null)
@@ -37,6 +40,12 @@ const createdAtLabel = computed(() => {
 })
 
 const isVideoMedia = computed(() => mediaMimeType.value?.startsWith('video/') ?? false)
+
+const commentCount = computed(() => props.post.commentCount ?? 0)
+
+function goProfile() {
+  void router.push({ name: 'profile', params: { id: String(props.post.userId) } })
+}
 
 function clearAvatar() {
   if (avatarObjectUrl) {
@@ -221,24 +230,32 @@ async function onDislike() {
 <template>
   <article class="post-card panel" :data-testid="`post-card-${post.id}`">
     <header class="post-header">
-      <div class="post-avatar" data-testid="post-avatar" aria-hidden="true">
-        <img
-          v-if="avatarUrl"
-          :src="avatarUrl"
-          alt=""
-          class="post-avatar__img"
-          data-testid="post-avatar-img"
-        />
-        <AppIcon v-else name="user" :size="20" />
-      </div>
-      <div class="post-user">
-        <span class="post-displayName" data-testid="post-author-name">{{
-          user?.displayName ?? `User ${post.userId}`
-        }}</span>
-        <span class="post-username" data-testid="post-author-username"
-          >@{{ user?.username ?? `user${post.userId}` }}</span
-        >
-      </div>
+      <button
+        class="post-author"
+        type="button"
+        data-testid="post-author-link"
+        :aria-label="`View profile of ${user?.displayName ?? `User ${post.userId}`}`"
+        @click.stop="goProfile"
+      >
+        <span class="post-avatar" data-testid="post-avatar" aria-hidden="true">
+          <img
+            v-if="avatarUrl"
+            :src="avatarUrl"
+            alt=""
+            class="post-avatar__img"
+            data-testid="post-avatar-img"
+          />
+          <AppIcon v-else name="user" :size="20" />
+        </span>
+        <span class="post-user">
+          <span class="post-displayName" data-testid="post-author-name">{{
+            user?.displayName ?? `User ${post.userId}`
+          }}</span>
+          <span class="post-username" data-testid="post-author-username"
+            >@{{ user?.username ?? `user${post.userId}` }}</span
+          >
+        </span>
+      </button>
       <span class="post-time" data-testid="post-time">{{ createdAtLabel }}</span>
     </header>
 
@@ -264,6 +281,11 @@ async function onDislike() {
       <span class="post-stat" data-testid="post-view-count" title="views">
         <AppIcon name="eye" :size="16" />
         {{ viewCount }}
+      </span>
+
+      <span class="post-stat" data-testid="post-comment-count" title="comments">
+        <AppIcon name="comment" :size="16" />
+        {{ commentCount }}
       </span>
 
       <button
@@ -349,6 +371,32 @@ async function onDislike() {
   display: flex;
   align-items: center;
   gap: var(--sarv-space-3);
+}
+
+.post-author {
+  display: flex;
+  align-items: center;
+  gap: var(--sarv-space-3);
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.post-author:hover .post-displayName {
+  text-decoration: underline;
+  text-decoration-color: var(--sarv-green-dim);
+  text-underline-offset: 2px;
+}
+
+.post-author:focus-visible {
+  outline: 1px solid var(--sarv-green);
+  outline-offset: 2px;
 }
 
 .post-avatar {

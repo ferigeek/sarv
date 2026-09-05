@@ -99,15 +99,23 @@ onBeforeUnmount(() => {
 <template>
   <div class="user-summary-list" data-testid="user-summary-list">
     <div v-for="u in users" :key="u.id" class="user-row panel" :data-testid="`user-row-${u.id}`">
-      <div class="user-row__avatar" aria-hidden="true">
-        <img v-if="avatarUrls[u.id]" :src="avatarUrls[u.id] ?? undefined" alt="" class="user-row__img" />
-        <AppIcon v-else name="user" :size="20" />
-      </div>
+      <button
+        class="user-row__identity"
+        type="button"
+        :data-testid="`user-profile-${u.id}`"
+        :aria-label="`View profile of ${u.displayName}`"
+        @click="openProfile(u.id)"
+      >
+        <span class="user-row__avatar" aria-hidden="true">
+          <img v-if="avatarUrls[u.id]" :src="avatarUrls[u.id] ?? undefined" alt="" class="user-row__img" />
+          <AppIcon v-else name="user" :size="20" />
+        </span>
 
-      <div class="user-row__text">
-        <span class="user-row__name">{{ u.displayName }}</span>
-        <span class="user-row__username">@{{ u.username }}</span>
-      </div>
+        <span class="user-row__text">
+          <span class="user-row__name">{{ u.displayName }}</span>
+          <span class="user-row__username">@{{ u.username }}</span>
+        </span>
+      </button>
 
       <div class="user-row__actions">
         <button
@@ -120,15 +128,6 @@ onBeforeUnmount(() => {
           @click="toggleFollow(u.id)"
         >
           {{ busyId === u.id ? '…' : isFollowing(u.id) ? 'unfollow' : 'follow' }}
-        </button>
-        <button
-          v-else-if="!isSelf(u.id)"
-          class="btn"
-          type="button"
-          :data-testid="`user-profile-${u.id}`"
-          @click="openProfile(u.id)"
-        >
-          profile
         </button>
       </div>
     </div>
@@ -146,6 +145,32 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: var(--sarv-space-3);
   padding: var(--sarv-space-3) var(--sarv-space-4);
+}
+
+.user-row__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--sarv-space-3);
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.user-row__identity:hover .user-row__name {
+  text-decoration: underline;
+  text-decoration-color: var(--sarv-green-dim);
+  text-underline-offset: 2px;
+}
+
+.user-row__identity:focus-visible {
+  outline: 1px solid var(--sarv-green);
+  outline-offset: 2px;
 }
 
 .user-row__avatar {
