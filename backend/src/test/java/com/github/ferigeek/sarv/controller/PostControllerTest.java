@@ -3,6 +3,7 @@ package com.github.ferigeek.sarv.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.ferigeek.sarv.dto.request.PostRequest;
 import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
+import com.github.ferigeek.sarv.dto.request.ReactionFilter;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.Post;
@@ -1353,6 +1354,212 @@ class PostControllerTest {
     }
 
     // ===================================================================
+    // GET /api/users/{userId}/reacted-posts
+    // ===================================================================
+    @Nested
+    @DisplayName("GET /api/users/{userId}/reacted-posts")
+    class GetReactedPosts {
+
+        @Test
+        @DisplayName("should return 200 with page when authenticated")
+        void shouldReturn200() throws Exception {
+            PostResponse r1 = postResponse(1L, 10L, PostCategory.NORMAL, "content1", 5L, null, null);
+            PostResponse r2 = postResponse(2L, 11L, PostCategory.NORMAL, "content2", null, null, null);
+            Page<PostResponse> page = new PageImpl<>(List.of(r1, r2),
+                    PageRequest.of(0, 10), 2);
+            when(postService.getReactedPosts(eq(10L), eq(ReactionFilter.ALL), any(Pageable.class)))
+                    .thenReturn(page);
+
+            mockMvc.perform(get("/api/users/10/reacted-posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(2))
+                    .andExpect(jsonPath("$.content[0].id").value(1))
+                    .andExpect(jsonPath("$.content[0].content").value("content1"))
+                    .andExpect(jsonPath("$.content[1].id").value(2))
+                    .andExpect(jsonPath("$.page.size").value(10))
+                    .andExpect(jsonPath("$.page.number").value(0))
+                    .andExpect(jsonPath("$.page.totalElements").value(2))
+                    .andExpect(jsonPath("$.page.totalPages").value(1));
+        }
+
+        @Test
+        @DisplayName("should return 200 with empty page when user has no reactions")
+        void shouldReturnEmpty() throws Exception {
+            when(postService.getReactedPosts(eq(10L), eq(ReactionFilter.ALL), any(Pageable.class)))
+                    .thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users/10/reacted-posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(0))
+                    .andExpect(jsonPath("$.page.totalElements").value(0));
+        }
+
+        @Test
+        @DisplayName("should pass LIKE filter through to service")
+        void shouldPassLikeFilter() throws Exception {
+            when(postService.getReactedPosts(eq(10L), eq(ReactionFilter.LIKE), any(Pageable.class)))
+                    .thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users/10/reacted-posts")
+                            .param("filter", "LIKE")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            verify(postService).getReactedPosts(eq(10L), eq(ReactionFilter.LIKE), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("should pass DISLIKE filter through to service")
+        void shouldPassDislikeFilter() throws Exception {
+            when(postService.getReactedPosts(eq(10L), eq(ReactionFilter.DISLIKE), any(Pageable.class)))
+                    .thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users/10/reacted-posts")
+                            .param("filter", "DISLIKE")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            verify(postService).getReactedPosts(eq(10L), eq(ReactionFilter.DISLIKE), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("should default to ALL filter when filter is absent")
+        void shouldDefaultToAll() throws Exception {
+            when(postService.getReactedPosts(eq(10L), eq(ReactionFilter.ALL), any(Pageable.class)))
+                    .thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users/10/reacted-posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            verify(postService).getReactedPosts(eq(10L), eq(ReactionFilter.ALL), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("should return 400 for unknown filter value")
+        void shouldReturn400ForUnknownFilter() throws Exception {
+            mockMvc.perform(get("/api/users/10/reacted-posts")
+                            .param("filter", "LOVE")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 403 when unauthenticated")
+        void shouldReturn403() throws Exception {
+            mockMvc.perform(get("/api/users/10/reacted-posts"))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("should return 400 for non-numeric userId")
+        void shouldReturn400NonNumeric() throws Exception {
+            mockMvc.perform(get("/api/users/abc/reacted-posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 400 for negative userId")
+        void shouldReturn400Negative() throws Exception {
+            mockMvc.perform(get("/api/users/-1/reacted-posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 400 for zero userId")
+        void shouldReturn400Zero() throws Exception {
+            mockMvc.perform(get("/api/users/0/reacted-posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 500 when service throws unexpected")
+        void shouldReturn500() throws Exception {
+            when(postService.getReactedPosts(eq(10L), any(), any(Pageable.class)))
+                    .thenThrow(new RuntimeException("fail"));
+
+            mockMvc.perform(get("/api/users/10/reacted-posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.detail").value("An unexpected error occurred"));
+        }
+
+        @Test
+        @DisplayName("should use default page=0 size=10 when no paging params")
+        void shouldUseDefaultPageable() throws Exception {
+            when(postService.getReactedPosts(eq(10L), any(), any(Pageable.class)))
+                    .thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users/10/reacted-posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).getReactedPosts(eq(10L), eq(ReactionFilter.ALL), pageableCaptor.capture());
+            Pageable pageable = pageableCaptor.getValue();
+            assertThat(pageable.getPageNumber()).isZero();
+            assertThat(pageable.getPageSize()).isEqualTo(10);
+        }
+
+        @Test
+        @DisplayName("should pass requested page and size")
+        void shouldPassRequestedPageAndSize() throws Exception {
+            when(postService.getReactedPosts(eq(10L), any(), any(Pageable.class)))
+                    .thenReturn(Page.empty());
+
+            mockMvc.perform(get("/api/users/10/reacted-posts")
+                            .param("page", "2")
+                            .param("size", "5")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk());
+
+            org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                    org.mockito.ArgumentCaptor.forClass(Pageable.class);
+            verify(postService).getReactedPosts(eq(10L), eq(ReactionFilter.ALL), pageableCaptor.capture());
+            Pageable pageable = pageableCaptor.getValue();
+            assertThat(pageable.getPageNumber()).isEqualTo(2);
+            assertThat(pageable.getPageSize()).isEqualTo(5);
+        }
+
+        @Test
+        @DisplayName("should preserve pagination metadata from service")
+        void shouldPreservePaginationMetadata() throws Exception {
+            PostResponse r = postResponse(1L, 10L, PostCategory.NORMAL, "c", null, null, null);
+            Page<PostResponse> servicePage = new PageImpl<>(List.of(r),
+                    PageRequest.of(1, 2), 5);
+            when(postService.getReactedPosts(eq(10L), any(), any(Pageable.class)))
+                    .thenReturn(servicePage);
+
+            mockMvc.perform(get("/api/users/10/reacted-posts")
+                            .param("page", "1")
+                            .param("size", "2")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.page.number").value(1))
+                    .andExpect(jsonPath("$.page.size").value(2))
+                    .andExpect(jsonPath("$.page.totalElements").value(5))
+                    .andExpect(jsonPath("$.page.totalPages").value(3));
+        }
+
+        @Test
+        @DisplayName("should return 405 for POST on reacted posts endpoint")
+        void shouldReturn405ForPost() throws Exception {
+            mockMvc.perform(post("/api/users/10/reacted-posts")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isMethodNotAllowed());
+        }
+    }
+
+    // ===================================================================
     // HTTP contract & security
     // ===================================================================
     @Nested
@@ -1372,6 +1579,7 @@ class PostControllerTest {
                             .content("{}")).andExpect(status().isForbidden());
             mockMvc.perform(get("/api/users/10/posts")).andExpect(status().isForbidden());
             mockMvc.perform(get("/api/posts/1/comments")).andExpect(status().isForbidden());
+            mockMvc.perform(get("/api/users/10/reacted-posts")).andExpect(status().isForbidden());
         }
 
         @Test

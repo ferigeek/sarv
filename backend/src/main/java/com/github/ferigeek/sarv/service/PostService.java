@@ -2,6 +2,7 @@ package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.request.PostRequest;
 import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
+import com.github.ferigeek.sarv.dto.request.ReactionFilter;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.Post;
@@ -228,6 +229,11 @@ public class PostService {
 
     public Page<PostResponse> getUserPosts(Long userId, Pageable pageable) {
         return postRepository.findPostsByUserId(userId, pageable)
+                .map(PostResponse::new);
+    }
+
+    public Page<PostResponse> getReactedPosts(Long userId, ReactionFilter filter, Pageable pageable) {
+        return postRepository.findReactedPosts(userId, filter.toReactionType(), pageable)
                 .map(PostResponse::new);
     }
 

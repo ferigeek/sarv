@@ -1,6 +1,7 @@
 package com.github.ferigeek.sarv.repository;
 
 import com.github.ferigeek.sarv.entity.Post;
+import com.github.ferigeek.sarv.entity.Reaction;
 import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.entity.type.Gender;
 import com.github.ferigeek.sarv.entity.type.PostCategory;
@@ -33,6 +34,9 @@ class PostRepositoryTest {
     private UserRepository userRepository;
 
     @Autowired
+    private ReactionRepository reactionRepository;
+
+    @Autowired
     private TestEntityManager entityManager;
 
     private User owner;
@@ -40,6 +44,7 @@ class PostRepositoryTest {
 
     @BeforeEach
     void setUp() {
+        reactionRepository.deleteAll();
         postRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -84,6 +89,15 @@ class PostRepositoryTest {
         post.setDislikeCount(0L);
         post.setCommentCount(0L);
         return postRepository.saveAndFlush(post);
+    }
+
+    private Reaction newReaction(User user, Post post, short reactionType, OffsetDateTime createdAt) {
+        Reaction reaction = new Reaction();
+        reaction.setUser(user);
+        reaction.setPost(post);
+        reaction.setReactionType(reactionType);
+        reaction.setCreatedAt(createdAt);
+        return reactionRepository.saveAndFlush(reaction);
     }
 
     @Nested
@@ -342,6 +356,124 @@ class PostRepositoryTest {
             entityManager.clear();
 
             assertThat(postRepository.findById(p.getId()).orElseThrow().getViewCount()).isEqualTo(6L);
+        }
+    }
+
+    @Nested
+    @DisplayName("findReactedPosts")
+    class FindReactedPosts {
+
+        @Test
+        @DisplayName("should return only posts the user reacted to, newest reactions first")
+        void shouldReturnOwnReactedPostsNewestFirst() {
+            Post first = newPost(other, "first", OffsetDateTime.now().minusDays(2));
+            Post second = newPost(other, "second", OffsetDateTime.now().minusDays(1));
+            Post unreacted = newPost(other, "unreacted", OffsetDateTime.now());
+            newReaction(owner, first, Reaction.LIKE, OffsetDateTime.now().minusHours(2));
+            newReaction(owner, second, Reaction.DISLIKE, OffsetDateTime.now().minusHours(1));
+
+            Page<Post> page = postRepository.findReactedPosts(
+                    owner.getId(), null, PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isEqualTo(2);
+            assertThat(page.getContent()).map(Post::getId)
+                    .containsExactly(second.getId(), first.getId());
+            assertThat(page.getContent()).map(Post::getId).doesNotContain(unreacted.getId());
+        }
+
+        @Test
+        @DisplayName("should filter by like reaction type")
+        void shouldFilterLikes() {
+            Post liked = newPost(other, "liked", OffsetDateTime.now().minusHours(2));
+            Post disliked = newPost(other, "disliked", OffsetDateTime.now().minusHours(1));
+            newReaction(owner, liked, Reaction.LIKE, OffsetDateTime.now().minusHours(2));
+            newReaction(owner, disliked, Reaction.DISLIKE, OffsetDateTime.now().minusHours(1));
+
+            Page<Post> page = postRepository.findReactedPosts(
+                    owner.getId(), Reaction.LIKE, PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isEqualTo(1);
+            assertThat(page.getContent()).map(Post::getId).containsExactly(liked.getId());
+        }
+
+        @Test
+        @DisplayName("should filter by dislike reaction type")
+        void shouldFilterDislikes() {
+            Post liked = newPost(other, "liked", OffsetDateTime.now().minusHours(2));
+            Post disliked = newPost(other, "disliked", OffsetDateTime.now().minusHours(1));
+            newReaction(owner, liked, Reaction.LIKE, OffsetDateTime.now().minusHours(2));
+            newReaction(owner, disliked, Reaction.DISLIKE, OffsetDateTime.now().minusHours(1));
+
+            Page<Post> page = postRepository.findReactedPosts(
+                    owner.getId(), Reaction.DISLIKE, PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isEqualTo(1);
+            assertThat(page.getContent()).map(Post::getId).containsExactly(disliked.getId());
+        }
+
+        @Test
+        @DisplayName("should not return other users reactions")
+        void shouldNotLeakOtherUsersReactions() {
+            Post p = newPost(other, "p", OffsetDateTime.now());
+            newReaction(other, p, Reaction.LIKE, OffsetDateTime.now());
+
+            Page<Post> page = postRepository.findReactedPosts(
+                    owner.getId(), null, PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isZero();
+            assertThat(page.getContent()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("should exclude soft-deleted posts")
+        void shouldExcludeSoftDeleted() {
+            Post visible = newPost(other, "visible", OffsetDateTime.now().minusHours(2));
+            Post deleted = newPost(other, "deleted", OffsetDateTime.now().minusHours(1));
+            newReaction(owner, visible, Reaction.LIKE, OffsetDateTime.now().minusHours(2));
+            newReaction(owner, deleted, Reaction.LIKE, OffsetDateTime.now().minusHours(1));
+            deleted.setDeletedAt(OffsetDateTime.now());
+            postRepository.saveAndFlush(deleted);
+
+            Page<Post> page = postRepository.findReactedPosts(
+                    owner.getId(), null, PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isEqualTo(1);
+            assertThat(page.getContent()).map(Post::getId).containsExactly(visible.getId());
+        }
+
+        @Test
+        @DisplayName("should return empty page for unknown user")
+        void shouldReturnEmptyForUnknownUser() {
+            Post p = newPost(owner, "p", OffsetDateTime.now());
+            newReaction(owner, p, Reaction.LIKE, OffsetDateTime.now());
+
+            Page<Post> page = postRepository.findReactedPosts(
+                    999_999L, null, PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isZero();
+            assertThat(page.getContent()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("should honor page and size")
+        void shouldHonorPageAndSize() {
+            for (int i = 0; i < 5; i++) {
+                Post p = newPost(other, "p-" + i, OffsetDateTime.now().minusDays(1));
+                newReaction(owner, p, Reaction.LIKE, OffsetDateTime.now().minusMinutes(i));
+            }
+
+            Page<Post> first = postRepository.findReactedPosts(
+                    owner.getId(), null, PageRequest.of(0, 2));
+            Page<Post> second = postRepository.findReactedPosts(
+                    owner.getId(), null, PageRequest.of(1, 2));
+            Page<Post> third = postRepository.findReactedPosts(
+                    owner.getId(), null, PageRequest.of(2, 2));
+
+            assertThat(first.getContent()).hasSize(2);
+            assertThat(second.getContent()).hasSize(2);
+            assertThat(third.getContent()).hasSize(1);
+            assertThat(first.getTotalElements()).isEqualTo(5);
+            assertThat(first.getTotalPages()).isEqualTo(3);
         }
     }
 }

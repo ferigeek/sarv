@@ -4,6 +4,7 @@ import com.github.ferigeek.sarv.aspect.LogEvent;
 import com.github.ferigeek.sarv.dto.request.CommentSort;
 import com.github.ferigeek.sarv.dto.request.PostRequest;
 import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
+import com.github.ferigeek.sarv.dto.request.ReactionFilter;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
 import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.PostService;
@@ -82,6 +83,16 @@ public class PostController {
             @Positive @PathVariable Long userId,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return postService.getUserPosts(userId, pageable);
+    }
+
+    @GetMapping("/users/{userId}/reacted-posts")
+    public Page<PostResponse> getReactedPosts(
+            @Positive @PathVariable Long userId,
+            @RequestParam(name = "filter", defaultValue = "ALL") ReactionFilter filter,
+            @PageableDefault(size = 10) Pageable pageable) {
+        // Ordering is newest reactions first; ignore any client sort to keep ordering well-defined
+        Pageable sanitized = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        return postService.getReactedPosts(userId, filter, sanitized);
     }
 
     @GetMapping("/posts/{postId}/comments")

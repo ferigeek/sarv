@@ -2,6 +2,7 @@ package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.request.PostRequest;
 import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
+import com.github.ferigeek.sarv.dto.request.ReactionFilter;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.Post;
@@ -1006,6 +1007,109 @@ class PostServiceTest {
                     .thenReturn(Page.empty(pageable));
 
             Page<PostResponse> res = postService.getPostComments(100L, pageable);
+
+            assertThat(res.getTotalElements()).isZero();
+            assertThat(res.getContent()).isEmpty();
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // getReactedPosts
+    // -----------------------------------------------------------------------
+    @Nested
+    @DisplayName("getReactedPosts")
+    class GetReactedPosts {
+
+        private Post post(Long id, User user, String content) {
+            Post p = new Post();
+            p.setId(id);
+            p.setUser(user);
+            p.setPostCategory(PostCategory.NORMAL);
+            p.setContent(content);
+            p.setCreatedAt(OffsetDateTime.now());
+            p.setViewCount(3L);
+            p.setLikeCount(1L);
+            p.setDislikeCount(0L);
+            return p;
+        }
+
+        @Test
+        @DisplayName("should pass null reaction type for ALL filter")
+        void shouldPassNullForAll() {
+            Pageable pageable = PageRequest.of(0, 10);
+            when(postRepository.findReactedPosts(1L, null, pageable))
+                    .thenReturn(Page.empty(pageable));
+
+            postService.getReactedPosts(1L, ReactionFilter.ALL, pageable);
+
+            verify(postRepository).findReactedPosts(1L, null, pageable);
+        }
+
+        @Test
+        @DisplayName("should pass like reaction type for LIKE filter")
+        void shouldPassLikeType() {
+            Pageable pageable = PageRequest.of(0, 10);
+            when(postRepository.findReactedPosts(eq(1L), eq((short) 1), eq(pageable)))
+                    .thenReturn(Page.empty(pageable));
+
+            postService.getReactedPosts(1L, ReactionFilter.LIKE, pageable);
+
+            verify(postRepository).findReactedPosts(1L, (short) 1, pageable);
+        }
+
+        @Test
+        @DisplayName("should pass dislike reaction type for DISLIKE filter")
+        void shouldPassDislikeType() {
+            Pageable pageable = PageRequest.of(0, 10);
+            when(postRepository.findReactedPosts(eq(1L), eq((short) -1), eq(pageable)))
+                    .thenReturn(Page.empty(pageable));
+
+            postService.getReactedPosts(1L, ReactionFilter.DISLIKE, pageable);
+
+            verify(postRepository).findReactedPosts(1L, (short) -1, pageable);
+        }
+
+        @Test
+        @DisplayName("should map posts to PostResponse preserving order")
+        void shouldMapPosts() {
+            Post p1 = post(100L, otherUser, "first");
+            Post p2 = post(101L, owner, "second");
+            Pageable pageable = PageRequest.of(0, 10);
+            when(postRepository.findReactedPosts(1L, null, pageable))
+                    .thenReturn(new PageImpl<>(List.of(p1, p2), pageable, 2));
+
+            Page<PostResponse> res = postService.getReactedPosts(1L, ReactionFilter.ALL, pageable);
+
+            assertThat(res.getContent()).hasSize(2);
+            assertThat(res.getContent().get(0).getId()).isEqualTo(100L);
+            assertThat(res.getContent().get(0).getContent()).isEqualTo("first");
+            assertThat(res.getContent().get(1).getId()).isEqualTo(101L);
+        }
+
+        @Test
+        @DisplayName("should preserve pagination metadata")
+        void shouldPreservePagination() {
+            Post p = post(100L, owner, "hello");
+            Pageable pageable = PageRequest.of(1, 2);
+            when(postRepository.findReactedPosts(1L, null, pageable))
+                    .thenReturn(new PageImpl<>(List.of(p), pageable, 5));
+
+            Page<PostResponse> res = postService.getReactedPosts(1L, ReactionFilter.ALL, pageable);
+
+            assertThat(res.getTotalElements()).isEqualTo(5);
+            assertThat(res.getTotalPages()).isEqualTo(3);
+            assertThat(res.getNumber()).isEqualTo(1);
+            assertThat(res.getSize()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("should return empty page when user has no reactions")
+        void shouldReturnEmpty() {
+            Pageable pageable = PageRequest.of(0, 10);
+            when(postRepository.findReactedPosts(1L, null, pageable))
+                    .thenReturn(Page.empty(pageable));
+
+            Page<PostResponse> res = postService.getReactedPosts(1L, ReactionFilter.ALL, pageable);
 
             assertThat(res.getTotalElements()).isZero();
             assertThat(res.getContent()).isEmpty();

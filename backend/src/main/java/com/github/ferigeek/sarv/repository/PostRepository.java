@@ -60,4 +60,17 @@ public interface PostRepository extends JpaRepository<Post, Long> {
         WHERE post.id IN :postIds
     """)
     void incrementViewCounts(@Param("postIds") List<Long> postIds);
+
+    @Query("""
+        SELECT reaction.post
+        FROM Reaction reaction
+        WHERE reaction.user.id = :userId
+        AND (:reactionType IS NULL OR reaction.reactionType = :reactionType)
+        AND reaction.post.deletedAt IS NULL
+        ORDER BY reaction.createdAt DESC
+    """)
+    Page<Post> findReactedPosts(
+            @Param("userId") Long userId,
+            @Param("reactionType") Short reactionType,
+            Pageable pageable);
 }
