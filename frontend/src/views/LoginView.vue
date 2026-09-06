@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 import type { ApiError } from '@/api/client'
+import AuthTitleAnimation from '@/components/AuthTitleAnimation.vue'
 import SarvMark from '@/components/SarvMark.vue'
 
 const router = useRouter()
@@ -47,7 +48,7 @@ async function onSubmit() {
   <main class="login-view" data-testid="login-view">
     <section class="panel auth-box">
       <SarvMark :size="64" class="auth-mark" />
-      <h1 class="auth-brand">SARV</h1>
+      <AuthTitleAnimation />
       <p class="auth-hint">sign in to continue</p>
 
       <form class="auth-form" @submit.prevent="onSubmit">
@@ -116,14 +117,6 @@ async function onSubmit() {
 .auth-mark {
   display: block;
   margin: 0 auto var(--sarv-space-3);
-}
-
-.auth-brand {
-  font-size: 2rem;
-  letter-spacing: 0.35em;
-  color: var(--sarv-green);
-  text-shadow: var(--sarv-glow);
-  text-align: center;
 }
 
 .auth-hint {
