@@ -7,3 +7,7 @@ scrape_configs:
     metrics_path: "/actuator/prometheus"
     static_configs:
       - targets: ["core-backend:8080"]
+
+  - job_name: "sarv-postgres"
+    static_configs:
+      - targets: ["postgres_exporter:9187"]
