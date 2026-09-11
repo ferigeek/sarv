@@ -11,3 +11,7 @@ scrape_configs:
   - job_name: "sarv-postgres"
     static_configs:
       - targets: ["postgres_exporter:9187"]
+
+  - job_name: "sarv-recommendation"
+    static_configs:
+      - targets: ["recommendation:8000"]

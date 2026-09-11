@@ -1,8 +1,12 @@
 from fastapi import FastAPI, Query
 from candidate import CandidateGenerator
+from prometheus_fastapi_instrumentator import Instrumentator
 from scoring import score_post
 
 app = FastAPI()
+
+# Excluded so scrape/healthcheck traffic doesn't drown out real request metrics.
+Instrumentator(excluded_handlers=["/metrics", "/health"]).instrument(app).expose(app)
 
 
 @app.get("/health")
