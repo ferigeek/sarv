@@ -36,6 +36,10 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
+    networks:
+      default:
+        aliases:
+          - core-backend
     restart: unless-stopped
 
 
@@ -91,7 +95,19 @@ services:
     restart: unless-stopped
 
 
+  prometheus:
+    build:
+      context: ./monitoring
+      dockerfile: Dockerfile
+    volumes:
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+
 volumes:
   postgres_data:
   redis_data:
   uploads:
+  prometheus_data:
