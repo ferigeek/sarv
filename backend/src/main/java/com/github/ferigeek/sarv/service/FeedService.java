@@ -1,6 +1,7 @@
 package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.client.RecommendationClient;
+import com.github.ferigeek.sarv.client.RecommendationException;
 import com.github.ferigeek.sarv.client.RecommendationResponse;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
 import com.github.ferigeek.sarv.entity.Post;
@@ -77,9 +78,7 @@ public class FeedService {
             }
 
             return new PageImpl<>(content, pageable, total);
-        } catch (UserNotFoundException ex) {
-            throw ex;
-        } catch (Exception ex) {
+        } catch (RecommendationException ex) {
             log.warn("Failed to fetch recommended feed for user {} (page {} size {}), falling back to chronological: {}", username, pageable.getPageNumber(), pageable.getPageSize(), ex.toString());
             return getChronological(pageable);
         }
@@ -89,7 +88,11 @@ public class FeedService {
         if (postIds.isEmpty()) {
             return;
         }
-        postRepository.incrementViewCounts(postIds);
+        try {
+            postRepository.incrementViewCounts(postIds);
+        } catch (Exception ex) {
+            log.warn("Failed to record views for {} posts: {}", postIds.size(), ex.toString());
+        }
     }
 
     private PostResponse withRecordedView(Post post) {

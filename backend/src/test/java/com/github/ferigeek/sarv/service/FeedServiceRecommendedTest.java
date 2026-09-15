@@ -189,12 +189,12 @@ class FeedServiceRecommendedTest {
         }
 
         @Test
-        @DisplayName("should fallback to chronological on exception (timeout)")
+        @DisplayName("should fallback to chronological on RecommendationException (timeout)")
         void shouldFallbackOnException() {
             Pageable pageable = PageRequest.of(1, 5);
             when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
             when(recommendationClient.getRecommendations(42L, 1, 5))
-                    .thenThrow(new RuntimeException("timeout"));
+                    .thenThrow(new com.github.ferigeek.sarv.client.RecommendationException("timeout"));
             Post p = post(1L, 1L);
             Page<Post> chrono = new PageImpl<>(List.of(p), pageable, 1);
             when(postRepository.findChronologicalFeed(pageable)).thenReturn(chrono);
@@ -203,6 +203,19 @@ class FeedServiceRecommendedTest {
 
             assertThat(res.getContent().get(0).getId()).isEqualTo(1L);
             verify(postRepository).findChronologicalFeed(pageable);
+        }
+
+        @Test
+        @DisplayName("should not swallow unexpected runtime exceptions")
+        void shouldPropagateUnexpectedException() {
+            Pageable pageable = PageRequest.of(1, 5);
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+            when(recommendationClient.getRecommendations(42L, 1, 5))
+                    .thenThrow(new IllegalStateException("bug"));
+
+            assertThrows(IllegalStateException.class, () -> feedService.getRecommended("alice", pageable));
+
+            verify(postRepository, never()).findChronologicalFeed(any());
         }
 
         @Test
