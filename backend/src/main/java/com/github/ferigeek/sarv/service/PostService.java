@@ -12,6 +12,7 @@ import com.github.ferigeek.sarv.exception.*;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.PostRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 
+@Slf4j
 @Service
 public class PostService {
 
@@ -46,7 +48,7 @@ public class PostService {
     public PostResponse createPost(PostRequest postRequest, String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(
-                        "User not found with username: <%s>".formatted(username))
+                        "User not found with username: %s".formatted(username))
                 );
 
         Post post = new Post();
@@ -168,6 +170,8 @@ public class PostService {
             postRepository.incrementCommentCount(post.getParent().getId());
         }
 
+        log.info("Post created ID={}", post.getId());
+
         return new PostResponse(postRepository.save(post));
     }
 
@@ -177,7 +181,7 @@ public class PostService {
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(
-                        "User not found with username: <%s>".formatted(username))
+                        "User not found with username: %s".formatted(username))
                 );
 
         if (!post.getUser().getId().equals(user.getId())) {
@@ -186,6 +190,8 @@ public class PostService {
         post.setDeletedAt(OffsetDateTime.now());
         post.setUser(null);
         postRepository.save(post);
+
+        log.info("Post ID={} deleted", postId);
     }
 
     public PostResponse updatePost(Long postId, PostUpdateRequest postUpdateRequest, String username) {
@@ -194,12 +200,12 @@ public class PostService {
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(
-                        "User not found with username: <%s>".formatted(username))
+                        "User not found with username: %s".formatted(username))
                 );
 
         if (!post.getUser().getId().equals(user.getId())) {
             throw new UnAuthorizedUpdateException(
-                    "User with ID: <%d> is not the owner of post with ID: <%d>".formatted(user.getId(), post.getId())
+                    "User with ID: %d is not the owner of post with ID: %d".formatted(user.getId(), post.getId())
             );
         }
 
@@ -223,6 +229,8 @@ public class PostService {
                     .orElseThrow(() -> new MediaNotFoundException(postUpdateRequest.getMediaId()));
             post.setMedia(media);
         }
+
+        log.info("Post ID={} updated", postId);
 
         return new PostResponse(postRepository.save(post));
     }
