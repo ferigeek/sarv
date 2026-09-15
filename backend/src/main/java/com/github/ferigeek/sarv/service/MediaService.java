@@ -9,6 +9,7 @@ import com.github.ferigeek.sarv.exception.StorageException;
 import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.time.OffsetDateTime;
 
 @Service
+@Slf4j
 public class MediaService {
 
     private final MediaRepository mediaRepository;
@@ -46,12 +48,13 @@ public class MediaService {
             var existing = mediaRepository.findBySha256(stored.sha256());
             if (existing.isPresent()) {
                 Media hit = existing.get();
+                log.debug("Media upload deduplicated sha256={} returning ID={}", stored.sha256(), hit.getId());
                 return new MediaResponse(hit.getId(), "/api/media/" + hit.getId());
             }
 
             User owner = userRepository.findByUsername(username)
                     .orElseThrow(() -> new UserNotFoundException(
-                            "Owner not found with username: %s".formatted(username))
+                            "User not found with username: %s".formatted(username))
                     );
 
             Media media = new Media();
@@ -67,10 +70,12 @@ public class MediaService {
             } catch (DataIntegrityViolationException e) {
                 // Lost a race with a concurrent upload of the same content:
                 // the winner's row is now visible, return it instead of 500.
+                log.debug("Media upload race on sha256={} resolving to winner", stored.sha256());
                 return mediaRepository.findBySha256(stored.sha256())
                         .map(winner -> new MediaResponse(winner.getId(), "/api/media/" + winner.getId()))
                         .orElseThrow(() -> e);
             }
+            log.info("Media uploaded ID={} by username={} size={}", media.getId(), username, media.getSize());
             return new MediaResponse(media.getId(), "/api/media/" + media.getId());
         } catch (IOException e) {
             throw new StorageException("Failed to read uploaded file", e);
