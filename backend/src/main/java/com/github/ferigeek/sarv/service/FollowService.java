@@ -55,7 +55,8 @@ public class FollowService {
                 );
 
         if (follower.getId().equals(followed.getId())) {
-            throw new IllegalArgumentException("User can not follow himself ID: %d".formatted(userId));
+            log.warn("Rejected self-follow for user ID={}", userId);
+            throw new IllegalArgumentException("User cannot follow themselves ID: %d".formatted(userId));
         }
 
         Follow follow = new Follow();
@@ -78,7 +79,8 @@ public class FollowService {
                 );
 
         if (follower.getId().equals(followed.getId())) {
-            throw new IllegalArgumentException("User can not unfollow himself ID: %d".formatted(userId));
+            log.warn("Rejected self-unfollow for user ID={}", userId);
+            throw new IllegalArgumentException("User cannot unfollow themselves ID: %d".formatted(userId));
         }
 
         Follow follow = followRepository.findByFollowerAndFollowed(follower, followed)
@@ -88,6 +90,6 @@ public class FollowService {
                 );
         followRepository.delete(follow);
 
-        log.info("User with ID={} unfollowed user with ID={}",  follower.getId(), followed.getId());
+        log.info("User with ID={} unfollowed user with ID={}", follower.getId(), followed.getId());
     }
 }

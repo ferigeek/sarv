@@ -429,6 +429,18 @@ class FollowControllerTest {
                             .with(user(testUser("bob"))))
                     .andExpect(status().isNotFound());
         }
+
+        @Test
+        @DisplayName("should return 400 when self-follow")
+        void shouldReturn400OnSelfFollow() throws Exception {
+            doThrow(new IllegalArgumentException("User cannot follow themselves ID: 1"))
+                    .when(followService).followUser(eq("alice"), eq(1L));
+
+            mockMvc.perform(post("/api/users/1/followers")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail").value("User cannot follow themselves ID: 1"));
+        }
     }
 
     // ===================================================================
@@ -491,6 +503,18 @@ class FollowControllerTest {
                     .andExpect(jsonPath("$.detail").value("A follow from user with ID: 1, following user with ID: 2, doesn't exist"))
                     .andExpect(jsonPath("$.title").value("Bad Request"))
                     .andExpect(jsonPath("$.instance").value("/api/users/2/followers"));
+        }
+
+        @Test
+        @DisplayName("should return 400 when self-unfollow")
+        void shouldReturn400OnSelfUnfollow() throws Exception {
+            doThrow(new IllegalArgumentException("User cannot unfollow themselves ID: 1"))
+                    .when(followService).unfollowUser(eq("alice"), eq(1L));
+
+            mockMvc.perform(delete("/api/users/1/followers")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail").value("User cannot unfollow themselves ID: 1"));
         }
 
         @Test
