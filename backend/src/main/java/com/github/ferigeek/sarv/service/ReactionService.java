@@ -10,12 +10,14 @@ import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.PostRepository;
 import com.github.ferigeek.sarv.repository.ReactionRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 
 @Service
+@Slf4j
 public class ReactionService {
 
     private final ReactionRepository reactionRepository;
@@ -38,7 +40,7 @@ public class ReactionService {
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(
-                        "User not found with username: <%s>".formatted(username))
+                        "User not found with username: %s".formatted(username))
                 );
 
         Reaction existing = reactionRepository.findByPostAndUser(post, user).orElse(null);
@@ -66,6 +68,9 @@ public class ReactionService {
         reaction.setCreatedAt(OffsetDateTime.now());
         reactionRepository.save(reaction);
         incrementCount(post, reactionRequest.getReactionType());
+
+        log.info("User ID={} reacted ReactType={} to PostID={}", user.getId(), reaction.getReactionType(), postId);
+
         return new ReactionResponse(post.getLikeCount(), post.getDislikeCount(), reactionRequest.getReactionType());
     }
 
@@ -75,7 +80,7 @@ public class ReactionService {
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(
-                        "User not found with username: <%s>".formatted(username))
+                        "User not found with username: %s".formatted(username))
                 );
 
         Reaction existing = reactionRepository.findByPostAndUser(post, user).orElse(null);
@@ -83,6 +88,8 @@ public class ReactionService {
             reactionRepository.delete(existing);
             decrementCount(post, existing.getReactionType());
         }
+
+        log.info("User ID={} removed reaction from PostID={}", user.getId(), postId);
     }
 
     public ReactionResponse getReactionCounts(Long postId, String username) {
@@ -91,7 +98,7 @@ public class ReactionService {
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(
-                        "User not found with username: <%s>".formatted(username))
+                        "User not found with username: %s".formatted(username))
                 );
 
         Short userReaction = 0;
