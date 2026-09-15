@@ -11,13 +11,13 @@ import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.FollowRepository;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-
+@Slf4j
 @Service
 public class UserService {
 
@@ -34,19 +34,19 @@ public class UserService {
 
     public UserResponse getUser(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException("User not found with ID: <%d>".formatted(id)));
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: %d".formatted(id)));
         return new UserResponse(user);
     }
 
     public UserResponse getUserByUsername(String username) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found with username: <%s>".formatted(username)));
+                .orElseThrow(() -> new UserNotFoundException("User not found with username: %s".formatted(username)));
         return new UserResponse(user);
     }
 
     public UserResponse updateUser(String username, UserUpdateRequest userUpdateRequest) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found with Username: <%s>".formatted(username)));
+                .orElseThrow(() -> new UserNotFoundException("User not found with Username: %s".formatted(username)));
 
         if (userUpdateRequest.getDisplayName() == null || userUpdateRequest.getDisplayName().isBlank()) {
             throw new IllegalArgumentException("Display name can not be empty");
@@ -82,6 +82,7 @@ public class UserService {
             user.setProfilePicture(picture);
         }
 
+        log.info("User profile updated username={}, ID={}", username, user.getId());
         return new UserResponse(userRepository.save(user));
     }
 
@@ -91,7 +92,7 @@ public class UserService {
 
     public UserStatsResponse getUserStats(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException("User not found with ID: <%d>".formatted(id)));
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: %d".formatted(id)));
         long followerCount = followRepository.countByFollowed(user);
         long followingCount = followRepository.countByFollower(user);
         return new UserStatsResponse(user.getId(), followerCount, followingCount);

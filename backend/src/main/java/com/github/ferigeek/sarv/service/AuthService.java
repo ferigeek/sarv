@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -40,15 +41,20 @@ public class AuthService {
     }
 
     public String login(UserLoginRequest userLoginRequest) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        userLoginRequest.getUsername(),
-                        userLoginRequest.getPassword()
-                )
-        );
-
-        final UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        return jwtUtil.generateToken(userDetails.getUsername());
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            userLoginRequest.getUsername(),
+                            userLoginRequest.getPassword()
+                    )
+            );
+            final UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            log.info("User logged in with username={}", userLoginRequest.getUsername());
+            return jwtUtil.generateToken(userDetails.getUsername());
+        } catch (AuthenticationException e) {
+            log.warn("Failed login attempt username={}", userLoginRequest.getUsername());
+            throw e;
+        }
     }
 
     public UserRegisterResponse register(UserRegisterRequest userRegisterRequest) {
@@ -61,30 +67,25 @@ public class AuthService {
         }
 
         User user = new User();
-        try {
-            user.setUsername(userRegisterRequest.getUsername());
-            user.setEmail(userRegisterRequest.getEmail());
-            user.setPasswordHash(passwordEncoder.encode(userRegisterRequest.getPassword()));
-            user.setGender(userRegisterRequest.getGender());
-            user.setDisplayName(userRegisterRequest.getDisplayName());
-            user.setCreatedAt(OffsetDateTime.now());
+        user.setUsername(userRegisterRequest.getUsername());
+        user.setEmail(userRegisterRequest.getEmail());
+        user.setPasswordHash(passwordEncoder.encode(userRegisterRequest.getPassword()));
+        user.setGender(userRegisterRequest.getGender());
+        user.setDisplayName(userRegisterRequest.getDisplayName());
+        user.setCreatedAt(OffsetDateTime.now());
 
-            user = userRepository.save(user);
-        } catch (Exception e) {
-            log.error("Error while registering user: {}", e.getMessage());
-            throw new RuntimeException("Error while registering user");
-        }
-
+        user = userRepository.save(user);
 
         try {
             String token = login(new UserLoginRequest(
                     userRegisterRequest.getUsername(),
                     userRegisterRequest.getPassword())
             );
+            log.info("User registered username={}", userRegisterRequest.getUsername());
             return new UserRegisterResponse(user, token);
-        } catch (Exception e) {
-            log.error("Error while generating token: {}", e.getMessage());
-            throw new RuntimeException("Error while generating token");
+        } catch (AuthenticationException e) {
+            log.error("Failed to generate token for user username={}", userRegisterRequest.getUsername(), e);
+            throw e;
         }
     }
 }
