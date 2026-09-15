@@ -46,7 +46,7 @@ public class UserService {
 
     public UserResponse updateUser(String username, UserUpdateRequest userUpdateRequest) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found with Username: %s".formatted(username)));
+                .orElseThrow(() -> new UserNotFoundException("User not found with username: %s".formatted(username)));
 
         if (userUpdateRequest.getDisplayName() == null || userUpdateRequest.getDisplayName().isBlank()) {
             throw new IllegalArgumentException("Display name can not be empty");

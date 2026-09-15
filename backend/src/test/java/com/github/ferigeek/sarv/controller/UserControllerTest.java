@@ -708,14 +708,14 @@ class UserControllerTest {
         @Test
         @DisplayName("should return 404 when UserNotFoundException")
         void shouldReturn404() throws Exception {
-            when(userService.updateUser(eq("ghost"), any())).thenThrow(new UserNotFoundException("User not found with Username: ghost"));
+            when(userService.updateUser(eq("ghost"), any())).thenThrow(new UserNotFoundException("User not found with username: ghost"));
 
             mockMvc.perform(put("/api/users/me")
                             .with(user(testUser("ghost")))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(validUpdate())))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("User not found with Username: ghost"))
+                    .andExpect(jsonPath("$.detail").value("User not found with username: ghost"))
                     .andExpect(jsonPath("$.status").value(404));
         }
 
