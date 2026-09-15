@@ -54,15 +54,20 @@ public class AuthService {
         } catch (AuthenticationException e) {
             log.warn("Failed login attempt username={}", userLoginRequest.getUsername());
             throw e;
+        } catch (RuntimeException e) {
+            log.error("Failed to generate token for username={}", userLoginRequest.getUsername(), e);
+            throw e;
         }
     }
 
     public UserRegisterResponse register(UserRegisterRequest userRegisterRequest) {
         if (!userRegisterRequest.getPassword().equals(userRegisterRequest.getConfirmPassword())) {
+            log.warn("Rejected registration with mismatched passwords username={}", userRegisterRequest.getUsername());
             throw new IllegalArgumentException("Passwords do not match");
         }
 
         if (userRepository.existsByUsername(userRegisterRequest.getUsername())) {
+            log.warn("Rejected registration with existing username={}", userRegisterRequest.getUsername());
             throw new UsernameAlreadyExistsException();
         }
 
@@ -85,6 +90,9 @@ public class AuthService {
             return new UserRegisterResponse(user, token);
         } catch (AuthenticationException e) {
             log.error("Failed to generate token for user username={}", userRegisterRequest.getUsername(), e);
+            throw e;
+        } catch (RuntimeException e) {
+            log.error("Failed to complete registration for username={}", userRegisterRequest.getUsername(), e);
             throw e;
         }
     }
