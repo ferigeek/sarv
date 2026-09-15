@@ -162,7 +162,7 @@ class FollowServiceTest {
                     () -> followService.getFollowers(99L, PageRequest.of(0, 20)));
 
             assertThat(ex.getMessage()).contains("99");
-            assertThat(ex.getMessage()).isEqualTo("User not found with ID: <99>");
+            assertThat(ex.getMessage()).isEqualTo("User not found with ID: 99");
             verify(followRepository, never()).findByFollowed(any(), any());
         }
 
@@ -334,7 +334,7 @@ class FollowServiceTest {
             UserNotFoundException ex = assertThrows(UserNotFoundException.class, () -> followService.followUser("ghost", 2L));
 
             assertThat(ex.getMessage()).contains("ghost");
-            assertThat(ex.getMessage()).isEqualTo("Follower user not found with username: <ghost>");
+            assertThat(ex.getMessage()).isEqualTo("Follower user not found with username: ghost");
             verify(followRepository, never()).save(any());
             // should not even lookup followed
             verify(userRepository, never()).findById(anyLong());
@@ -349,24 +349,21 @@ class FollowServiceTest {
             UserNotFoundException ex = assertThrows(UserNotFoundException.class, () -> followService.followUser("alice", 99L));
 
             assertThat(ex.getMessage()).contains("99");
-            assertThat(ex.getMessage()).isEqualTo("Followed user not found with ID: <99>");
+            assertThat(ex.getMessage()).isEqualTo("Followed user not found with ID: 99");
             verify(followRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("should allow self-follow (current behavior saves)")
-        void shouldAllowSelfFollow() {
+        @DisplayName("should throw IllegalArgumentException on self-follow")
+        void shouldThrowOnSelfFollow() {
             when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
             when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
-            when(followRepository.save(any(Follow.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            // current service does not prevent self-follow, so it should save
-            followService.followUser("alice", 1L);
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> followService.followUser("alice", 1L));
 
-            ArgumentCaptor<Follow> captor = ArgumentCaptor.forClass(Follow.class);
-            verify(followRepository).save(captor.capture());
-            assertThat(captor.getValue().getFollower()).isEqualTo(alice);
-            assertThat(captor.getValue().getFollowed()).isEqualTo(alice);
+            assertThat(ex.getMessage()).contains("1");
+            verify(followRepository, never()).save(any());
         }
 
         @Test
@@ -411,7 +408,7 @@ class FollowServiceTest {
 
             UserNotFoundException ex = assertThrows(UserNotFoundException.class, () -> followService.unfollowUser("ghost", 2L));
 
-            assertThat(ex.getMessage()).isEqualTo("Follower user not found with username: <ghost>");
+            assertThat(ex.getMessage()).isEqualTo("Follower user not found with username: ghost");
             verify(followRepository, never()).findByFollowerAndFollowed(any(), any());
             verify(followRepository, never()).delete(any());
         }
@@ -424,7 +421,7 @@ class FollowServiceTest {
 
             UserNotFoundException ex = assertThrows(UserNotFoundException.class, () -> followService.unfollowUser("alice", 99L));
 
-            assertThat(ex.getMessage()).isEqualTo("Followed user not found with ID: <99>");
+            assertThat(ex.getMessage()).isEqualTo("Followed user not found with ID: 99");
             verify(followRepository, never()).delete(any());
         }
 
@@ -439,7 +436,7 @@ class FollowServiceTest {
 
             assertThat(ex.getMessage()).contains("1");
             assertThat(ex.getMessage()).contains("2");
-            assertThat(ex.getMessage()).isEqualTo("A follow from user with ID: <1>, following user with ID: <2>, doesn't exist");
+            assertThat(ex.getMessage()).isEqualTo("A follow from user with ID: 1, following user with ID: 2, doesn't exist");
             verify(followRepository, never()).delete(any());
         }
 
@@ -466,6 +463,20 @@ class FollowServiceTest {
 
             assertThrows(FollowException.class, () -> followService.unfollowUser("alice", 2L));
 
+            verify(followRepository, never()).delete(any());
+        }
+
+        @Test
+        @DisplayName("should throw IllegalArgumentException on self-unfollow")
+        void shouldThrowOnSelfUnfollow() {
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+            when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> followService.unfollowUser("alice", 1L));
+
+            assertThat(ex.getMessage()).contains("1");
+            verify(followRepository, never()).findByFollowerAndFollowed(any(), any());
             verify(followRepository, never()).delete(any());
         }
     }

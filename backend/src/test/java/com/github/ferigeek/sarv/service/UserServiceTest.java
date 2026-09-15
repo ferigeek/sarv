@@ -159,7 +159,7 @@ class UserServiceTest {
             UserNotFoundException ex = assertThrows(UserNotFoundException.class,
                     () -> userService.getUser(42L));
 
-            assertThat(ex.getMessage()).isEqualTo("User not found with ID: <42>");
+            assertThat(ex.getMessage()).isEqualTo("User not found with ID: 42");
         }
 
         @Test
@@ -211,7 +211,7 @@ class UserServiceTest {
             UserNotFoundException ex = assertThrows(UserNotFoundException.class,
                     () -> userService.getUserByUsername("ghost"));
 
-            assertThat(ex.getMessage()).isEqualTo("User not found with username: <ghost>");
+            assertThat(ex.getMessage()).isEqualTo("User not found with username: ghost");
         }
 
         @Test

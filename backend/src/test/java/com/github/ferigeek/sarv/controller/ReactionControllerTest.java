@@ -229,21 +229,21 @@ class ReactionControllerTest {
                     .andExpect(status().isNotFound())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                     .andExpect(jsonPath("$.status").value(404))
-                    .andExpect(jsonPath("$.detail").value("Post not found with ID: <99>"))
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 99"))
                     .andExpect(jsonPath("$.instance").value("/api/posts/99/reactions"));
         }
 
         @Test
         @DisplayName("should return 404 when UserNotFoundException")
         void shouldReturn404UserNotFound() throws Exception {
-            when(reactionService.addReaction(any(), any(), any())).thenThrow(new UserNotFoundException("User not found with username: <ghost>"));
+            when(reactionService.addReaction(any(), any(), any())).thenThrow(new UserNotFoundException("User not found with username: ghost"));
 
             mockMvc.perform(post("/api/posts/1/reactions")
                             .with(user(testUser("ghost")))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(like())))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("User not found with username: <ghost>"));
+                    .andExpect(jsonPath("$.detail").value("User not found with username: ghost"));
         }
 
         @Test
@@ -325,13 +325,13 @@ class ReactionControllerTest {
             mockMvc.perform(delete("/api/posts/99/reactions")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Post not found with ID: <99>"));
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 99"));
         }
 
         @Test
         @DisplayName("should return 404 when UserNotFoundException")
         void shouldReturn404UserNotFound() throws Exception {
-            org.mockito.Mockito.doThrow(new UserNotFoundException("User not found with username: <ghost>")).when(reactionService).removeReaction(any(), eq("ghost"));
+            org.mockito.Mockito.doThrow(new UserNotFoundException("User not found with username: ghost")).when(reactionService).removeReaction(any(), eq("ghost"));
 
             mockMvc.perform(delete("/api/posts/1/reactions")
                             .with(user(testUser("ghost"))))
@@ -440,13 +440,13 @@ class ReactionControllerTest {
             mockMvc.perform(get("/api/posts/77/reactions")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Post not found with ID: <77>"));
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 77"));
         }
 
         @Test
         @DisplayName("should return 404 when UserNotFound")
         void shouldReturn404User() throws Exception {
-            when(reactionService.getReactionCounts(any(), any())).thenThrow(new UserNotFoundException("User not found with username: <ghost>"));
+            when(reactionService.getReactionCounts(any(), any())).thenThrow(new UserNotFoundException("User not found with username: ghost"));
 
             mockMvc.perform(get("/api/posts/1/reactions")
                             .with(user(testUser("ghost"))))

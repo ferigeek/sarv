@@ -83,7 +83,7 @@ class CustomUserDetailsServiceTest {
                 () -> service.loadUserByUsername("ghost"));
 
         assertThat(ex.getMessage()).contains("ghost");
-        assertThat(ex.getMessage()).isEqualTo("User not found with username: <ghost>");
+        assertThat(ex.getMessage()).isEqualTo("User not found with username: ghost");
         verify(userRepository).findByUsername("ghost");
     }
 
@@ -106,7 +106,7 @@ class CustomUserDetailsServiceTest {
         UsernameNotFoundException ex = assertThrows(UsernameNotFoundException.class,
                 () -> service.loadUserByUsername("ferigeek"));
 
-        assertThat(ex.getMessage()).isEqualTo("User not found with username: <ferigeek>");
+        assertThat(ex.getMessage()).isEqualTo("User not found with username: ferigeek");
     }
 
     @Test

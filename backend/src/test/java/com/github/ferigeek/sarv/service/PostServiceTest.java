@@ -731,9 +731,9 @@ class PostServiceTest {
             UnAuthorizedUpdateException ex = assertThrows(UnAuthorizedUpdateException.class,
                     () -> postService.updatePost(100L, req, "other"));
             assertThat(ex.getMessage()).contains("1").contains("100"); // actually message contains user id and post id
-            // message is "User with ID: <2> is not the owner of post with ID: <100>"
-            assertThat(ex.getMessage()).contains("<2>");
-            assertThat(ex.getMessage()).contains("<100>");
+            // message is "User with ID: 2 is not the owner of post with ID: 100"
+            assertThat(ex.getMessage()).contains("2");
+            assertThat(ex.getMessage()).contains("100");
         }
 
         @Test

@@ -44,7 +44,7 @@ public class FeedService {
     @Transactional
     public Page<PostResponse> getRecommended(String username, Pageable pageable) {
         Long userId = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found with username: <%s>".formatted(username)))
+                .orElseThrow(() -> new UserNotFoundException("User not found with username: %s".formatted(username)))
                 .getId();
 
         try {

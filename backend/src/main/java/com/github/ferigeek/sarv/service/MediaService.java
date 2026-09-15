@@ -51,7 +51,7 @@ public class MediaService {
 
             User owner = userRepository.findByUsername(username)
                     .orElseThrow(() -> new UserNotFoundException(
-                            "Owner not found with username: <%s>".formatted(username))
+                            "Owner not found with username: %s".formatted(username))
                     );
 
             Media media = new Media();

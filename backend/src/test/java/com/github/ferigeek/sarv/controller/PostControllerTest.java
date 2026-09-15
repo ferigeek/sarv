@@ -192,7 +192,7 @@ class PostControllerTest {
                     .andExpect(status().isNotFound())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                     .andExpect(jsonPath("$.status").value(404))
-                    .andExpect(jsonPath("$.detail").value("Post not found with ID: <99>"))
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 99"))
                     .andExpect(jsonPath("$.title").value("Not Found"))
                     .andExpect(jsonPath("$.instance").value("/api/posts/99"));
         }
@@ -466,14 +466,14 @@ class PostControllerTest {
         @Test
         @DisplayName("should return 404 when UserNotFoundException")
         void shouldReturn404WhenUserNotFound() throws Exception {
-            when(postService.createPost(any(), any())).thenThrow(new UserNotFoundException("User not found with username: <bob>"));
+            when(postService.createPost(any(), any())).thenThrow(new UserNotFoundException("User not found with username: bob"));
 
             mockMvc.perform(post("/api/posts")
                             .with(user(testUser("bob")))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(validNormalRequest())))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("User not found with username: <bob>"));
+                    .andExpect(jsonPath("$.detail").value("User not found with username: bob"));
         }
 
         @Test
@@ -486,7 +486,7 @@ class PostControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(new PostRequest(PostCategory.NORMAL, "content", 999L, null, null))))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Media not found with ID: <999>"));
+                    .andExpect(jsonPath("$.detail").value("Media not found with ID: 999"));
         }
 
         @Test
@@ -499,7 +499,7 @@ class PostControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(validNormalRequest())))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Post not found with ID: <77>"));
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 77"));
         }
 
         @Test
@@ -601,12 +601,12 @@ class PostControllerTest {
         @Test
         @DisplayName("should return 404 when UserNotFoundException")
         void shouldReturn404WhenUserNotFound() throws Exception {
-            org.mockito.Mockito.doThrow(new UserNotFoundException("User not found with username: <ghost>")).when(postService).deletePost(any(), any());
+            org.mockito.Mockito.doThrow(new UserNotFoundException("User not found with username: ghost")).when(postService).deletePost(any(), any());
 
             mockMvc.perform(delete("/api/posts/1")
                             .with(user(testUser("ghost"))))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("User not found with username: <ghost>"));
+                    .andExpect(jsonPath("$.detail").value("User not found with username: ghost"));
         }
 
         @Test
@@ -831,13 +831,13 @@ class PostControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(validUpdate())))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Post not found with ID: <99>"));
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 99"));
         }
 
         @Test
         @DisplayName("should return 404 when UserNotFoundException")
         void shouldReturn404WhenUserNotFound() throws Exception {
-            when(postService.updatePost(any(), any(), any())).thenThrow(new UserNotFoundException("User not found with username: <ghost>"));
+            when(postService.updatePost(any(), any(), any())).thenThrow(new UserNotFoundException("User not found with username: ghost"));
 
             mockMvc.perform(put("/api/posts/1")
                             .with(user(testUser("ghost")))
@@ -856,13 +856,13 @@ class PostControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(validUpdate())))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Media not found with ID: <77>"));
+                    .andExpect(jsonPath("$.detail").value("Media not found with ID: 77"));
         }
 
         @Test
         @DisplayName("should return 403 when UnAuthorizedUpdateException on update")
         void shouldReturn403WhenUnauthorized() throws Exception {
-            when(postService.updatePost(any(), any(), any())).thenThrow(new UnAuthorizedUpdateException("User with ID: <1> is not the owner of post with ID: <1>"));
+            when(postService.updatePost(any(), any(), any())).thenThrow(new UnAuthorizedUpdateException("User with ID: 1 is not the owner of post with ID: 1"));
 
             mockMvc.perform(put("/api/posts/1")
                             .with(user(testUser("alice")))
@@ -1144,7 +1144,7 @@ class PostControllerTest {
             mockMvc.perform(get("/api/posts/99/comments")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Post not found with ID: <99>"));
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 99"));
         }
 
         @Test

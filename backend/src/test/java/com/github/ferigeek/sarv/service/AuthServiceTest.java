@@ -242,7 +242,7 @@ class AuthServiceTest {
         }
 
         @Test
-        @DisplayName("should throw RuntimeException with message when save fails")
+        @DisplayName("should propagate exception when save fails")
         void shouldThrowWhenSaveFails() {
             when(userRepository.existsByUsername("ferigeek")).thenReturn(false);
             when(passwordEncoder.encode(anyString())).thenReturn("hash");
@@ -250,25 +250,25 @@ class AuthServiceTest {
 
             RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.register(registerRequest));
 
-            assertThat(ex.getMessage()).isEqualTo("Error while registering user");
+            assertThat(ex.getMessage()).isEqualTo("db error");
             verify(authenticationManager, never()).authenticate(any());
             verify(jwtUtil, never()).generateToken(anyString());
         }
 
         @Test
-        @DisplayName("should throw RuntimeException when passwordEncoder fails")
+        @DisplayName("should propagate exception when passwordEncoder fails")
         void shouldThrowWhenEncodeFails() {
             when(userRepository.existsByUsername("ferigeek")).thenReturn(false);
             when(passwordEncoder.encode(anyString())).thenThrow(new RuntimeException("encoder fail"));
 
             RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.register(registerRequest));
 
-            assertThat(ex.getMessage()).isEqualTo("Error while registering user");
+            assertThat(ex.getMessage()).isEqualTo("encoder fail");
             verify(userRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("should throw RuntimeException when login/authentication fails during register")
+        @DisplayName("should propagate AuthenticationException when login fails during register")
         void shouldThrowWhenLoginFails() {
             when(userRepository.existsByUsername("ferigeek")).thenReturn(false);
             when(passwordEncoder.encode(anyString())).thenReturn("hash");
@@ -280,15 +280,15 @@ class AuthServiceTest {
             when(authenticationManager.authenticate(any()))
                     .thenThrow(new BadCredentialsException("bad creds"));
 
-            RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.register(registerRequest));
+            BadCredentialsException ex = assertThrows(BadCredentialsException.class, () -> authService.register(registerRequest));
 
-            assertThat(ex.getMessage()).isEqualTo("Error while generating token");
+            assertThat(ex.getMessage()).isEqualTo("bad creds");
             // user was still saved before login attempt
             verify(userRepository).save(any(User.class));
         }
 
         @Test
-        @DisplayName("should throw RuntimeException when jwt generation fails during register")
+        @DisplayName("should propagate exception when jwt generation fails during register")
         void shouldThrowWhenJwtFails() {
             when(userRepository.existsByUsername("ferigeek")).thenReturn(false);
             when(passwordEncoder.encode(anyString())).thenReturn("hash");
@@ -306,7 +306,7 @@ class AuthServiceTest {
 
             RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.register(registerRequest));
 
-            assertThat(ex.getMessage()).isEqualTo("Error while generating token");
+            assertThat(ex.getMessage()).isEqualTo("jwt fail");
         }
 
         @Test
@@ -417,7 +417,7 @@ class AuthServiceTest {
             // need to use request with same data but service will override saved values?
             // Actually service creates user from request then saves, so savedUser returned from save is used.
             // To test mapping, we mock save to return our savedUser with custom gender to see if response reflects saved user.
-            // However current mock returns savedUser ignoring request's gender MALE vs saved FEMALE.
+            // However, current mock returns savedUser ignoring request's gender MALE vs saved FEMALE.
             // This tests that response is built from returned saved user, not request.
             UserRegisterResponse resp = authService.register(registerRequest);
 
