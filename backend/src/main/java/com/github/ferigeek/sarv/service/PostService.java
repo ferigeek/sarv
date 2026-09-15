@@ -39,7 +39,7 @@ public class PostService {
     public PostResponse getPost(Long postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new PostNotFoundException(postId));
-        post.setViewCount(post.getViewCount() + 1);
+        post.setViewCount((post.getViewCount() == null ? 0L : post.getViewCount()) + 1);
         postRepository.save(post);
         return new PostResponse(post);
     }
@@ -170,14 +170,14 @@ public class PostService {
             postRepository.incrementCommentCount(post.getParent().getId());
         }
 
-        log.info("Post created ID={}", post.getId());
-
-        return new PostResponse(postRepository.save(post));
+        PostResponse response = new PostResponse(postRepository.save(post));
+        log.info("Post created ID={} by username={}", response.getId(), username);
+        return response;
     }
 
     public void deletePost(Long postId, String username) {
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new RuntimeException("Post not found"));
+                .orElseThrow(() -> new PostNotFoundException(postId));
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(
@@ -185,7 +185,9 @@ public class PostService {
                 );
 
         if (!post.getUser().getId().equals(user.getId())) {
-            throw new RuntimeException("You are not the owner of this post");
+            throw new UnAuthorizedUpdateException(
+                    "User with ID: %d is not the owner of post with ID: %d".formatted(user.getId(), post.getId())
+            );
         }
         post.setDeletedAt(OffsetDateTime.now());
         post.setUser(null);

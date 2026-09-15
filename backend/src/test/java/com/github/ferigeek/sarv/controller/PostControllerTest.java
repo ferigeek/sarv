@@ -599,6 +599,27 @@ class PostControllerTest {
         }
 
         @Test
+        @DisplayName("should return 404 when PostNotFoundException on delete")
+        void shouldReturn404WhenPostNotFound() throws Exception {
+            org.mockito.Mockito.doThrow(new PostNotFoundException(99L)).when(postService).deletePost(eq(99L), any());
+
+            mockMvc.perform(delete("/api/posts/99")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 99"));
+        }
+
+        @Test
+        @DisplayName("should return 403 when UnAuthorizedUpdateException on delete")
+        void shouldReturn403WhenNotOwner() throws Exception {
+            org.mockito.Mockito.doThrow(new UnAuthorizedUpdateException("User with ID: 2 is not the owner of post with ID: 1")).when(postService).deletePost(eq(1L), any());
+
+            mockMvc.perform(delete("/api/posts/1")
+                            .with(user(testUser("bob"))))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
         @DisplayName("should return 404 when UserNotFoundException")
         void shouldReturn404WhenUserNotFound() throws Exception {
             org.mockito.Mockito.doThrow(new UserNotFoundException("User not found with username: ghost")).when(postService).deletePost(any(), any());

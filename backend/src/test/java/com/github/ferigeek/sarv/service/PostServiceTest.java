@@ -137,6 +137,18 @@ class PostServiceTest {
         }
 
         @Test
+        @DisplayName("should treat null viewCount as zero")
+        void shouldHandleNullViewCount() {
+            basePost.setViewCount(null);
+            when(postRepository.findById(1L)).thenReturn(Optional.of(basePost));
+            when(postRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            PostResponse res = postService.getPost(1L);
+
+            assertThat(res.getViewCount()).isEqualTo(1L);
+        }
+
+        @Test
         @DisplayName("should throw PostNotFoundException when not found")
         void shouldThrowWhenNotFound() {
             when(postRepository.findById(99L)).thenReturn(Optional.empty());
@@ -541,11 +553,11 @@ class PostServiceTest {
         }
 
         @Test
-        @DisplayName("should throw RuntimeException when post not found")
+        @DisplayName("should throw PostNotFoundException when post not found")
         void shouldThrowWhenPostNotFound() {
             when(postRepository.findById(99L)).thenReturn(Optional.empty());
 
-            assertThrows(RuntimeException.class, () -> postService.deletePost(99L, "owner"));
+            assertThrows(PostNotFoundException.class, () -> postService.deletePost(99L, "owner"));
         }
 
         @Test
@@ -558,7 +570,7 @@ class PostServiceTest {
         }
 
         @Test
-        @DisplayName("should throw RuntimeException when not owner (different id)")
+        @DisplayName("should throw UnAuthorizedUpdateException when not owner (different id)")
         void shouldThrowWhenNotOwner() {
             Post post = new Post();
             post.setId(100L);
@@ -566,8 +578,8 @@ class PostServiceTest {
             when(postRepository.findById(100L)).thenReturn(Optional.of(post));
             when(userRepository.findByUsername("other")).thenReturn(Optional.of(otherUser)); // id 2
 
-            RuntimeException ex = assertThrows(RuntimeException.class, () -> postService.deletePost(100L, "other"));
-            assertThat(ex.getMessage()).contains("You are not the owner");
+            UnAuthorizedUpdateException ex = assertThrows(UnAuthorizedUpdateException.class, () -> postService.deletePost(100L, "other"));
+            assertThat(ex.getMessage()).contains("2").contains("100");
             verify(postRepository, never()).save(any());
         }
 
@@ -577,7 +589,7 @@ class PostServiceTest {
             when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
             when(userRepository.findByUsername("other")).thenReturn(Optional.of(otherUser));
 
-            assertThrows(RuntimeException.class, () -> postService.deletePost(100L, "other"));
+            assertThrows(UnAuthorizedUpdateException.class, () -> postService.deletePost(100L, "other"));
 
             verify(postRepository, never()).save(any());
         }
