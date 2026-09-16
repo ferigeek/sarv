@@ -1,12 +1,10 @@
 package com.github.ferigeek.sarv.controller;
 
-import com.github.ferigeek.sarv.aspect.LogEvent;
 import com.github.ferigeek.sarv.dto.request.CommentSort;
 import com.github.ferigeek.sarv.dto.request.PostRequest;
 import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
 import com.github.ferigeek.sarv.dto.request.ReactionFilter;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
-import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.PostService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -38,13 +36,11 @@ public class PostController {
     }
 
     @GetMapping("/posts/{postId}")
-    @LogEvent(EventType.VIEW_POST)
     public PostResponse getPost(@Positive @PathVariable Long postId) {
         return postService.getPost(postId);
     }
 
     @PostMapping("/posts")
-    @LogEvent(EventType.CREATE_POST)
     public ResponseEntity<?> createPost(
             @Valid @RequestBody PostRequest postRequest,
             @AuthenticationPrincipal UserDetails userDetails) {
