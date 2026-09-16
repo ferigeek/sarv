@@ -24,15 +24,18 @@ public class ReactionService {
     private final ReactionRepository reactionRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
+    private final EventLogService eventLogService;
 
     @Autowired
     public ReactionService(
             ReactionRepository reactionRepository,
             PostRepository postRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            EventLogService eventLogService) {
         this.reactionRepository = reactionRepository;
         this.postRepository = postRepository;
         this.userRepository = userRepository;
+        this.eventLogService = eventLogService;
     }
 
     @Transactional
@@ -57,6 +60,7 @@ public class ReactionService {
                 reactionRepository.save(existing);
                 adjustCount(post, oldType, reactionRequest.getReactionType());
                 log.info("User ID={} changed reaction from {} to {} on post ID={}", user.getId(), oldType, reactionRequest.getReactionType(), postId);
+                logReactionSafely(username, post, reactionRequest.getReactionType());
                 return new ReactionResponse(
                         post.getLikeCount(),
                         post.getDislikeCount(),
@@ -74,6 +78,7 @@ public class ReactionService {
         incrementCount(post, reactionRequest.getReactionType());
 
         log.info("User ID={} reacted type={} to post ID={}", user.getId(), reaction.getReactionType(), postId);
+        logReactionSafely(username, post, reactionRequest.getReactionType());
 
         return new ReactionResponse(post.getLikeCount(), post.getDislikeCount(), reactionRequest.getReactionType());
     }
@@ -146,5 +151,16 @@ public class ReactionService {
             post.setDislikeCount((post.getDislikeCount() == null ? 0L : post.getDislikeCount()) + 1);
         }
         postRepository.save(post);
+    }
+
+    private void logReactionSafely(String username, Post post, short reactionType) {
+        if (username == null) {
+            return;
+        }
+        try {
+            eventLogService.logReaction(username, post, reactionType);
+        } catch (Exception e) {
+            log.warn("Failed to log reaction event postId={} username={}", post.getId(), username, e);
+        }
     }
 }

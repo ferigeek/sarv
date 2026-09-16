@@ -38,6 +38,8 @@ class ReactionServiceTest {
     private PostRepository postRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private EventLogService eventLogService;
 
     @InjectMocks
     private ReactionService reactionService;
@@ -138,6 +140,37 @@ class ReactionServiceTest {
             assertThat(saved.getCreatedAt()).isAfter(OffsetDateTime.now().minusSeconds(5));
 
             verify(postRepository).save(post);
+            verify(eventLogService).logReaction(eq("alice"), eq(post), eq(Reaction.LIKE));
+        }
+
+        @Test
+        @DisplayName("should log DISLIKE with dislike type")
+        void shouldLogDislikeType() {
+            when(postRepository.findById(100L)).thenReturn(Optional.of(post));
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+            when(reactionRepository.findByPostAndUser(post, alice)).thenReturn(Optional.empty());
+            when(reactionRepository.save(any(Reaction.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(postRepository.save(any(Post.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            reactionService.addReaction(100L, req(Reaction.DISLIKE), "alice");
+
+            verify(eventLogService).logReaction(eq("alice"), eq(post), eq(Reaction.DISLIKE));
+        }
+
+        @Test
+        @DisplayName("should still return response when reaction logging fails")
+        void shouldReturnWhenLoggingFails() {
+            when(postRepository.findById(100L)).thenReturn(Optional.of(post));
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+            when(reactionRepository.findByPostAndUser(post, alice)).thenReturn(Optional.empty());
+            when(reactionRepository.save(any(Reaction.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(postRepository.save(any(Post.class))).thenAnswer(inv -> inv.getArgument(0));
+            doThrow(new RuntimeException("log fail"))
+                    .when(eventLogService).logReaction(eq("alice"), eq(post), eq(Reaction.LIKE));
+
+            ReactionResponse res = reactionService.addReaction(100L, req(Reaction.LIKE), "alice");
+
+            assertThat(res.getUserReaction()).isEqualTo(Reaction.LIKE);
         }
 
         @Test
@@ -177,6 +210,7 @@ class ReactionServiceTest {
             verify(postRepository, never()).save(any());
             assertThat(post.getLikeCount()).isEqualTo(5L);
             assertThat(post.getDislikeCount()).isEqualTo(2L);
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
@@ -217,6 +251,7 @@ class ReactionServiceTest {
             assertThat(res.getUserReaction()).isEqualTo(Reaction.DISLIKE);
             verify(reactionRepository).save(existing);
             verify(postRepository).save(post);
+            verify(eventLogService).logReaction(eq("alice"), eq(post), eq(Reaction.DISLIKE));
         }
 
         @Test
