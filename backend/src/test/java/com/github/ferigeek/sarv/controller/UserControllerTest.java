@@ -146,7 +146,7 @@ class UserControllerTest {
         @DisplayName("should return 200 with UserResponse when authenticated and user exists")
         void shouldReturn200() throws Exception {
             UserResponse resp = userResponse(1L, "alice", "Alice", Gender.FEMALE, 10L, UserStatus.ACTIVE);
-            when(userService.getUser(1L)).thenReturn(resp);
+            when(userService.getUser(1L, "bob")).thenReturn(resp);
 
             mockMvc.perform(get("/api/users/1")
                             .with(user(testUser("bob"))))
@@ -166,7 +166,7 @@ class UserControllerTest {
         @DisplayName("should map null profilePicture to null")
         void shouldMapNullPicture() throws Exception {
             UserResponse resp = userResponse(2L, "bob", "Bob", Gender.MALE, null, UserStatus.ACTIVE);
-            when(userService.getUser(2L)).thenReturn(resp);
+            when(userService.getUser(2L, "alice")).thenReturn(resp);
 
             mockMvc.perform(get("/api/users/2")
                             .with(user(testUser("alice"))))
@@ -195,7 +195,7 @@ class UserControllerTest {
             user.setStatus(UserStatus.ACTIVE);
             user.setProfilePicture(null);
             UserResponse resp = new UserResponse(user);
-            when(userService.getUser(5L)).thenReturn(resp);
+            when(userService.getUser(5L, "alice")).thenReturn(resp);
 
             mockMvc.perform(get("/api/users/5")
                             .with(user(testUser("alice"))))
@@ -206,7 +206,7 @@ class UserControllerTest {
         @Test
         @DisplayName("should return 404 when UserNotFoundException")
         void shouldReturn404() throws Exception {
-            when(userService.getUser(99L)).thenThrow(new UserNotFoundException("User not found with ID: 99"));
+            when(userService.getUser(99L, "alice")).thenThrow(new UserNotFoundException("User not found with ID: 99"));
 
             mockMvc.perform(get("/api/users/99")
                             .with(user(testUser("alice"))))
@@ -253,7 +253,7 @@ class UserControllerTest {
         @Test
         @DisplayName("should return 500 when service throws unexpected exception")
         void shouldReturn500() throws Exception {
-            when(userService.getUser(1L)).thenThrow(new RuntimeException("db fail"));
+            when(userService.getUser(1L, "alice")).thenThrow(new RuntimeException("db fail"));
 
             mockMvc.perform(get("/api/users/1")
                             .with(user(testUser("alice"))))

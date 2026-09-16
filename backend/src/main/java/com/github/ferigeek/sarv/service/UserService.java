@@ -24,23 +24,31 @@ public class UserService {
     private final UserRepository userRepository;
     private final MediaRepository mediaRepository;
     private final FollowRepository followRepository;
+    private final EventLogService eventLogService;
 
     @Autowired
-    public UserService(UserRepository userRepository, MediaRepository mediaRepository, FollowRepository followRepository) {
+    public UserService(
+            UserRepository userRepository,
+            MediaRepository mediaRepository,
+            FollowRepository followRepository,
+            EventLogService eventLogService) {
         this.userRepository = userRepository;
         this.mediaRepository = mediaRepository;
         this.followRepository = followRepository;
+        this.eventLogService = eventLogService;
     }
 
-    public UserResponse getUser(Long id) {
+    public UserResponse getUser(Long id, String username) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found with ID: %d".formatted(id)));
+        logProfileViewSafely(username, user);
         return new UserResponse(user);
     }
 
     public UserResponse getUserByUsername(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException("User not found with username: %s".formatted(username)));
+        logProfileViewSafely(username, user);
         return new UserResponse(user);
     }
 
@@ -96,5 +104,16 @@ public class UserService {
         long followerCount = followRepository.countByFollowed(user);
         long followingCount = followRepository.countByFollower(user);
         return new UserStatsResponse(user.getId(), followerCount, followingCount);
+    }
+
+    private void logProfileViewSafely(String username, User targetUser) {
+        if (username == null) {
+            return;
+        }
+        try {
+            eventLogService.logProfileView(username, targetUser);
+        } catch (Exception e) {
+            log.warn("Failed to log profile view event username={} targetId={}", username, targetUser.getId(), e);
+        }
     }
 }

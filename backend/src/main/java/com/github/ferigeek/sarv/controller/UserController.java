@@ -29,8 +29,9 @@ public class UserController {
     }
 
     @GetMapping("/{userId}")
-    public UserResponse getUser(@Positive @PathVariable Long userId) {
-        return userService.getUser(userId);
+    public UserResponse getUser(@Positive @PathVariable Long userId, @AuthenticationPrincipal UserDetails userDetails) {
+        String username = userDetails != null ? userDetails.getUsername() : null;
+        return userService.getUser(userId, username);
     }
 
     @GetMapping("/me")
