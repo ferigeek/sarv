@@ -39,6 +39,8 @@ class FollowServiceTest {
     private UserRepository userRepository;
     @Mock
     private FollowRepository followRepository;
+    @Mock
+    private EventLogService eventLogService;
 
     @InjectMocks
     private FollowService followService;
@@ -324,6 +326,21 @@ class FollowServiceTest {
             assertThat(saved.getCreatedAt()).isNotNull();
             assertThat(saved.getCreatedAt()).isAfter(OffsetDateTime.now().minusSeconds(5));
             assertThat(saved.getCreatedAt()).isBefore(OffsetDateTime.now().plusSeconds(1));
+            verify(eventLogService).logFollow(eq(alice), eq(bob), eq(false));
+        }
+
+        @Test
+        @DisplayName("should still succeed when follow logging fails")
+        void shouldSucceedWhenLoggingFails() {
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+            when(userRepository.findById(2L)).thenReturn(Optional.of(bob));
+            when(followRepository.save(any(Follow.class))).thenAnswer(inv -> inv.getArgument(0));
+            doThrow(new RuntimeException("log fail"))
+                    .when(eventLogService).logFollow(eq(alice), eq(bob), eq(false));
+
+            followService.followUser("alice", 2L);
+
+            verify(followRepository).save(any(Follow.class));
         }
 
         @Test
@@ -395,6 +412,23 @@ class FollowServiceTest {
             when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
             when(userRepository.findById(2L)).thenReturn(Optional.of(bob));
             when(followRepository.findByFollowerAndFollowed(alice, bob)).thenReturn(Optional.of(existing));
+
+            followService.unfollowUser("alice", 2L);
+
+            verify(followRepository).delete(existing);
+            verify(eventLogService).logFollow(eq(alice), eq(bob), eq(true));
+        }
+
+        @Test
+        @DisplayName("should still delete when unfollow logging fails")
+        void shouldDeleteWhenLoggingFails() {
+            Follow existing = follow(alice, bob);
+            existing.setId(50L);
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+            when(userRepository.findById(2L)).thenReturn(Optional.of(bob));
+            when(followRepository.findByFollowerAndFollowed(alice, bob)).thenReturn(Optional.of(existing));
+            doThrow(new RuntimeException("log fail"))
+                    .when(eventLogService).logFollow(eq(alice), eq(bob), eq(true));
 
             followService.unfollowUser("alice", 2L);
 

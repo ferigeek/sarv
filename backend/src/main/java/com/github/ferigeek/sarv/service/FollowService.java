@@ -21,11 +21,13 @@ public class FollowService {
 
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
+    private final EventLogService eventLogService;
 
     @Autowired
-    public FollowService(UserRepository userRepository, FollowRepository followRepository) {
+    public FollowService(UserRepository userRepository, FollowRepository followRepository, EventLogService eventLogService) {
         this.userRepository = userRepository;
         this.followRepository = followRepository;
+        this.eventLogService = eventLogService;
     }
 
     public Page<UserSummaryResponse> getFollowers(Long userId, Pageable pageable) {
@@ -66,6 +68,7 @@ public class FollowService {
         followRepository.save(follow);
 
         log.info("User with ID={} followed user with ID={}", follower.getId(), followed.getId());
+        logFollowSafely(follower, followed, false);
     }
 
     public void unfollowUser(String username, Long userId) {
@@ -91,5 +94,14 @@ public class FollowService {
         followRepository.delete(follow);
 
         log.info("User with ID={} unfollowed user with ID={}", follower.getId(), followed.getId());
+        logFollowSafely(follower, followed, true);
+    }
+
+    private void logFollowSafely(User follower, User followed, boolean isUnfollow) {
+        try {
+            eventLogService.logFollow(follower, followed, isUnfollow);
+        } catch (Exception e) {
+            log.warn("Failed to log follow event followerId={} followedId={}", follower.getId(), followed.getId(), e);
+        }
     }
 }
