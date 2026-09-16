@@ -27,17 +27,20 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final EventLogService eventLogService;
 
     @Autowired
     public AuthService(
             AuthenticationManager authenticationManager,
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            JwtUtil jwtUtil) {
+            JwtUtil jwtUtil,
+            EventLogService eventLogService) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.eventLogService = eventLogService;
     }
 
     public String login(UserLoginRequest userLoginRequest) {
@@ -50,6 +53,7 @@ public class AuthService {
             );
             final UserDetails userDetails = (UserDetails) authentication.getPrincipal();
             log.info("User logged in with username={}", userLoginRequest.getUsername());
+            logLoginSafely(userDetails.getUsername());
             return jwtUtil.generateToken(userDetails.getUsername());
         } catch (AuthenticationException e) {
             log.warn("Failed login attempt username={}", userLoginRequest.getUsername());
@@ -87,6 +91,7 @@ public class AuthService {
                     userRegisterRequest.getPassword())
             );
             log.info("User registered username={}", userRegisterRequest.getUsername());
+            logRegisterSafely(userRegisterRequest.getUsername());
             return new UserRegisterResponse(user, token);
         } catch (AuthenticationException e) {
             log.error("Failed to generate token for user username={}", userRegisterRequest.getUsername(), e);
@@ -94,6 +99,22 @@ public class AuthService {
         } catch (RuntimeException e) {
             log.error("Failed to complete registration for username={}", userRegisterRequest.getUsername(), e);
             throw e;
+        }
+    }
+
+    private void logLoginSafely(String username) {
+        try {
+            eventLogService.logLogin(username);
+        } catch (Exception e) {
+            log.warn("Failed to log login event username={}", username, e);
+        }
+    }
+
+    private void logRegisterSafely(String username) {
+        try {
+            eventLogService.logRegister(username);
+        } catch (Exception e) {
+            log.warn("Failed to log register event username={}", username, e);
         }
     }
 }

@@ -44,6 +44,9 @@ class AuthServiceTest {
     @Mock
     private JwtUtil jwtUtil;
 
+    @Mock
+    private EventLogService eventLogService;
+
     @InjectMocks
     private AuthService authService;
 
@@ -92,6 +95,27 @@ class AuthServiceTest {
             assertThat(captured.getPrincipal()).isEqualTo("ferigeek");
             assertThat(captured.getCredentials()).isEqualTo("strongPass123");
             verify(jwtUtil).generateToken("ferigeek");
+            verify(eventLogService).logLogin("ferigeek");
+        }
+
+        @Test
+        @DisplayName("should still return token when login event logging fails")
+        void shouldReturnTokenWhenLoggingFails() {
+            UserLoginRequest req = new UserLoginRequest("ferigeek", "strongPass123");
+            Authentication authentication = mock(Authentication.class);
+            UserDetails userDetails = mock(UserDetails.class);
+
+            when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                    .thenReturn(authentication);
+            when(authentication.getPrincipal()).thenReturn(userDetails);
+            when(userDetails.getUsername()).thenReturn("ferigeek");
+            doThrow(new RuntimeException("log fail")).when(eventLogService).logLogin("ferigeek");
+            when(jwtUtil.generateToken("ferigeek")).thenReturn("jwt-token-123");
+
+            String token = authService.login(req);
+
+            assertThat(token).isEqualTo("jwt-token-123");
+            verify(jwtUtil).generateToken("ferigeek");
         }
 
         @Test
@@ -104,6 +128,7 @@ class AuthServiceTest {
             assertThrows(BadCredentialsException.class, () -> authService.login(req));
 
             verify(jwtUtil, never()).generateToken(anyString());
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
@@ -202,6 +227,32 @@ class AuthServiceTest {
             assertThat(saved.getPasswordHash()).isEqualTo("hashedPass");
             assertThat(saved.getCreatedAt()).isNotNull();
             verify(passwordEncoder).encode("strongPass123");
+            verify(eventLogService).logLogin("ferigeek");
+            verify(eventLogService).logRegister("ferigeek");
+        }
+
+        @Test
+        @DisplayName("should still return response when register event logging fails")
+        void shouldReturnWhenRegisterLoggingFails() {
+            when(userRepository.existsByUsername("ferigeek")).thenReturn(false);
+            when(passwordEncoder.encode("strongPass123")).thenReturn("hashedPass");
+            when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+                User u = inv.getArgument(0);
+                u.setId(1L);
+                return u;
+            });
+
+            Authentication authentication = mock(Authentication.class);
+            UserDetails userDetails = mock(UserDetails.class);
+            when(authenticationManager.authenticate(any())).thenReturn(authentication);
+            when(authentication.getPrincipal()).thenReturn(userDetails);
+            when(userDetails.getUsername()).thenReturn("ferigeek");
+            when(jwtUtil.generateToken("ferigeek")).thenReturn("jwt-token");
+            doThrow(new RuntimeException("log fail")).when(eventLogService).logRegister("ferigeek");
+
+            UserRegisterResponse response = authService.register(registerRequest);
+
+            assertThat(response.getToken()).isEqualTo("jwt-token");
         }
 
         @Test
@@ -239,6 +290,7 @@ class AuthServiceTest {
             verify(passwordEncoder, never()).encode(anyString());
             verify(authenticationManager, never()).authenticate(any());
             verify(jwtUtil, never()).generateToken(anyString());
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
@@ -253,6 +305,7 @@ class AuthServiceTest {
             assertThat(ex.getMessage()).isEqualTo("db error");
             verify(authenticationManager, never()).authenticate(any());
             verify(jwtUtil, never()).generateToken(anyString());
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
