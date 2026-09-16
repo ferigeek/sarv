@@ -27,8 +27,10 @@ public class FeedController {
 
     @GetMapping("/chronological")
     public Page<PostResponse> getChronological(
+            @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return feedService.getChronological(pageable);
+        String username = userDetails != null ? userDetails.getUsername() : null;
+        return feedService.getChronological(pageable, username);
     }
 
     @GetMapping("/recommended")

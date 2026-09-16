@@ -42,6 +42,8 @@ class FeedServiceRecommendedTest {
     private UserRepository userRepository;
     @Mock
     private RecommendationClient recommendationClient;
+    @Mock
+    private EventLogService eventLogService;
 
     @InjectMocks
     private FeedService feedService;
@@ -113,6 +115,24 @@ class FeedServiceRecommendedTest {
             assertThat(res.getContent().get(0).getContent()).isEqualTo("content3");
             verify(recommendationClient).getRecommendations(42L, 0, 20);
             verify(postRepository).findAllByIdsFiltered(List.of(3L, 1L, 2L));
+            verify(eventLogService).logFeedRequest(eq("alice"), eq("recommended"));
+        }
+
+        @Test
+        @DisplayName("should still return feed when recommended logging fails")
+        void shouldReturnWhenLoggingFails() {
+            Pageable pageable = PageRequest.of(0, 20);
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+            when(recommendationClient.getRecommendations(42L, 0, 20))
+                    .thenReturn(recResponse(List.of("1"), 0, 20, 1));
+            when(postRepository.findAllByIdsFiltered(List.of(1L)))
+                    .thenReturn(List.of(post(1L, 1L)));
+            doThrow(new RuntimeException("log fail"))
+                    .when(eventLogService).logFeedRequest(eq("alice"), eq("recommended"));
+
+            Page<PostResponse> res = feedService.getRecommended("alice", pageable);
+
+            assertThat(res.getContent()).hasSize(1);
         }
 
         @Test
