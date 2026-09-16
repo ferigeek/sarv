@@ -8,7 +8,6 @@ import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.entity.type.PostCategory;
 import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.EventLogRepository;
-import com.github.ferigeek.sarv.repository.PostRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
@@ -16,7 +15,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 @Service
 public class EventLogService {
@@ -63,21 +61,6 @@ public class EventLogService {
     }
 
     @Async
-    public CompletableFuture<EventLog> logPostCreation(String username, Post post) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException(username));
-
-        EventLog eventLog = new EventLog();
-
-        eventLog.setUser(user);
-        eventLog.setPost(post);
-        eventLog.setCreatedAt(OffsetDateTime.now());
-        eventLog.setEventType(EventType.CREATE_POST);
-
-        return CompletableFuture.completedFuture(eventLogRepository.save(eventLog));
-    }
-
-    @Async
     public void logFeedRequest(String username, String feedType) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(username));
@@ -87,7 +70,8 @@ public class EventLogService {
         eventLog.setUser(user);
         eventLog.setCreatedAt(OffsetDateTime.now());
         eventLog.setEventType(EventType.REQUEST_FEED);
-        Map<String, String> metadata = Map.of("feed_type", feedType);
+        Map<String, Object> metadata = Map.of("feed_type", feedType);
+        eventLog.setMetadata(metadata);
 
         eventLogRepository.save(eventLog);
     }
@@ -119,7 +103,6 @@ public class EventLogService {
 
     /*
     Logs both following and unfollowing events.
-    Set `isUnfollow` to 0 for following and 1 for unfollowing.
      */
     @Async
     public void logFollow(User user, User targetUser, boolean isUnfollow) {
@@ -133,6 +116,7 @@ public class EventLogService {
         eventLogRepository.save(eventLog);
     }
 
+    @Async
     public void logLogin(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(username));
@@ -146,6 +130,7 @@ public class EventLogService {
         eventLogRepository.save(eventLog);
     }
 
+    @Async
     public void logRegister(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(username));
@@ -159,6 +144,7 @@ public class EventLogService {
         eventLogRepository.save(eventLog);
     }
 
+    @Async
     public void logPostCreation(String username, Post post, PostCategory postCategory) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(username));
