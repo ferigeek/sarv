@@ -36,8 +36,11 @@ public class PostController {
     }
 
     @GetMapping("/posts/{postId}")
-    public PostResponse getPost(@Positive @PathVariable Long postId) {
-        return postService.getPost(postId);
+    public PostResponse getPost(
+            @Positive @PathVariable Long postId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        String username = userDetails != null ? userDetails.getUsername() : null;
+        return postService.getPost(postId, username);
     }
 
     @PostMapping("/posts")

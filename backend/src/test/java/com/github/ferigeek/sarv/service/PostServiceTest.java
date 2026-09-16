@@ -50,6 +50,8 @@ class PostServiceTest {
     private UserRepository userRepository;
     @Mock
     private MediaRepository mediaRepository;
+    @Mock
+    private EventLogService eventLogService;
 
     @InjectMocks
     private PostService postService;
@@ -113,7 +115,7 @@ class PostServiceTest {
             when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
             when(postRepository.save(any(Post.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            PostResponse res = postService.getPost(100L);
+            PostResponse res = postService.getPost(100L, "owner");
 
             assertThat(res.getId()).isEqualTo(100L);
             assertThat(res.getViewCount()).isEqualTo(1L);
@@ -122,6 +124,33 @@ class PostServiceTest {
             ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
             verify(postRepository).save(captor.capture());
             assertThat(captor.getValue().getViewCount()).isEqualTo(1L);
+            verify(eventLogService).logPostView(eq("owner"), any(Post.class));
+        }
+
+        @Test
+        @DisplayName("should still return post when view logging fails")
+        void shouldReturnWhenLoggingFails() {
+            basePost.setViewCount(0L);
+            when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
+            when(postRepository.save(any(Post.class))).thenAnswer(inv -> inv.getArgument(0));
+            doThrow(new RuntimeException("log fail")).when(eventLogService).logPostView(eq("owner"), any(Post.class));
+
+            PostResponse res = postService.getPost(100L, "owner");
+
+            assertThat(res.getViewCount()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("should skip logging when username is null")
+        void shouldSkipLoggingWhenAnonymous() {
+            basePost.setViewCount(0L);
+            when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
+            when(postRepository.save(any(Post.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            PostResponse res = postService.getPost(100L, null);
+
+            assertThat(res.getViewCount()).isEqualTo(1L);
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
@@ -131,7 +160,7 @@ class PostServiceTest {
             when(postRepository.findById(1L)).thenReturn(Optional.of(basePost));
             when(postRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            PostResponse res = postService.getPost(1L);
+            PostResponse res = postService.getPost(1L, "owner");
 
             assertThat(res.getViewCount()).isEqualTo(6L);
         }
@@ -143,7 +172,7 @@ class PostServiceTest {
             when(postRepository.findById(1L)).thenReturn(Optional.of(basePost));
             when(postRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            PostResponse res = postService.getPost(1L);
+            PostResponse res = postService.getPost(1L, "owner");
 
             assertThat(res.getViewCount()).isEqualTo(1L);
         }
@@ -153,10 +182,11 @@ class PostServiceTest {
         void shouldThrowWhenNotFound() {
             when(postRepository.findById(99L)).thenReturn(Optional.empty());
 
-            PostNotFoundException ex = assertThrows(PostNotFoundException.class, () -> postService.getPost(99L));
+            PostNotFoundException ex = assertThrows(PostNotFoundException.class, () -> postService.getPost(99L, "owner"));
 
             assertThat(ex.getMessage()).contains("99");
             verify(postRepository, never()).save(any());
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
@@ -172,7 +202,7 @@ class PostServiceTest {
             when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
             when(postRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            PostResponse res = postService.getPost(100L);
+            PostResponse res = postService.getPost(100L, "owner");
 
             assertThat(res.getMediaId()).isEqualTo(10L);
             assertThat(res.getParentId()).isEqualTo(200L);
@@ -188,7 +218,7 @@ class PostServiceTest {
             when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
             when(postRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            PostResponse res = postService.getPost(100L);
+            PostResponse res = postService.getPost(100L, "owner");
 
             assertThat(res.getMediaId()).isNull();
             assertThat(res.getParentId()).isNull();
@@ -230,6 +260,61 @@ class PostServiceTest {
             assertThat(saved.getMedia()).isNull();
             assertThat(saved.getParent()).isNull();
             assertThat(saved.getRepostOf()).isNull();
+            verify(eventLogService).logPostCreation(eq("owner"), any(Post.class), eq(PostCategory.NORMAL));
+        }
+
+        @Test
+        @DisplayName("should log correct event type per post category")
+        void shouldLogPerCategory() {
+            Post parent = new Post(); parent.setId(200L); parent.setUser(owner); parent.setPostCategory(PostCategory.NORMAL);
+            Post repost = new Post(); repost.setId(300L); repost.setUser(owner); repost.setPostCategory(PostCategory.NORMAL);
+            when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+            when(postRepository.findById(200L)).thenReturn(Optional.of(parent));
+            when(postRepository.findById(300L)).thenReturn(Optional.of(repost));
+            when(postRepository.save(any(Post.class))).thenAnswer(inv -> {
+                Post p = inv.getArgument(0);
+                p.setId(9L);
+                return p;
+            });
+
+            postService.createPost(req(PostCategory.COMMENT, "c", null, 200L, null), "owner");
+            verify(eventLogService).logPostCreation(eq("owner"), any(Post.class), eq(PostCategory.COMMENT));
+
+            postService.createPost(req(PostCategory.QUOTE, "q", null, null, 300L), "owner");
+            verify(eventLogService).logPostCreation(eq("owner"), any(Post.class), eq(PostCategory.QUOTE));
+
+            postService.createPost(req(PostCategory.REPOST, null, null, null, 300L), "owner");
+            verify(eventLogService).logPostCreation(eq("owner"), any(Post.class), eq(PostCategory.REPOST));
+        }
+
+        @Test
+        @DisplayName("should still return response when creation logging fails")
+        void shouldReturnWhenCreationLoggingFails() {
+            when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+            when(postRepository.save(any(Post.class))).thenAnswer(inv -> {
+                Post p = inv.getArgument(0);
+                p.setId(1L);
+                p.setViewCount(0L); p.setLikeCount(0L); p.setDislikeCount(0L);
+                return p;
+            });
+            doThrow(new RuntimeException("log fail"))
+                    .when(eventLogService).logPostCreation(eq("owner"), any(Post.class), eq(PostCategory.NORMAL));
+
+            PostRequest r = req(PostCategory.NORMAL, "hello", null, null, null);
+            PostResponse res = postService.createPost(r, "owner");
+
+            assertThat(res.getContent()).isEqualTo("hello");
+        }
+
+        @Test
+        @DisplayName("should not log when creation validation fails")
+        void shouldNotLogWhenValidationFails() {
+            when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+
+            PostRequest r = req(PostCategory.NORMAL, "   ", null, null, null);
+            assertThrows(PostNotValidException.class, () -> postService.createPost(r, "owner"));
+
+            verifyNoInteractions(eventLogService);
         }
 
         @Test

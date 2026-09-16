@@ -28,19 +28,22 @@ public class PostService {
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final MediaRepository mediaRepository;
+    private final EventLogService eventLogService;
 
     @Autowired
-    public PostService(PostRepository postRepository, UserRepository userRepository, MediaRepository mediaRepository) {
+    public PostService(PostRepository postRepository, UserRepository userRepository, MediaRepository mediaRepository, EventLogService eventLogService) {
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.mediaRepository = mediaRepository;
+        this.eventLogService = eventLogService;
     }
 
-    public PostResponse getPost(Long postId) {
+    public PostResponse getPost(Long postId, String username) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new PostNotFoundException(postId));
         post.setViewCount((post.getViewCount() == null ? 0L : post.getViewCount()) + 1);
         postRepository.save(post);
+        logPostViewSafely(username, post);
         return new PostResponse(post);
     }
 
@@ -170,7 +173,9 @@ public class PostService {
             postRepository.incrementCommentCount(post.getParent().getId());
         }
 
-        PostResponse response = new PostResponse(postRepository.save(post));
+        Post saved = postRepository.save(post);
+        logPostCreationSafely(username, saved, postCategory);
+        PostResponse response = new PostResponse(saved);
         log.info("Post created ID={} by username={}", response.getId(), username);
         return response;
     }
@@ -261,5 +266,27 @@ public class PostService {
         }
         return postRepository.findCommentsByParentId(postId, pageable)
                 .map(PostResponse::new);
+    }
+
+    private void logPostViewSafely(String username, Post post) {
+        if (username == null) {
+            return;
+        }
+        try {
+            eventLogService.logPostView(username, post);
+        } catch (Exception e) {
+            log.warn("Failed to log post view event postId={} username={}", post.getId(), username, e);
+        }
+    }
+
+    private void logPostCreationSafely(String username, Post post, PostCategory postCategory) {
+        if (username == null) {
+            return;
+        }
+        try {
+            eventLogService.logPostCreation(username, post, postCategory);
+        } catch (Exception e) {
+            log.warn("Failed to log post creation event username={}", username, e);
+        }
     }
 }

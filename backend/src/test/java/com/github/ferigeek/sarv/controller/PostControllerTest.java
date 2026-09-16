@@ -152,7 +152,7 @@ class PostControllerTest {
         @DisplayName("should return 200 with PostResponse when authenticated")
         void shouldReturn200() throws Exception {
             PostResponse resp = postResponse(1L, 10L, PostCategory.NORMAL, "content", 5L, null, null);
-            when(postService.getPost(1L)).thenReturn(resp);
+            when(postService.getPost(1L, "alice")).thenReturn(resp);
 
             mockMvc.perform(get("/api/posts/1")
                             .with(user(testUser("alice"))))
@@ -172,7 +172,7 @@ class PostControllerTest {
         @DisplayName("should handle null media/repost/parent as absent")
         void shouldHandleNulls() throws Exception {
             PostResponse resp = postResponse(2L, 10L, PostCategory.NORMAL, "content", null, null, null);
-            when(postService.getPost(2L)).thenReturn(resp);
+            when(postService.getPost(2L, "alice")).thenReturn(resp);
 
             mockMvc.perform(get("/api/posts/2")
                             .with(user(testUser("alice"))))
@@ -185,7 +185,7 @@ class PostControllerTest {
         @Test
         @DisplayName("should return 404 when PostNotFoundException")
         void shouldReturn404() throws Exception {
-            when(postService.getPost(99L)).thenThrow(new PostNotFoundException(99L));
+            when(postService.getPost(99L, "alice")).thenThrow(new PostNotFoundException(99L));
 
             mockMvc.perform(get("/api/posts/99")
                             .with(user(testUser("alice"))))
@@ -231,7 +231,7 @@ class PostControllerTest {
         @Test
         @DisplayName("should return 500 for unexpected exception")
         void shouldReturn500() throws Exception {
-            when(postService.getPost(1L)).thenThrow(new RuntimeException("fail"));
+            when(postService.getPost(1L, "alice")).thenThrow(new RuntimeException("fail"));
 
             mockMvc.perform(get("/api/posts/1")
                             .with(user(testUser("alice"))))
