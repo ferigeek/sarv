@@ -6,6 +6,7 @@ import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.entity.type.Gender;
 import com.github.ferigeek.sarv.entity.type.PostCategory;
 import com.github.ferigeek.sarv.entity.type.UserStatus;
+import com.github.ferigeek.sarv.support.PostgresContainerBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -24,8 +26,9 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @DisplayName("PostRepository#findPostsByUserId")
-class PostRepositoryTest {
+class PostRepositoryTest extends PostgresContainerBase {
 
     @Autowired
     private PostRepository postRepository;
