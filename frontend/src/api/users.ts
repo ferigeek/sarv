@@ -23,6 +23,11 @@ export async function getMe(): Promise<UserResponse> {
   return data
 }
 
+export async function getMeSummary(): Promise<UserSummaryResponse> {
+  const { data } = await apiClient.get<UserSummaryResponse>('/users/me/summary')
+  return data
+}
+
 export async function getUser(userId: number): Promise<UserResponse> {
   const { data } = await apiClient.get<UserResponse>(`/users/${userId}`)
   return data

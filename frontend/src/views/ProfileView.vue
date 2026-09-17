@@ -5,7 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import type { ApiError } from '@/api/client'
 import { follow, getFollowing, unfollow } from '@/api/follows'
 import { getMediaBlob, uploadMedia } from '@/api/media'
-import { getUser, getUserPosts, getUserStats, updateMe } from '@/api/users'
+import { getMe, getUser, getUserPosts, getUserStats, updateMe } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
 import type { Gender, PostResponse, UserResponse, UserStatsResponse } from '@/types/api'
 import AppIcon from '@/components/AppIcon.vue'
@@ -105,7 +105,8 @@ async function loadProfile() {
   try {
     const id = profileId.value
     if (id === null) throw new Error('missing id')
-    profile.value = await getUser(id)
+    // Own profile goes through GET /users/me; everyone else via GET /users/{id}.
+    profile.value = auth.user && id === auth.user.id ? await getMe() : await getUser(id)
     clearAvatar()
     if (profile.value.profilePictureId) {
       try {

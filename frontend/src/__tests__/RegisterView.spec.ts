@@ -6,7 +6,7 @@ import { createMemoryHistory } from 'vue-router'
 import type { VueWrapper } from '@vue/test-utils'
 
 import type { LoginPayload, RegisterPayload } from '@/api/auth'
-import type { MediaResponse, UserRegisterResponse, UserResponse } from '@/types/api'
+import type { MediaResponse, UserRegisterResponse, UserResponse, UserSummaryResponse } from '@/types/api'
 
 vi.mock('@/api/auth', () => ({
   login: vi.fn<(payload: LoginPayload) => Promise<string>>(),
@@ -14,7 +14,7 @@ vi.mock('@/api/auth', () => ({
 }))
 
 vi.mock('@/api/users', () => ({
-  getMe: vi.fn<() => Promise<UserResponse>>(),
+  getMeSummary: vi.fn<() => Promise<UserSummaryResponse>>(),
   getUser: vi.fn<(id: number) => Promise<UserResponse>>(),
   updateMe: vi.fn<(payload: unknown) => Promise<UserResponse>>(),
   searchUsers: vi.fn<() => Promise<unknown>>(),
@@ -68,12 +68,12 @@ vi.mock('@/components/PostCard.vue', () => ({
 
 import { register as mockRegister } from '@/api/auth'
 import { uploadMedia as mockUploadMedia } from '@/api/media'
-import { getMe as mockGetMe, updateMe as mockUpdateMe } from '@/api/users'
+import { getMeSummary as mockGetMeSummary, updateMe as mockUpdateMe } from '@/api/users'
 import { createAppRouter } from '../router'
 import RegisterView from '../views/RegisterView.vue'
 
 const mockedRegister = vi.mocked(mockRegister)
-const mockedGetMe = vi.mocked(mockGetMe)
+const mockedGetMeSummary = vi.mocked(mockGetMeSummary)
 const mockedUpdateMe = vi.mocked(mockUpdateMe)
 const mockedUploadMedia = vi.mocked(mockUploadMedia)
 
@@ -87,6 +87,13 @@ function mountRegister() {
     },
   })
   return { wrapper, router, pinia }
+}
+
+const userSummary: UserSummaryResponse = {
+  id: 1,
+  username: 'alice',
+  displayName: 'Alice',
+  profilePictureId: null,
 }
 
 const userResponse: UserResponse = {
@@ -142,7 +149,7 @@ describe('RegisterView', () => {
 
   it('creates the account and moves to step 2', async () => {
     mockedRegister.mockResolvedValue({ id: 1, username: 'alice', displayName: 'Alice', email: 'a@x.io', token: 'tok' })
-    mockedGetMe.mockResolvedValue(userResponse)
+    mockedGetMeSummary.mockResolvedValue(userSummary)
 
     const { wrapper, router, pinia } = mountRegister()
     await router.push('/register')
@@ -200,7 +207,7 @@ describe('RegisterView', () => {
 
   it('sends confirmPassword to the backend', async () => {
     mockedRegister.mockResolvedValue({ id: 1, username: 'alice', displayName: 'Alice', email: 'a@x.io', token: 'tok' })
-    mockedGetMe.mockResolvedValue(userResponse)
+    mockedGetMeSummary.mockResolvedValue(userSummary)
 
     const { wrapper, router } = mountRegister()
     await router.push('/register')
@@ -215,7 +222,7 @@ describe('RegisterView', () => {
 
   it('skips the optional step and goes to the feed', async () => {
     mockedRegister.mockResolvedValue({ id: 1, username: 'alice', displayName: 'Alice', email: 'a@x.io', token: 'tok' })
-    mockedGetMe.mockResolvedValue(userResponse)
+    mockedGetMeSummary.mockResolvedValue(userSummary)
 
     const { wrapper, router } = mountRegister()
     await router.push('/register')
@@ -236,7 +243,7 @@ describe('RegisterView', () => {
 
   it('completes the optional step with profile data', async () => {
     mockedRegister.mockResolvedValue({ id: 1, username: 'alice', displayName: 'Alice', email: 'a@x.io', token: 'tok' })
-    mockedGetMe.mockResolvedValue(userResponse)
+    mockedGetMeSummary.mockResolvedValue(userSummary)
     mockedUpdateMe.mockResolvedValue({ ...userResponse, bio: 'hello', location: 'Tehran' })
 
     const { wrapper, router } = mountRegister()
@@ -260,7 +267,7 @@ describe('RegisterView', () => {
 
   it('uploads a profile picture before completing', async () => {
     mockedRegister.mockResolvedValue({ id: 1, username: 'alice', displayName: 'Alice', email: 'a@x.io', token: 'tok' })
-    mockedGetMe.mockResolvedValue(userResponse)
+    mockedGetMeSummary.mockResolvedValue(userSummary)
     mockedUploadMedia.mockResolvedValue({ id: 42, url: '/api/media/42' })
     mockedUpdateMe.mockResolvedValue({ ...userResponse, profilePictureId: 42 })
 

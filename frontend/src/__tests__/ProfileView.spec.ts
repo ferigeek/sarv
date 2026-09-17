@@ -48,7 +48,7 @@ vi.mock('@/stores/auth', () => ({
 
 import { follow as mockFollow, getFollowing as mockGetFollowing, unfollow as mockUnfollow } from '@/api/follows'
 import { getPostAuthor as mockGetPostAuthor } from '@/api/posts'
-import { getUser as mockGetUser, getUserPosts as mockGetUserPosts, getUserStats as mockGetUserStats, updateMe as mockUpdateMe } from '@/api/users'
+import { getMe as mockGetMe, getUser as mockGetUser, getUserPosts as mockGetUserPosts, getUserStats as mockGetUserStats, updateMe as mockUpdateMe } from '@/api/users'
 import { getMediaBlob as mockGetMediaBlob } from '@/api/media'
 import { getReaction as mockGetReaction } from '@/api/reactions'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
@@ -57,6 +57,7 @@ import ProfileView from '@/views/ProfileView.vue'
 registerPixelicons()
 
 const mockedGetUser = vi.mocked(mockGetUser)
+const mockedGetMe = vi.mocked(mockGetMe)
 const mockedGetPostAuthor = vi.mocked(mockGetPostAuthor)
 const mockedUpdateMe = vi.mocked(mockUpdateMe)
 const mockedGetFollowing = vi.mocked(mockGetFollowing)
@@ -152,6 +153,8 @@ describe('ProfileView', () => {
 
     const { wrapper } = await mountProfile('2')
 
+    // Other users go through GET /users/{id}, never GET /users/me
+    expect(mockedGetMe).not.toHaveBeenCalled()
     expect(wrapper.find('[data-testid="profile-name"]').text()).toBe('Bob')
     expect(wrapper.find('[data-testid="profile-username"]').text()).toBe('@bob')
     expect(wrapper.find('[data-testid="profile-bio"]').text()).toBe('hi')
@@ -212,10 +215,14 @@ describe('ProfileView', () => {
 
   it('self profile shows edit form and saving updates the profile', async () => {
     authUser = makeUser({ id: 1 })
-    mockedGetUser.mockResolvedValue(makeUser({ id: 1, bio: 'original' }))
+    mockedGetMe.mockResolvedValue(makeUser({ id: 1, bio: 'original' }))
     mockedUpdateMe.mockResolvedValue(makeUser({ id: 1, bio: 'updated bio', displayName: 'Alice' }))
 
     const { wrapper } = await mountProfile('1')
+
+    // Explicit own id goes through GET /users/me, not GET /users/{id}
+    expect(mockedGetMe).toHaveBeenCalled()
+    expect(mockedGetUser).not.toHaveBeenCalled()
 
     // Self → no follow button, edit toggle present
     expect(wrapper.find('[data-testid="profile-follow-btn"]').exists()).toBe(false)
@@ -230,6 +237,19 @@ describe('ProfileView', () => {
 
     expect(mockedUpdateMe).toHaveBeenCalledWith(expect.objectContaining({ bio: 'updated bio' }))
     expect(wrapper.find('[data-testid="profile-edit-form"]').exists()).toBe(false)
+  })
+
+  it('loads the own profile via /users/me when no id is in the route', async () => {
+    authUser = makeUser({ id: 1 })
+    mockedGetMe.mockResolvedValue(makeUser({ id: 1, username: 'alice', displayName: 'Alice' }))
+    mockedGetFollowing.mockResolvedValue(makeSummaryList([]))
+
+    const { wrapper } = await mountProfile()
+
+    expect(mockedGetMe).toHaveBeenCalled()
+    expect(mockedGetUser).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="profile-name"]').text()).toBe('Alice')
+    expect(wrapper.find('[data-testid="profile-edit-toggle"]').exists()).toBe(true)
   })
 
   it('shows an empty state when the user has no posts', async () => {

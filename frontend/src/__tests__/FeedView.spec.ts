@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory } from 'vue-router'
 
-import type { Page, PostResponse, UserResponse } from '@/types/api'
+import type { Page, PostResponse, UserResponse, UserSummaryResponse } from '@/types/api'
 
 vi.mock('@/api/feed', () => ({
   getRecommendedFeed: vi.fn<(pageable?: unknown) => Promise<Page<PostResponse>>>(),
@@ -11,7 +11,7 @@ vi.mock('@/api/feed', () => ({
 }))
 
 vi.mock('@/api/users', () => ({
-  getMe: vi.fn<() => Promise<UserResponse>>(),
+  getMeSummary: vi.fn<() => Promise<UserSummaryResponse>>(),
   getUser: vi.fn<(id: number) => Promise<UserResponse>>(),
   updateMe: vi.fn<(payload: unknown) => Promise<UserResponse>>(),
   searchUsers: vi.fn<(query: string, pageable?: unknown) => Promise<Page<UserResponse>>>(),
@@ -39,7 +39,7 @@ import { getPostAuthor as mockGetPostAuthor } from '@/api/posts'
 import { getReaction as mockGetReaction } from '@/api/reactions'
 import { getUser as mockGetUser } from '@/api/users'
 import { getMediaBlob as mockGetMediaBlob } from '@/api/media'
-import { getMe as mockGetMe } from '@/api/users'
+import { getMeSummary as mockGetMeSummary } from '@/api/users'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
 import { createAppRouter } from '@/router'
 import FeedView from '@/views/FeedView.vue'
@@ -51,7 +51,7 @@ const mockedGetChronologicalFeed = vi.mocked(mockGetChronologicalFeed)
 const mockedGetUser = vi.mocked(mockGetUser)
 const mockedGetPostAuthor = vi.mocked(mockGetPostAuthor)
 const mockedGetReaction = vi.mocked(mockGetReaction)
-const mockedGetMeFn = vi.mocked(mockGetMe)
+const mockedGetMeFn = vi.mocked(mockGetMeSummary)
 const mockedGetMediaBlob = vi.mocked(mockGetMediaBlob)
 
 function makePost(id: number, content = `post ${id}`): PostResponse {
@@ -88,11 +88,7 @@ describe('FeedView', () => {
       id: 1,
       username: 'alice',
       displayName: 'Alice',
-      bio: null,
-      gender: 'FEMALE',
-      location: null,
       profilePictureId: null,
-      status: 'ACTIVE',
     })
     mockedGetUser.mockResolvedValue({
       id: 10,
