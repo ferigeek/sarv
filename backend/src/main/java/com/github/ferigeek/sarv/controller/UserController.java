@@ -39,6 +39,11 @@ public class UserController {
         return userService.getUserByUsername(userDetails.getUsername());
     }
 
+    @GetMapping("/me/summary")
+    public UserSummaryResponse getCurrentUserSummary(@AuthenticationPrincipal UserDetails userDetails) {
+        return userService.getUserSummaryByUsername(userDetails.getUsername());
+    }
+
     /*
     `PUT` method is used instead of `PATCH` method for editing a post; Because
     otherwise if you check the request object and see that an attribute is null,

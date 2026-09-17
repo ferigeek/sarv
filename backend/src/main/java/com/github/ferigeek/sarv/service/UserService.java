@@ -116,4 +116,10 @@ public class UserService {
             log.warn("Failed to log profile view event username={} targetId={}", username, targetUser.getId(), e);
         }
     }
+
+    public UserSummaryResponse getUserSummaryByUsername(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException("User not found with username: %s".formatted(username)));
+        return new UserSummaryResponse(user);
+    }
 }
