@@ -5,6 +5,7 @@ import com.github.ferigeek.sarv.dto.request.PostRequest;
 import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
 import com.github.ferigeek.sarv.dto.request.ReactionFilter;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
+import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.service.PostService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -109,5 +110,10 @@ public class PostController {
         // Sorting is driven by sortBy; ignore any client sort to keep ordering well-defined
         Pageable sanitized = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sortBy.toSort());
         return postService.getPostComments(postId, sanitized);
+    }
+
+    @GetMapping("/posts/{postId}/author")
+    public UserSummaryResponse getPostAuthor(@Positive @PathVariable Long postId) {
+        return postService.getPostAuthor(postId);
     }
 }

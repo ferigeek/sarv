@@ -4,6 +4,7 @@ import com.github.ferigeek.sarv.dto.request.PostRequest;
 import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
 import com.github.ferigeek.sarv.dto.request.ReactionFilter;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
+import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.Post;
 import com.github.ferigeek.sarv.entity.User;
@@ -12,6 +13,7 @@ import com.github.ferigeek.sarv.exception.*;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.PostRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -288,5 +290,15 @@ public class PostService {
         } catch (Exception e) {
             log.warn("Failed to log post creation event username={}", username, e);
         }
+    }
+
+    public UserSummaryResponse getPostAuthor(Long postId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new PostNotFoundException(postId));
+        User user = post.getUser();
+        if (user == null) {
+            throw new UserNotFoundException("Author of the post with ID: %d not found".formatted(postId));
+        }
+        return new UserSummaryResponse(user);
     }
 }
