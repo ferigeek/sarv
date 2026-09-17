@@ -15,6 +15,11 @@ vi.mock('@/api/users', () => ({
   getUserStats: vi.fn<(id: number) => Promise<import('@/types/api').UserStatsResponse>>(),
 }))
 
+vi.mock('@/api/posts', () => ({
+  getPost: vi.fn<(id: number) => Promise<PostResponse>>(),
+  getPostAuthor: vi.fn<(id: number) => Promise<UserSummaryResponse>>(),
+}))
+
 vi.mock('@/api/follows', () => ({
   follow: vi.fn<(id: number) => Promise<void>>(),
   unfollow: vi.fn<(id: number) => Promise<void>>(),
@@ -42,6 +47,7 @@ vi.mock('@/stores/auth', () => ({
 }))
 
 import { follow as mockFollow, getFollowing as mockGetFollowing, unfollow as mockUnfollow } from '@/api/follows'
+import { getPostAuthor as mockGetPostAuthor } from '@/api/posts'
 import { getUser as mockGetUser, getUserPosts as mockGetUserPosts, getUserStats as mockGetUserStats, updateMe as mockUpdateMe } from '@/api/users'
 import { getMediaBlob as mockGetMediaBlob } from '@/api/media'
 import { getReaction as mockGetReaction } from '@/api/reactions'
@@ -51,6 +57,7 @@ import ProfileView from '@/views/ProfileView.vue'
 registerPixelicons()
 
 const mockedGetUser = vi.mocked(mockGetUser)
+const mockedGetPostAuthor = vi.mocked(mockGetPostAuthor)
 const mockedUpdateMe = vi.mocked(mockUpdateMe)
 const mockedGetFollowing = vi.mocked(mockGetFollowing)
 const mockedFollow = vi.mocked(mockFollow)
@@ -132,6 +139,7 @@ describe('ProfileView', () => {
     vi.clearAllMocks()
     authUser = null
     mockedGetMediaBlob.mockResolvedValue(new Blob(['x'], { type: 'image/png' }))
+    mockedGetPostAuthor.mockResolvedValue({ id: 2, username: 'bob', displayName: 'Bob', profilePictureId: null })
     mockedGetReaction.mockResolvedValue({ likeCount: 0, dislikeCount: 0, userReaction: 0 })
     mockedGetUserStats.mockResolvedValue({ userId: 2, followerCount: 7, followingCount: 3 })
     mockedGetUserPosts.mockImplementation((id: number) => Promise.resolve(makePostList([101, 102], id)))

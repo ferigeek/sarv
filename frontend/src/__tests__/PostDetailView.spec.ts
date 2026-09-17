@@ -31,11 +31,12 @@ vi.mock('@/api/posts', async (importOriginal) => {
   return {
     ...actual,
     getPost: vi.fn<(id: number) => Promise<PostResponse>>(),
+    getPostAuthor: vi.fn<(id: number) => Promise<import('@/types/api').UserSummaryResponse>>(),
     getComments: vi.fn<(id: number, sortBy?: unknown, pageable?: unknown) => Promise<Page<PostResponse>>>(),
   }
 })
 
-import { getComments as mockGetComments, getPost as mockGetPost } from '@/api/posts'
+import { getComments as mockGetComments, getPost as mockGetPost, getPostAuthor as mockGetPostAuthor } from '@/api/posts'
 import { getReaction as mockGetReaction } from '@/api/reactions'
 import { getUser as mockGetUser } from '@/api/users'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
@@ -44,6 +45,7 @@ import PostDetailView from '@/views/PostDetailView.vue'
 registerPixelicons()
 
 const mockedGetPost = vi.mocked(mockGetPost)
+const mockedGetPostAuthor = vi.mocked(mockGetPostAuthor)
 const mockedGetComments = vi.mocked(mockGetComments)
 const mockedGetUser = vi.mocked(mockGetUser)
 const mockedGetReaction = vi.mocked(mockGetReaction)
@@ -104,6 +106,12 @@ describe('PostDetailView', () => {
       location: null,
       profilePictureId: null,
       status: 'ACTIVE',
+    })
+    mockedGetPostAuthor.mockResolvedValue({
+      id: 10,
+      username: 'bob',
+      displayName: 'Bob',
+      profilePictureId: null,
     })
     mockedGetReaction.mockResolvedValue({ likeCount: 1, dislikeCount: 0, userReaction: 0 })
     mockedGetPost.mockResolvedValue(makePost(5))

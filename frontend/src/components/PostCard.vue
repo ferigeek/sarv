@@ -4,10 +4,9 @@ import { useRouter } from 'vue-router'
 import gsap from 'gsap'
 
 import { getMediaBlob, getMediaMetadata } from '@/api/media'
-import { getPost } from '@/api/posts'
+import { getPost, getPostAuthor } from '@/api/posts'
 import { addReaction, getReaction, removeReaction } from '@/api/reactions'
-import { getUser } from '@/api/users'
-import type { PostResponse, UserResponse, UserReaction } from '@/types/api'
+import type { PostResponse, UserSummaryResponse, UserReaction } from '@/types/api'
 import AppIcon from './AppIcon.vue'
 import PostCreateModal from './PostCreateModal.vue'
 import RepostConfirm from './RepostConfirm.vue'
@@ -21,7 +20,7 @@ const emit = defineEmits<{ reposted: [id: number]; quoted: [id: number] }>()
 
 const router = useRouter()
 
-const user = ref<UserResponse | null>(null)
+const user = ref<UserSummaryResponse | null>(null)
 const avatarUrl = ref<string | null>(null)
 let avatarObjectUrl: string | null = null
 
@@ -69,7 +68,7 @@ const hasOriginal = computed(
 )
 
 const original = ref<PostResponse | null>(null)
-const originalAuthor = ref<UserResponse | null>(null)
+const originalAuthor = ref<UserSummaryResponse | null>(null)
 const originalMissing = ref(false)
 
 /* Expandable media of the embedded original (quote/repost previews are
@@ -169,7 +168,7 @@ async function loadOriginal() {
     if (props.post.repostOfId !== id) return
     original.value = o
     try {
-      originalAuthor.value = await getUser(o.userId)
+      originalAuthor.value = await getPostAuthor(id)
     } catch {
       originalAuthor.value = null
     }
@@ -238,7 +237,7 @@ function clearMedia() {
 
 async function loadUser() {
   try {
-    const u = await getUser(props.post.userId)
+    const u = await getPostAuthor(props.post.id)
     user.value = u
     clearAvatar()
     if (u.profilePictureId) {

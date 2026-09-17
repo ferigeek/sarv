@@ -17,6 +17,11 @@ vi.mock('@/api/users', () => ({
   searchUsers: vi.fn<(query: string, pageable?: unknown) => Promise<Page<UserResponse>>>(),
 }))
 
+vi.mock('@/api/posts', () => ({
+  getPost: vi.fn<(id: number) => Promise<PostResponse>>(),
+  getPostAuthor: vi.fn<(id: number) => Promise<import('@/types/api').UserSummaryResponse>>(),
+}))
+
 vi.mock('@/api/reactions', () => ({
   addReaction: vi.fn<(postId: number, type: number) => Promise<import('@/types/api').ReactionResponse>>(),
   getReaction: vi.fn<() => Promise<import('@/types/api').ReactionResponse>>(),
@@ -30,6 +35,7 @@ vi.mock('@/api/media', () => ({
 }))
 
 import { getChronologicalFeed as mockGetChronologicalFeed, getRecommendedFeed as mockGetRecommendedFeed } from '@/api/feed'
+import { getPostAuthor as mockGetPostAuthor } from '@/api/posts'
 import { getReaction as mockGetReaction } from '@/api/reactions'
 import { getUser as mockGetUser } from '@/api/users'
 import { getMediaBlob as mockGetMediaBlob } from '@/api/media'
@@ -43,6 +49,7 @@ registerPixelicons()
 const mockedGetRecommendedFeed = vi.mocked(mockGetRecommendedFeed)
 const mockedGetChronologicalFeed = vi.mocked(mockGetChronologicalFeed)
 const mockedGetUser = vi.mocked(mockGetUser)
+const mockedGetPostAuthor = vi.mocked(mockGetPostAuthor)
 const mockedGetReaction = vi.mocked(mockGetReaction)
 const mockedGetMeFn = vi.mocked(mockGetMe)
 const mockedGetMediaBlob = vi.mocked(mockGetMediaBlob)
@@ -96,6 +103,12 @@ describe('FeedView', () => {
       location: null,
       profilePictureId: null,
       status: 'ACTIVE',
+    })
+    mockedGetPostAuthor.mockResolvedValue({
+      id: 10,
+      username: 'bob',
+      displayName: 'Bob',
+      profilePictureId: null,
     })
     mockedGetReaction.mockResolvedValue({ likeCount: 0, dislikeCount: 0, userReaction: 0 })
     mockedGetMediaBlob.mockResolvedValue(new Blob(['x'], { type: 'image/png' }))

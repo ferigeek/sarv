@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { CommentSort, Page, Pageable, PostCategory, PostResponse } from '@/types/api'
+import type { CommentSort, Page, Pageable, PostCategory, PostResponse, UserSummaryResponse } from '@/types/api'
 
 export interface PostCreatePayload {
   postCategory: PostCategory
@@ -60,6 +60,11 @@ export async function searchPosts(query: string, pageable: Pageable = {}): Promi
   const { data } = await apiClient.get<Page<PostResponse>>('/posts/search', {
     params: { query, ...pageable },
   })
+  return data
+}
+
+export async function getPostAuthor(postId: number): Promise<UserSummaryResponse> {
+  const { data } = await apiClient.get<UserSummaryResponse>(`/posts/${postId}/author`)
   return data
 }
 

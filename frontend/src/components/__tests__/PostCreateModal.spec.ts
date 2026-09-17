@@ -12,6 +12,7 @@ vi.mock('@/api/media', () => ({
 vi.mock('@/api/posts', () => ({
   createPost: vi.fn<(payload: unknown) => Promise<PostResponse>>(),
   getPost: vi.fn<(id: number) => Promise<PostResponse>>(),
+  getPostAuthor: vi.fn<(id: number) => Promise<import('@/types/api').UserSummaryResponse>>(),
   updatePost: vi.fn<() => Promise<PostResponse>>(),
   deletePost: vi.fn<() => Promise<void>>(),
   repostPost: vi.fn<() => Promise<PostResponse>>(),
@@ -26,15 +27,14 @@ vi.mock('@/api/users', () => ({
 }))
 
 import { uploadMedia as mockUploadMedia } from '@/api/media'
-import { createPost as mockCreatePost, getPost as mockGetPost, quotePost as mockQuotePost } from '@/api/posts'
-import { getUser as mockGetUser } from '@/api/users'
+import { createPost as mockCreatePost, getPost as mockGetPost, getPostAuthor as mockGetPostAuthor, quotePost as mockQuotePost } from '@/api/posts'
 import PostCreateModal from '../PostCreateModal.vue'
 
 const mockedUploadMedia = vi.mocked(mockUploadMedia)
 const mockedCreatePost = vi.mocked(mockCreatePost)
 const mockedGetPost = vi.mocked(mockGetPost)
 const mockedQuotePost = vi.mocked(mockQuotePost)
-const mockedGetUser = vi.mocked(mockGetUser)
+const mockedGetPostAuthor = vi.mocked(mockGetPostAuthor)
 
 function makeFile(name = 'pic.png', type = 'image/png'): File {
   return new File(['hello'], name, { type })
@@ -213,15 +213,11 @@ describe('PostCreateModal', () => {
 
   it('quote mode shows the quoted post and sends a QUOTE on submit', async () => {
     mockedGetPost.mockResolvedValue(makeQuotedPost(300))
-    mockedGetUser.mockResolvedValue({
+    mockedGetPostAuthor.mockResolvedValue({
       id: 9,
       username: 'bob',
       displayName: 'Bob',
-      bio: null,
-      gender: 'MALE',
-      location: null,
       profilePictureId: null,
-      status: 'ACTIVE',
     })
     mockedQuotePost.mockResolvedValue({ ...makeQuotedPost(301), postCategory: 'QUOTE' })
 
