@@ -110,7 +110,7 @@ def main() -> None:
 
     for i in range(args.users):
         username = f"{args.prefix}{i:04d}"
-        token = register_or_login(username, args.password, data.GENDERS[i % len(data.GENDERS)])
+        token = register_or_login(base_url, username, args.password, data.GENDERS[i % len(data.GENDERS)])
         if token:
             rows.append((username, args.password))
             tokens.append(token)
