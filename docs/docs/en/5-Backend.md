@@ -78,6 +78,7 @@ Registration request fields: `username` (≥2 chars), `password` (8–50 chars),
 |--------|------|------|-------------|
 | GET | `/api/users/{userId}` | bearer | Returns the profile of a user; logs `VIEW_PROFILE` |
 | GET | `/api/users/me` | bearer | Returns the profile of the authenticated user; logs `VIEW_PROFILE` |
+| GET | `/api/users/me/summary` | bearer | Returns the id, username, display name and avatar id of the authenticated user (`UserSummaryResponse`); does not log `VIEW_PROFILE`, so the session user can be fetched without polluting profile-view analytics |
 | PUT | `/api/users/me` | bearer | Updates the authenticated user's profile |
 | GET | `/api/users?query=` | bearer | Searches users by username or display name (case-insensitive, partial match), paginated |
 | GET | `/api/users/{userId}/posts` | bearer | Paginated posts of a user, newest first (`size=10, sort=createdAt,DESC`); empty page for unknown users |
@@ -102,6 +103,7 @@ Self-following is prevented by a database check constraint.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/posts/{postId}` | bearer | Returns the post and increments its `view_count`; logs `VIEW_POST` |
+| GET | `/api/posts/{postId}/author` | bearer | Returns the author's id, username, display name and avatar id (`UserSummaryResponse`); does not log `VIEW_PROFILE`, so feed card headers don't pollute profile-view analytics |
 | GET | `/api/posts/search?query=` | bearer | Searches post text (case-insensitive, partial match), paginated; blank `query` is rejected with `400`; default `size=10, sort=createdAt,DESC` |
 | POST | `/api/posts` | bearer | Creates a post; `201 Created` with a `Location` header; logs `CREATE_POST` |
 | GET | `/api/posts/{postId}/comments?sortBy=` | bearer | Paginated comments of a post; `sortBy` is `NEWEST` (default, `createdAt DESC`) or `MOST_LIKED` (`likeCount DESC`); client `sort` is ignored |

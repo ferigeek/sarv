@@ -78,6 +78,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 |--------|------|------|-------------|
 | GET | `/api/users/{userId}` | bearer | بازگرداندن پروفایل یک کاربر؛ ثبت رویداد `VIEW_PROFILE` |
 | GET | `/api/users/me` | bearer | بازگرداندن پروفایل کاربر احراز هویت‌شده؛ ثبت رویداد `VIEW_PROFILE` |
+| GET | `/api/users/me/summary` | bearer | بازگرداندن شناسه، نام کاربری، نام نمایشی و شناسه آواتار کاربر احراز هویت‌شده (`UserSummaryResponse`)؛ رویداد `VIEW_PROFILE` ثبت نمی‌شود تا واکشی کاربر نشست، آمار بازدید پروفایل را آلوده نکند |
 | PUT | `/api/users/me` | bearer | به‌روزرسانی پروفایل کاربر احراز هویت‌شده |
 | GET | `/api/users?query=` | bearer | جست‌وجوی کاربران بر اساس نام کاربری یا نام نمایشی (بدون حساسیت به بزرگی/کوچکی حروف، تطبیق جزئی)، صفحه‌بندی‌شده |
 | GET | `/api/users/{userId}/posts` | bearer | پست‌های صفحه‌بندی‌شده یک کاربر، از جدید به قدیم (`size=10, sort=createdAt,DESC`)؛ برای کاربران ناشناس صفحه خالی |
@@ -102,6 +103,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 | متد | مسیر | احراز هویت | توضیح |
 |--------|------|------|-------------|
 | GET | `/api/posts/{postId}` | bearer | بازگرداندن پست و افزایش `view_count` آن؛ ثبت رویداد `VIEW_POST` |
+| GET | `/api/posts/{postId}/author` | bearer | بازگرداندن شناسه، نام کاربری، نام نمایشی و شناسه آواتار نویسنده پست (`UserSummaryResponse`)؛ رویداد `VIEW_PROFILE` ثبت نمی‌شود تا سربرگ کارت‌های فید، آمار بازدید پروفایل را آلوده نکند |
 | GET | `/api/posts/search?query=` | bearer | جست‌وجوی متن پست‌ها (بدون حساسیت به بزرگی/کوچکی حروف، تطبیق جزئی)، صفحه‌بندی‌شده؛ `query` خالی با `400` رد می‌شود؛ پیش‌فرض `size=10, sort=createdAt,DESC` |
 | POST | `/api/posts` | bearer | ایجاد پست؛ پاسخ `201 Created` با هدر `Location`؛ ثبت رویداد `CREATE_POST` |
 | GET | `/api/posts/{postId}/comments?sortBy=` | bearer | کامنت‌های صفحه‌بندی‌شده یک پست؛ `sortBy` برابر `NEWEST` (پیش‌فرض، `createdAt DESC`) یا `MOST_LIKED` (`likeCount DESC`) است؛ پارامتر `sort` کلاینت نادیده گرفته می‌شود |
