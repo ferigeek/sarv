@@ -2,6 +2,7 @@ package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.request.UserLoginRequest;
 import com.github.ferigeek.sarv.dto.request.UserRegisterRequest;
+import com.github.ferigeek.sarv.dto.response.UserLoginResponse;
 import com.github.ferigeek.sarv.dto.response.UserRegisterResponse;
 import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.entity.type.Gender;
@@ -84,9 +85,9 @@ class AuthServiceTest {
             when(userDetails.getUsername()).thenReturn("ferigeek");
             when(jwtUtil.generateToken("ferigeek")).thenReturn("jwt-token-123");
 
-            String token = authService.login(req);
+            UserLoginResponse response = authService.login(req);
 
-            assertThat(token).isEqualTo("jwt-token-123");
+            assertThat(response.getToken()).isEqualTo("jwt-token-123");
 
             ArgumentCaptor<UsernamePasswordAuthenticationToken> captor =
                     ArgumentCaptor.forClass(UsernamePasswordAuthenticationToken.class);
@@ -112,9 +113,9 @@ class AuthServiceTest {
             doThrow(new RuntimeException("log fail")).when(eventLogService).logLogin("ferigeek");
             when(jwtUtil.generateToken("ferigeek")).thenReturn("jwt-token-123");
 
-            String token = authService.login(req);
+            UserLoginResponse response = authService.login(req);
 
-            assertThat(token).isEqualTo("jwt-token-123");
+            assertThat(response.getToken()).isEqualTo("jwt-token-123");
             verify(jwtUtil).generateToken("ferigeek");
         }
 
@@ -157,9 +158,9 @@ class AuthServiceTest {
             when(userDetails.getUsername()).thenReturn("ferigeek");
             when(jwtUtil.generateToken("ferigeek")).thenReturn("token");
 
-            String result = authService.login(req);
+            UserLoginResponse result = authService.login(req);
 
-            assertThat(result).isEqualTo("token");
+            assertThat(result.getToken()).isEqualTo("token");
             verify(jwtUtil).generateToken("ferigeek");
             verify(jwtUtil, never()).generateToken("FeriGeek");
         }

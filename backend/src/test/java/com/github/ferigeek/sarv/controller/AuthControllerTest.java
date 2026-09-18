@@ -3,6 +3,7 @@ package com.github.ferigeek.sarv.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.ferigeek.sarv.dto.request.UserLoginRequest;
 import com.github.ferigeek.sarv.dto.request.UserRegisterRequest;
+import com.github.ferigeek.sarv.dto.response.UserLoginResponse;
 import com.github.ferigeek.sarv.dto.response.UserRegisterResponse;
 import com.github.ferigeek.sarv.entity.type.Gender;
 import com.github.ferigeek.sarv.exception.UsernameAlreadyExistsException;
@@ -97,19 +98,20 @@ class AuthControllerTest {
         @Test
         @DisplayName("should return 200 and token body on success")
         void shouldReturnTokenOnSuccess() throws Exception {
-            when(authService.login(any(UserLoginRequest.class))).thenReturn("jwt-token-abc");
+            when(authService.login(any(UserLoginRequest.class))).thenReturn(new UserLoginResponse("jwt-token-abc"));
 
             mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(validLogin())))
                     .andExpect(status().isOk())
-                    .andExpect(content().string("jwt-token-abc"));
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.token").value("jwt-token-abc"));
         }
 
         @Test
         @DisplayName("should return 200 even without Authorization header (permitAll)")
         void shouldBePermitAll() throws Exception {
-            when(authService.login(any())).thenReturn("tok");
+            when(authService.login(any())).thenReturn(new UserLoginResponse("tok"));
 
             // no Authorization header at all
             mockMvc.perform(post("/api/auth/login")
@@ -306,7 +308,7 @@ class AuthControllerTest {
         @DisplayName("should accept password length boundaries 8 and 50")
         void shouldAcceptPasswordBoundaries() throws Exception {
             // min =8
-            when(authService.login(any())).thenReturn("tok");
+            when(authService.login(any())).thenReturn(new UserLoginResponse("tok"));
             UserLoginRequest min = new UserLoginRequest("ferigeek", "12345678");
             mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -324,7 +326,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("should accept username length boundary 2")
         void shouldAcceptUsernameBoundary() throws Exception {
-            when(authService.login(any())).thenReturn("tok");
+            when(authService.login(any())).thenReturn(new UserLoginResponse("tok"));
             UserLoginRequest req = new UserLoginRequest("ab", "12345678");
 
             mockMvc.perform(post("/api/auth/login")
@@ -334,14 +336,15 @@ class AuthControllerTest {
         }
 
         @Test
-        @DisplayName("should return content type text for successful login")
+        @DisplayName("should return JSON content type with token for successful login")
         void shouldReturnStringContent() throws Exception {
-            when(authService.login(any())).thenReturn("my-jwt");
+            when(authService.login(any())).thenReturn(new UserLoginResponse("my-jwt"));
             mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(validLogin())))
                     .andExpect(status().isOk())
-                    .andExpect(content().string("my-jwt"));
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.token").value("my-jwt"));
         }
     }
 
