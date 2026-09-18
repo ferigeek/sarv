@@ -237,10 +237,13 @@ All errors are converted to RFC 9457 `ProblemDetail` responses by `GlobalExcepti
 | Validation failures, malformed JSON, bad requests | `400 Bad Request` |
 | Unauthorized modification (not the owner) | `403 Forbidden` |
 | Duplicate username | `409 Conflict` |
+| Duplicate resource races (data-integrity violations) | `409 Conflict` |
 | Bad credentials / authentication failure | `401 Unauthorized` |
+| Wrong HTTP method on an existing path | `405 Method Not Allowed` |
+| Escaped downstream recommendation failure | `502 Bad Gateway` |
 | Storage failures and unexpected exceptions | `500 Internal Server Error` |
 
-Each `ProblemDetail` includes `status`, `title`, `detail`, and `instance` (the request URI).
+Each `ProblemDetail` includes `status`, `title`, `detail`, and `instance` (the request URI). Notes: unsupported media types map to `400` (not the usual `415`); the `502` path is currently unreachable from the feed endpoints because `FeedService` catches downstream failures and falls back to the chronological feed.
 
 ---
 
