@@ -77,7 +77,7 @@
 - تحلیل رفتار کاربران
 - سیستم پیشنهاددهی
 
-نمونه رویدادها:
+نمونه رویدادها (غیر جامع؛ فهرست کامل در [5-Backend.md](./5-Backend.md)):
 - LOGIN
 - VIEW_POST
 - LIKE_POST
@@ -118,12 +118,14 @@
 - DISLIKE_POST
 - CREATE_COMMENT
 - REPOST_POST
+- QUOTE_POST
 - FOLLOW_USER
 - UNFOLLOW_USER
 - VIEW_PROFILE
 - CREATE_POST
 - REQUEST_FEED
 - LOGIN
+- REGISTER
 
 ---
 

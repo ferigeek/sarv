@@ -77,7 +77,7 @@ Used for:
 - behavior analysis
 - recommendation systems
 
-Examples of events:
+Examples of events (non-exhaustive; see [5-Backend.md](./5-Backend.md) for the full list):
 - LOGIN
 - VIEW_POST
 - LIKE_POST
@@ -118,12 +118,14 @@ Additional fields (added in V4):
 - DISLIKE_POST
 - CREATE_COMMENT
 - REPOST_POST
+- QUOTE_POST
 - FOLLOW_USER
 - UNFOLLOW_USER
 - VIEW_PROFILE
 - CREATE_POST
 - REQUEST_FEED
 - LOGIN
+- REGISTER
 
 ---
 ## Relationships

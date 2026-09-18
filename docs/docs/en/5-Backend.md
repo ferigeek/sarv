@@ -70,7 +70,7 @@ All endpoints are prefixed with `/api`. Except where marked **public**, every en
 | POST | `/api/auth/register` | public | Registers a new user and returns the created profile together with a JWT token |
 | POST | `/api/auth/login` | public | Authenticates the user and returns `{"token": "<jwt>"}` |
 
-Registration request fields: `username` (≥2 chars), `password` (8–50 chars), `confirmPassword` (must match `password`), `email`, `displayName` (≥2 chars), `gender` (`MALE`, `FEMALE`, `RATHER_NOT_TO_SAY`). Duplicate usernames are rejected with `409 Conflict`. A `LOGIN` event is logged on every successful login; registration performs an automatic login and therefore also produces a `LOGIN` event.
+Registration request fields: `username` (≥2 chars), `password` (8–50 chars), `confirmPassword` (must match `password`), `email`, `displayName` (≥2 chars), `gender` (`MALE`, `FEMALE`, `RATHER_NOT_TO_SAY`). Duplicate usernames are rejected with `409 Conflict`. A `LOGIN` event is logged on every successful login; registration performs an automatic login and therefore produces a `LOGIN` event, plus a `REGISTER` event of its own.
 
 ### Users & Profiles (`/api/users`)
 
@@ -125,11 +125,11 @@ Invalid combinations are rejected with `400 Bad Request` (`PostNotValidException
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/posts/{postId}/reactions` | bearer | Adds or changes the caller's reaction (`reactionType`: `1` = like, `-1` = dislike); logs `LIKE_POST` |
+| POST | `/api/posts/{postId}/reactions` | bearer | Adds or changes the caller's reaction (`reactionType`: `1` = like, `-1` = dislike); logs `LIKE_POST` for likes and `DISLIKE_POST` for dislikes |
 | GET | `/api/posts/{postId}/reactions` | bearer | Returns like/dislike counts and the caller's current reaction (`0` = none) |
 | DELETE | `/api/posts/{postId}/reactions` | bearer | Removes the caller's reaction; `204 No Content` |
 
-A user can have at most one reaction per post (unique constraint on `post_id + user_id`). Adding a reaction of the opposite type switches it, and the post's `like_count` / `dislike_count` counters are adjusted accordingly. The `LIKE_POST` event is recorded for both likes and dislikes in the current implementation; removing a reaction is not logged.
+A user can have at most one reaction per post (unique constraint on `post_id + user_id`). Adding a reaction of the opposite type switches it, and the post's `like_count` / `dislike_count` counters are adjusted accordingly. Likes record a `LIKE_POST` event and dislikes a `DISLIKE_POST` event; removing a reaction is not logged.
 
 ### Feed (`/api/feed`)
 
@@ -178,7 +178,7 @@ Both endpoints require `Authorization: Bearer <token>` and return `Page<PostResp
 **Dependencies:**
 `recommendation.base-url` (`RECOMMENDATION_URL` env, default `http://recommendation:8000` via `RestClientConfig`) and `recommendation.timeout-ms` (`RECOMMENDATION_TIMEOUT_MS`, default `1500`, `500` in tests) with `SimpleClientHttpRequestFactory` connect/read timeout and `GET /health` polling (docker-compose `interval 10s`).
 
-Both endpoints log `REQUEST_FEED` with `metadata {feed_type: chronological|recommended, page,size,total_elements,returned,requested_page,requested_size}` for analytics; see [Event Logging](#event-logging).
+Both endpoints log `REQUEST_FEED` with `metadata {feed_type: chronological|recommended}` for analytics; see [Event Logging](#event-logging).
 
 ### Media (`/api/media`)
 
@@ -217,13 +217,13 @@ Media binaries are stored on the **local filesystem** — object storage is not 
 
 ## Event Logging
 
-User behavior is recorded through an AOP-based mechanism:
+User behavior is recorded by explicit, best-effort calls to `EventLogService` from the service layer:
 
-- Controller methods annotated with `@LogEvent(EventType.XXX)` produce a row in `event_logs` after successful execution (`@AfterReturning`).
-- The `EventLoggingAspect` stores the acting user, event type, timestamp, and — depending on the event type — the affected post or target user.
-- The `event_logs` schema also includes `session_id` (groups actions of one usage session; unrelated to JWT) and `metadata` (JSONB, for event-specific information). For `REQUEST_FEED` the aspect now populates `metadata` with `{feed_type: chronological|recommended, page, size, total_elements, returned, requested_page, requested_size}`.
+- Service methods call `eventLogService.logX(...)` (e.g. `logLogin`, `logProfileView`, `logFeedRequest`) wrapped in `logXSafely` helpers that swallow failures, so analytics never breaks the request.
+- The `EventLogService` methods are `@Async`: events are persisted out of band in a separate thread.
+- The `event_logs` schema also includes `session_id` (groups actions of one usage session; unrelated to JWT) and `metadata` (JSONB, for event-specific information). For `REQUEST_FEED` the metadata currently holds only `{feed_type: chronological|recommended}`.
 
-Event types: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`. `REQUEST_FEED` is produced by both feed endpoints (`GET /api/feed/chronological` and `GET /api/feed/recommended`).
+Event types: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `QUOTE_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`, `REGISTER`. `REQUEST_FEED` is produced by both feed endpoints (`GET /api/feed/chronological` and `GET /api/feed/recommended`). Quote posts map to `QUOTE_POST`; registration logs both `LOGIN` (automatic login) and `REGISTER`.
 
 ---
 
@@ -252,7 +252,7 @@ List endpoints return Spring Data `Page` objects with `page`, `size`, `totalElem
 
 ## Database & Migrations
 
-- Schema is managed exclusively by Flyway migrations in `backend/src/main/resources/db/migration/` (`V1` initial schema through `V6` comment count).
+- Schema is managed exclusively by Flyway migrations in `backend/src/main/resources/db/migration/` (`V1` initial schema through `V7` register and quote-post event types).
 - Hibernate is configured with `ddl-auto=validate`, so entity mappings are checked against the migrated schema at startup.
 - The full schema is described in [4-Database.md](./4-Database.md).
 

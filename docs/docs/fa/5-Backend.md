@@ -70,7 +70,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 | POST | `/api/auth/register` | عمومی | ثبت‌نام کاربر جدید و بازگرداندن پروفایل به همراه توکن JWT |
 | POST | `/api/auth/login` | عمومی | احراز هویت کاربر و بازگرداندن `{"token": "<jwt>"}` |
 
-فیلدهای ثبت‌نام: `username` (حداقل ۲ کاراکتر)، `password` (۸ تا ۵۰ کاراکتر)، `confirmPassword` (باید با `password` مطابقت داشته باشد)، `email`، `displayName` (حداقل ۲ کاراکتر)، `gender` (`MALE`, `FEMALE`, `RATHER_NOT_TO_SAY`). نام کاربری تکراری با `409 Conflict` رد می‌شود. در هر ورود موفق رویداد `LOGIN` ثبت می‌شود؛ ثبت‌نام نیز ورود خودکار انجام می‌دهد و بنابراین رویداد `LOGIN` نیز تولید می‌کند.
+فیلدهای ثبت‌نام: `username` (حداقل ۲ کاراکتر)، `password` (۸ تا ۵۰ کاراکتر)، `confirmPassword` (باید با `password` مطابقت داشته باشد)، `email`، `displayName` (حداقل ۲ کاراکتر)، `gender` (`MALE`, `FEMALE`, `RATHER_NOT_TO_SAY`). نام کاربری تکراری با `409 Conflict` رد می‌شود. در هر ورود موفق رویداد `LOGIN` ثبت می‌شود؛ ثبت‌نام نیز ورود خودکار انجام می‌دهد و بنابراین هم رویداد `LOGIN` و هم رویداد `REGISTER` تولید می‌کند.
 
 ### کاربران و پروفایل (`/api/users`)
 
@@ -125,11 +125,11 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 
 | متد | مسیر | احراز هویت | توضیح |
 |--------|------|------|-------------|
-| POST | `/api/posts/{postId}/reactions` | bearer | افزودن یا تغییر واکنش (`reactionType`: `1` = لایک، `-1` = دیسلایک)؛ ثبت رویداد `LIKE_POST` |
+| POST | `/api/posts/{postId}/reactions` | bearer | افزودن یا تغییر واکنش (`reactionType`: `1` = لایک، `-1` = دیسلایک)؛ ثبت رویداد `LIKE_POST` برای لایک و `DISLIKE_POST` برای دیسلایک |
 | GET | `/api/posts/{postId}/reactions` | bearer | بازگرداندن تعداد لایک/دیسلایک و واکنش فعلی کاربر (`0` = بدون واکنش) |
 | DELETE | `/api/posts/{postId}/reactions` | bearer | حذف واکنش کاربر؛ پاسخ `204 No Content` |
 
-هر کاربر حداکثر یک واکنش برای هر پست دارد (محدودیت یکتا روی `post_id + user_id`). افزودن واکنش از نوع مخالف، واکنش قبلی را تغییر می‌دهد و شمارنده‌های `like_count` / `dislike_count` پست متناسباً به‌روزرسانی می‌شوند. در پیاده‌سازی فعلی رویداد `LIKE_POST` برای هر دو نوع لایک و دیسلایک ثبت می‌شود؛ حذف واکنش ثبت نمی‌شود.
+هر کاربر حداکثر یک واکنش برای هر پست دارد (محدودیت یکتا روی `post_id + user_id`). افزودن واکنش از نوع مخالف، واکنش قبلی را تغییر می‌دهد و شمارنده‌های `like_count` / `dislike_count` پست متناسباً به‌روزرسانی می‌شوند. لایک رویداد `LIKE_POST` و دیسلایک رویداد `DISLIKE_POST` ثبت می‌کند؛ حذف واکنش ثبت نمی‌شود.
 
 ### فید (`/api/feed`)
 
@@ -178,7 +178,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 **وابستگی‌ها:**
 `recommendation.base-url` (متغیر `RECOMMENDATION_URL`، پیش‌فرض `http://recommendation:8000` از طریق `RestClientConfig`) و `recommendation.timeout-ms` (`RECOMMENDATION_TIMEOUT_MS`، پیش‌فرض `1500`، در تست `500`) با `SimpleClientHttpRequestFactory` برای تایم‌اوت connect/read و بررسی سلامت `GET /health` (docker-compose `interval 10s`).
 
-هر دو نقطه پایانی `REQUEST_FEED` را با `metadata {feed_type: chronological|recommended, page,size,total_elements,returned,requested_page,requested_size}` برای تحلیل ثبت می‌کنند؛ به بخش ثبت رویداد مراجعه کنید.
+هر دو نقطه پایانی `REQUEST_FEED` را با `metadata {feed_type: chronological|recommended}` برای تحلیل ثبت می‌کنند؛ به بخش ثبت رویداد مراجعه کنید.
 
 ### رسانه (`/api/media`)
 
@@ -217,13 +217,13 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 
 ## ثبت رویداد
 
-رفتار کاربران از طریق مکانیزم مبتنی بر AOP ثبت می‌شود:
+رفتار کاربران با فراخوانی‌های صریح و بهترین‌تلاش (best-effort) به `EventLogService` از لایه سرویس ثبت می‌شود:
 
-- متدهای کنترلر که با `@LogEvent(EventType.XXX)` علامت‌گذاری شده‌اند، پس از اجرای موفق (`@AfterReturning`) یک ردیف در `event_logs` ایجاد می‌کنند.
-- `EventLoggingAspect` کاربر عامل، نوع رویداد، زمان و — بسته به نوع رویداد — پست یا کاربر هدف را ذخیره می‌کند.
-- اسکیمای `event_logs` شامل `session_id` (گروه‌بندی کنش‌های یک نشست کاربری؛ بی‌رابطه با JWT) و `metadata` (JSONB، برای اطلاعات خاص هر رویداد) نیز هست. برای `REQUEST_FEED` اکنون aspect مقدار `metadata` را با `{feed_type: chronological|recommended, page, size, total_elements, returned, requested_page, requested_size}` پر می‌کند.
+- متدهای سرویس `eventLogService.logX(...)` را صدا می‌زنند (مثل `logLogin`، `logProfileView`، `logFeedRequest`) که داخل کمک‌متدهای `logXSafely` پیچیده شده‌اند و خطاها را می‌بلعند تا تحلیل هیچ‌وقت درخواست را خراب نکند.
+- متدهای `EventLogService` با `@Async` اجرا می‌شوند: رویدادها خارج از مسیر درخواست در نخی جدا ذخیره می‌شوند.
+- اسکیمای `event_logs` شامل `session_id` (گروه‌بندی کنش‌های یک نشست کاربری؛ بی‌رابطه با JWT) و `metadata` (JSONB، برای اطلاعات خاص هر رویداد) نیز هست. برای `REQUEST_FEED` در حال حاضر `metadata` فقط `{feed_type: chronological|recommended}` را نگه می‌دارد.
 
-انواع رویداد: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`. `REQUEST_FEED` توسط هر دو نقطه پایانی فید (`GET /api/feed/chronological` و `GET /api/feed/recommended`) تولید می‌شود.
+انواع رویداد: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `QUOTE_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`, `REGISTER`. `REQUEST_FEED` توسط هر دو نقطه پایانی فید (`GET /api/feed/chronological` و `GET /api/feed/recommended`) تولید می‌شود. پست‌های نقل‌قولی به `QUOTE_POST` نگاشت می‌شوند؛ ثبت‌نام هم `LOGIN` (ورود خودکار) و هم `REGISTER` ثبت می‌کند.
 
 ---
 
@@ -252,7 +252,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 
 ## پایگاه داده و مهاجرت‌ها
 
-- اسکیما منحصراً با مهاجرت‌های Flyway در `backend/src/main/resources/db/migration/` مدیریت می‌شود (`V1` اسکیمای اولیه تا `V6` شمارنده کامنت).
+- اسکیما منحصراً با مهاجرت‌های Flyway در `backend/src/main/resources/db/migration/` مدیریت می‌شود (`V1` اسکیمای اولیه تا `V7` انواع رویداد ثبت‌نام و نقل‌قول).
 - Hibernate با `ddl-auto=validate` پیکربندی شده است؛ بنابراین نگاشت موجودیت‌ها هنگام راه‌اندازی با اسکیمای مهاجرت‌شده بررسی می‌شود.
 - اسکیمای کامل در [4-Database.md](./4-Database.md) شرح داده شده است.
 

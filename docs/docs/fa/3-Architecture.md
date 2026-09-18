@@ -145,7 +145,7 @@ Prometheus وظیفه جمع‌آوری و ذخیره این اطلاعات را
 | بک‌اند اصلی (کاربران، احراز هویت، پست‌ها، واکنش‌ها، دنبال‌کردن، رسانه) | پیاده‌سازی‌شده |
 | وب‌کلاینت فرانت‌اند (احراز هویت، زبانه‌های فید، پست‌ها، واکنش‌ها، پروفایل‌ها، جست‌وجو، رسانه) | پیاده‌سازی‌شده (تولیدشده با ایجنت هوش مصنوعی؛ محتوای موضوعات/اخبار هنوز نگهدارنده است — به [7-Frontend.md](./7-Frontend.md) مراجعه کنید) |
 | ذخیره‌سازی رسانه روی فایل‌سیستم محلی | پیاده‌سازی‌شده |
-| ثبت رویداد (`event_logs`) | پیاده‌سازی‌شده — `REQUEST_FEED` با `metadata {feed_type, page, size, total_elements}` |
+| ثبت رویداد (`event_logs`) | پیاده‌سازی‌شده — ۱۳ نوع رویداد از جمله `REGISTER` و `QUOTE_POST`؛ `REQUEST_FEED` با `metadata {feed_type}` |
 | تولید فید (زمانی / هوشمند) | پیاده‌سازی‌شده — `GET /api/feed/chronological` و `GET /api/feed/recommended` با `Page<PostResponse>` و تخریب مهربانانه |
 | یکپارچه‌سازی بک‌اند با Recommendation | پیاده‌سازی‌شده — `RestClient` (`recommendation.base-url` / `RECOMMENDATION_URL`، تایم‌اوت ۱۵۰۰ میلی‌ثانیه)، `RecommendationClient` → `GET /feed?user_id=&page=&size=`، هیدراته از طریق `findAllByIdsFiltered`، بررسی سلامت `GET /health` |
 | زیرسیستم تحلیل داده (Analytics) | برنامه‌ریزی‌شده — شروع نشده |
