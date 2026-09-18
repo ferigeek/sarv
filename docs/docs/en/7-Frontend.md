@@ -100,7 +100,7 @@ Layout (`views/AppShell.vue:116`): authenticated shell is a 3-column grid — `L
 
 Flow (`stores/auth.ts:9`, `api/auth.ts:17`, `utils/token.ts:1`):
 
-1. `POST /api/auth/login` returns `{"token": "<jwt>"}`; `POST /api/auth/register` returns `{..., token}`. The store saves it to `localStorage` under `sarv.jwt` and calls `GET /api/users/me` (`fetchMe`) to populate `user`.
+1. `POST /api/auth/login` returns `{"token": "<jwt>"}`; `POST /api/auth/register` returns `{..., token}`. The store saves it to `localStorage` under `sarv.jwt` and calls `GET /api/users/me/summary` (`fetchMe` via `getMeSummary()`) to populate `user` with a `UserSummaryResponse`. The full `getMe()` (`GET /api/users/me`) is only used for own-profile display in `ProfileView`.
 2. `isAuthenticated` is derived from token presence only (`stores/auth.ts:13`).
 3. Every request carries `Authorization: Bearer <token>` via the `apiClient` request interceptor (`api/client.ts:25`).
 4. A missing/invalid/expired JWT yields `403` with an empty body from Spring Security. The response interceptor (`api/client.ts:33`) treats that as session expiry: clears the token and fires the `onSessionExpired` hook wired in `main.ts:19`, which logs out and pushes to `login`.
@@ -122,9 +122,9 @@ Registration UI (`views/RegisterView.vue`, two steps per `Design.md §§12`):
 | Module | Functions | Backend endpoints |
 |--------|-----------|-------------------|
 | `api/auth.ts` | `login`, `register` | `POST /api/auth/login`, `POST /api/auth/register` |
-| `api/users.ts` | `getMe`, `getUser`, `updateMe`, `searchUsers(query, pageable)`, `getUserPosts`, `getReactedPosts(filter)`, `getUserStats` | `GET /api/users/me`, `GET /api/users/{id}`, `PUT /api/users/me`, `GET /api/users?query=`, `GET /api/users/{id}/posts`, `GET /api/users/{id}/reacted-posts?filter=`, `GET /api/users/{id}/stats` |
+| `api/users.ts` | `getMe`, `getMeSummary`, `getUser`, `updateMe`, `searchUsers(query, pageable)`, `getUserPosts`, `getReactedPosts(filter)`, `getUserStats` | `GET /api/users/me`, `GET /api/users/me/summary`, `GET /api/users/{id}`, `PUT /api/users/me`, `GET /api/users?query=`, `GET /api/users/{id}/posts`, `GET /api/users/{id}/reacted-posts?filter=`, `GET /api/users/{id}/stats` |
 | `api/feed.ts` | `getChronologicalFeed`, `getRecommendedFeed` | `GET /api/feed/chronological`, `GET /api/feed/recommended` |
-| `api/posts.ts` | `getPost`, `createPost`, `updatePost`, `deletePost`, `searchPosts`, `getComments`, `repostPost`, `quotePost` | `GET/POST /api/posts`, `PUT/DELETE /api/posts/{id}`, `GET /api/posts/search?query=`, `GET /api/posts/{id}/comments?sortBy=`, repost/quote via `POST /api/posts` |
+| `api/posts.ts` | `getPost`, `getPostAuthor`, `createPost`, `updatePost`, `deletePost`, `searchPosts`, `getComments`, `repostPost`, `quotePost` | `GET/POST /api/posts`, `PUT/DELETE /api/posts/{id}`, `GET /api/posts/{id}/author`, `GET /api/posts/search?query=`, `GET /api/posts/{id}/comments?sortBy=`, repost/quote via `POST /api/posts` |
 | `api/reactions.ts` | `addReaction(1\|-1)`, `getReaction`, `removeReaction` | `POST/GET/DELETE /api/posts/{id}/reactions` |
 | `api/follows.ts` | `getFollowers`, `getFollowing`, `follow`, `unfollow` | `GET/POST/DELETE /api/users/{id}/followers`, `GET /api/users/{id}/following` |
 | `api/media.ts` | `uploadMedia(file, onProgress?)`, `getMediaBlob`, `getMediaMetadata` | `POST /api/media` (multipart `file`), `GET /api/media/{id}`, `GET /api/media/{id}/metadata` |
@@ -162,7 +162,7 @@ The card's repost button opens a `RepostConfirm.vue` window (quoted snippet, `re
 
 ### Reactions, follows, profiles, media rendering
 
-- `PostCard.vue:73` loads per-post reaction state (`likeCount/dislikeCount/userReaction`), author profile, avatar blob, and post media blob on mount; like = thumbs-up (green when active), dislike = thumbs-down (red when active), with pixelated smile/sad GSAP feedback after success (per `Design.md §7.3`). Author header navigates to `profile/:userId`; card body and comment button navigate to `post-detail`.
+- `PostCard.vue:73` loads per-post reaction state (`likeCount/dislikeCount/userReaction`), the author summary (`UserSummaryResponse` from `GET /api/posts/{id}/author`, which logs no `VIEW_PROFILE`), avatar blob, and post media blob on mount; like = thumbs-up (green when active), dislike = thumbs-down (red when active), with pixelated smile/sad GSAP feedback after success (per `Design.md §7.3`). Author header navigates to `profile/:userId`; card body and comment button navigate to `post-detail`.
 - Category identity: `COMMENT`/`REPOST`/`QUOTE` posts render a terminal-blue (`--sarv-blue`) banner strip on top of the card linking to the parent/referenced post; repost/quote cards embed a one-level preview of the original (author, snippet, counts) with an `original post unavailable` fallback, plus a `show attached media` toggle that loads and shows the original's image/video inline when it has media.
 - `ProfileView.vue:42`: `:id?` omitted resolves to self; follow state is derived from the first page of the viewer's own following list (the API has no `isFollowing` field). The header shows follow stats (`GET /api/users/{id}/stats`) linking to that user's followers/following lists, followed by a paginated own-posts list (`GET /api/users/{id}/posts`, reusing `PostCard`). Self profiles get an edit form (`displayName`, `bio`, `location`, `gender`, avatar via a styled picker with live preview → `updateMe`); only these fields are editable.
 - `LikedPostsView.vue` is the reacted-posts history (`GET /api/users/{id}/reacted-posts`) with **liked** (default) / **disliked** / **all** filter tabs; the nav item is labeled "recent reactions".
@@ -199,7 +199,7 @@ Right sidebar data (`HotTopicsPanel.vue:7`, `PlatformNewsPanel.vue:8`): currentl
 
 ## State Management
 
-Only one shared store exists: `useAuthStore` (`stores/auth.ts:9` — `token`, `user`, `isAuthenticated`, `login/register/logout/fetchMe`). Everything else (feed pages, search results, modals, forms, follow state) is local `ref` state inside views/components, passed via props/emits or the `feedRefreshKey` injection. JWT persistence is a thin `localStorage` wrapper (`utils/token.ts:1`, key `sarv.jwt`) — no refresh tokens or expiry tracking client-side.
+Only one shared store exists: `useAuthStore` (`stores/auth.ts:9` — `token`, `user: UserSummaryResponse | null`, `isAuthenticated`, `login/register/logout/fetchMe`). Everything else (feed pages, search results, modals, forms, follow state) is local `ref` state inside views/components, passed via props/emits or the `feedRefreshKey` injection. JWT persistence is a thin `localStorage` wrapper (`utils/token.ts:1`, key `sarv.jwt`) — no refresh tokens or expiry tracking client-side.
 
 ---
 

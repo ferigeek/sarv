@@ -101,7 +101,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 گردش کار (`stores/auth.ts:9`، `api/auth.ts:17`، `utils/token.ts:1`):
 
-1. `POST /api/auth/login` آبجکت `{"token": "<jwt>"}` و `POST /api/auth/register` آبجکت `{...، token}` برمی‌گرداند. استور آن را در `localStorage` با کلید `sarv.jwt` ذخیره و برای پر کردن `user` صدای `GET /api/users/me` (`fetchMe`) را می‌زند.
+1. `POST /api/auth/login` آبجکت `{"token": "<jwt>"}` و `POST /api/auth/register` آبجکت `{...، token}` برمی‌گرداند. استور آن را در `localStorage` با کلید `sarv.jwt` ذخیره و برای پر کردن `user` با `UserSummaryResponse` صدای `GET /api/users/me/summary` (`fetchMe` از طریق `getMeSummary()`) را می‌زند. `getMe()` کامل (`GET /api/users/me`) فقط برای نمایش پروفایل خود کاربر در `ProfileView` استفاده می‌شود.
 2. `isAuthenticated` فقط از وجود توکن مشتق می‌شود (`stores/auth.ts:13`).
 3. هر درخواست با اینترسپتور `apiClient` هدر `Authorization: Bearer <token>` می‌گیرد (`api/client.ts:25`).
 4. توکن نامعتبر/منقضی از سمت Spring Security خطای `403` با بدنه خالی می‌دهد. اینترسپتور پاسخ (`api/client.ts:33`) آن را انقضای نشست می‌داند: توکن را پاک و هوک `onSessionExpired` متصل‌شده در `main.ts:19` را صدا می‌زند که خروج و هدایت به `login` انجام می‌دهد.
@@ -123,9 +123,9 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 | ماژول | توابع | اندپوینت‌های بک‌اند |
 |--------|--------|---------------------|
 | `api/auth.ts` | `login`، `register` | `POST /api/auth/login`، `POST /api/auth/register` |
-| `api/users.ts` | `getMe`، `getUser`، `updateMe`، `searchUsers(query, pageable)`، `getUserPosts`، `getReactedPosts(filter)`، `getUserStats` | `GET /api/users/me`، `GET /api/users/{id}`، `PUT /api/users/me`، `GET /api/users?query=`، `GET /api/users/{id}/posts`، `GET /api/users/{id}/reacted-posts?filter=`، `GET /api/users/{id}/stats` |
+| `api/users.ts` | `getMe`، `getMeSummary`، `getUser`، `updateMe`، `searchUsers(query, pageable)`، `getUserPosts`، `getReactedPosts(filter)`، `getUserStats` | `GET /api/users/me`، `GET /api/users/me/summary`، `GET /api/users/{id}`، `PUT /api/users/me`، `GET /api/users?query=`، `GET /api/users/{id}/posts`، `GET /api/users/{id}/reacted-posts?filter=`، `GET /api/users/{id}/stats` |
 | `api/feed.ts` | `getChronologicalFeed`، `getRecommendedFeed` | `GET /api/feed/chronological`، `GET /api/feed/recommended` |
-| `api/posts.ts` | `getPost`، `createPost`، `updatePost`، `deletePost`، `searchPosts`، `getComments`، `repostPost`، `quotePost` | `GET/POST /api/posts`، `PUT/DELETE /api/posts/{id}`، `GET /api/posts/search?query=`، `GET /api/posts/{id}/comments?sortBy=`، بازنشر/نقل‌قول با `POST /api/posts` |
+| `api/posts.ts` | `getPost`، `getPostAuthor`، `createPost`، `updatePost`، `deletePost`، `searchPosts`، `getComments`، `repostPost`، `quotePost` | `GET/POST /api/posts`، `PUT/DELETE /api/posts/{id}`، `GET /api/posts/{id}/author`، `GET /api/posts/search?query=`، `GET /api/posts/{id}/comments?sortBy=`، بازنشر/نقل‌قول با `POST /api/posts` |
 | `api/reactions.ts` | `addReaction(1\|-1)`، `getReaction`، `removeReaction` | `POST/GET/DELETE /api/posts/{id}/reactions` |
 | `api/follows.ts` | `getFollowers`، `getFollowing`، `follow`، `unfollow` | `GET/POST/DELETE /api/users/{id}/followers`، `GET /api/users/{id}/following` |
 | `api/media.ts` | `uploadMedia(file, onProgress?)`، `getMediaBlob`، `getMediaMetadata` | `POST /api/media` (multipart با فیلد `file`)، `GET /api/media/{id}`، `GET /api/media/{id}/metadata` |
@@ -163,7 +163,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 ### واکنش‌ها، دنبال‌کردن‌ها، پروفایل‌ها، نمایش رسانه
 
-- `PostCard.vue:73` هنگام mount وضعیت واکنش هر پست (`likeCount/dislikeCount/userReaction`)، پروفایل نویسنده، باینری آواتار و باینری رسانه پست را لود می‌کند؛ لایک یعنی شست بالا (سبز در حالت فعال)، دیسلایک یعنی شست پایین (قرمز در حالت فعال) با بازخورد پیکسلی شاد/غمگین GSAP پس از موفقیت (مطابق `Design.md §7.3`). سربرگ نویسنده به `profile/:userId` می‌رود؛ بدنه کارت و دکمه نظر به `post-detail` می‌روند.
+- `PostCard.vue:73` هنگام mount وضعیت واکنش هر پست (`likeCount/dislikeCount/userReaction`)، خلاصه نویسنده (`UserSummaryResponse` از `GET /api/posts/{id}/author` که `VIEW_PROFILE` ثبت نمی‌کند)، باینری آواتار و باینری رسانه پست را لود می‌کند؛ لایک یعنی شست بالا (سبز در حالت فعال)، دیسلایک یعنی شست پایین (قرمز در حالت فعال) با بازخورد پیکسلی شاد/غمگین GSAP پس از موفقیت (مطابق `Design.md §7.3`). سربرگ نویسنده به `profile/:userId` می‌رود؛ بدنه کارت و دکمه نظر به `post-detail` می‌روند.
 - هویت دسته‌بندی: پست‌های `COMMENT`/`REPOST`/`QUOTE` نواری آبی ترمینالی (`--sarv-blue`) در بالای کارت دارند که به پست والد/ارجاع‌شده لینک می‌شود؛ کارت‌های بازنشر/نقل‌قول پیش‌نمایش تک‌سطحی از پست اصلی دارند (نویسنده، قطعه متن، شمارنده‌ها) با پیام جایگزین «پست اصلی در دسترس نیست» و کلید «نمایش رسانه پیوست» که تصویر/ویدیوی اصلی را در همان‌جا باز می‌کند، وقتی رسانه دارد.
 - `ProfileView.vue:42`: حذف `:id?` یعنی پروفایل خود کاربر؛ وضعیت دنبال‌کردن از صفحه اول فهرست دنبال‌شوندگان خود بیننده مشتق می‌شود (API فیلد `isFollowing` ندارد). سربرگ آمار دنبال‌کردن (`GET /api/users/{id}/stats`) را نشان می‌دهد که به فهرست‌های دنبال‌کنندگان/دنبال‌شوندگان همان کاربر لینک‌اند و بعد از آن فهرست صفحه‌بندی‌شده پست‌های خود کاربر (`GET /api/users/{id}/posts` با استفاده مجدد از `PostCard`) می‌آید. پروفایل خودی فرم ویرایش دارد (`displayName`، `bio`، `location`، `gender`، آواتار با انتخاب‌گر استایل‌شده و پیش‌نمایش زنده ← `updateMe`)؛ فقط همین فیلدها قابل ویرایش‌اند.
 - `LikedPostsView.vue` تاریخچه پست‌های واکنش‌نشان‌داده‌شده است (`GET /api/users/{id}/reacted-posts`) با زبانه‌های **لایک‌شده** (پیش‌فرض) / **دیسلایک‌شده** / **همه**؛ برچسب آیتم ناوبری «recent reactions» است.
@@ -200,7 +200,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 ## مدیریت وضعیت
 
-فقط یک استور مشترک وجود دارد: `useAuthStore` (`stores/auth.ts:9` — شامل `token`، `user`، `isAuthenticated` و توابع `login/register/logout/fetchMe`). بقیه موارد (صفحه‌های فید، نتایج جست‌وجو، مودال‌ها، فرم‌ها، وضعیت دنبال‌کردن) وضعیت محلی `ref` داخل نماها/کامپوننت‌ها هستند و با props/emits یا تزریق `feedRefreshKey` منتقل می‌شوند. ماندگاری JWT یک لفاف نازک `localStorage` است (`utils/token.ts:1` با کلید `sarv.jwt`) — توکن تازه‌سازی یا ردیابی انقضا سمت کلاینت وجود ندارد.
+فقط یک استور مشترک وجود دارد: `useAuthStore` (`stores/auth.ts:9` — شامل `token`، `user: UserSummaryResponse | null`، `isAuthenticated` و توابع `login/register/logout/fetchMe`). بقیه موارد (صفحه‌های فید، نتایج جست‌وجو، مودال‌ها، فرم‌ها، وضعیت دنبال‌کردن) وضعیت محلی `ref` داخل نماها/کامپوننت‌ها هستند و با props/emits یا تزریق `feedRefreshKey` منتقل می‌شوند. ماندگاری JWT یک لفاف نازک `localStorage` است (`utils/token.ts:1` با کلید `sarv.jwt`) — توکن تازه‌سازی یا ردیابی انقضا سمت کلاینت وجود ندارد.
 
 ---
 
