@@ -68,7 +68,7 @@ All endpoints are prefixed with `/api`. Except where marked **public**, every en
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/auth/register` | public | Registers a new user and returns the created profile together with a JWT token |
-| POST | `/api/auth/login` | public | Authenticates the user and returns a JWT token string |
+| POST | `/api/auth/login` | public | Authenticates the user and returns `{"token": "<jwt>"}` |
 
 Registration request fields: `username` (≥2 chars), `password` (8–50 chars), `confirmPassword` (must match `password`), `email`, `displayName` (≥2 chars), `gender` (`MALE`, `FEMALE`, `RATHER_NOT_TO_SAY`). Duplicate usernames are rejected with `409 Conflict`. A `LOGIN` event is logged on every successful login; registration performs an automatic login and therefore also produces a `LOGIN` event.
 

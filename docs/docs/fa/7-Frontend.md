@@ -101,7 +101,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 گردش کار (`stores/auth.ts:9`، `api/auth.ts:17`، `utils/token.ts:1`):
 
-1. `POST /api/auth/login` یک رشته JWT خام و `POST /api/auth/register` آبجکت `{...، token}` برمی‌گرداند. استور آن را در `localStorage` با کلید `sarv.jwt` ذخیره و برای پر کردن `user` صدای `GET /api/users/me` (`fetchMe`) را می‌زند.
+1. `POST /api/auth/login` آبجکت `{"token": "<jwt>"}` و `POST /api/auth/register` آبجکت `{...، token}` برمی‌گرداند. استور آن را در `localStorage` با کلید `sarv.jwt` ذخیره و برای پر کردن `user` صدای `GET /api/users/me` (`fetchMe`) را می‌زند.
 2. `isAuthenticated` فقط از وجود توکن مشتق می‌شود (`stores/auth.ts:13`).
 3. هر درخواست با اینترسپتور `apiClient` هدر `Authorization: Bearer <token>` می‌گیرد (`api/client.ts:25`).
 4. توکن نامعتبر/منقضی از سمت Spring Security خطای `403` با بدنه خالی می‌دهد. اینترسپتور پاسخ (`api/client.ts:33`) آن را انقضای نشست می‌داند: توکن را پاک و هوک `onSessionExpired` متصل‌شده در `main.ts:19` را صدا می‌زند که خروج و هدایت به `login` انجام می‌دهد.

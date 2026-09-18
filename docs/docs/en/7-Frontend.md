@@ -100,7 +100,7 @@ Layout (`views/AppShell.vue:116`): authenticated shell is a 3-column grid — `L
 
 Flow (`stores/auth.ts:9`, `api/auth.ts:17`, `utils/token.ts:1`):
 
-1. `POST /api/auth/login` returns a raw JWT string; `POST /api/auth/register` returns `{..., token}`. The store saves it to `localStorage` under `sarv.jwt` and calls `GET /api/users/me` (`fetchMe`) to populate `user`.
+1. `POST /api/auth/login` returns `{"token": "<jwt>"}`; `POST /api/auth/register` returns `{..., token}`. The store saves it to `localStorage` under `sarv.jwt` and calls `GET /api/users/me` (`fetchMe`) to populate `user`.
 2. `isAuthenticated` is derived from token presence only (`stores/auth.ts:13`).
 3. Every request carries `Authorization: Bearer <token>` via the `apiClient` request interceptor (`api/client.ts:25`).
 4. A missing/invalid/expired JWT yields `403` with an empty body from Spring Security. The response interceptor (`api/client.ts:33`) treats that as session expiry: clears the token and fires the `onSessionExpired` hook wired in `main.ts:19`, which logs out and pushes to `login`.
