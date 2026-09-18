@@ -58,7 +58,8 @@ views/        Route-level screens (AppShell, Feed, PostDetail, Login, Register,
               Profile, LikedPosts, Following, Followers)
 components/   Reusable UI (LeftSidebar, RightSidebar, PostCard, PostCreateModal,
               RepostConfirm, SearchSection, SearchModal, UserSummary/List,
-              NavigationMenu, SarvLogo, HotTopicsPanel, PlatformNewsPanel,
+              NavigationMenu, SarvLogo, SarvMark, AuthTitleAnimation,
+              HotTopicsPanel, PlatformNewsPanel,
               AmbientNetwork, MobileTopBar, MobileBottomNav, AppIcon)
 assets/       main.css (design tokens + base styles), icons/pixelarticons.ts
 __tests__/    Unit tests for views/stores/router; components/__tests__/ for components
@@ -106,7 +107,7 @@ Flow (`stores/auth.ts:9`, `api/auth.ts:17`, `utils/token.ts:1`):
 4. A missing/invalid/expired JWT yields `403` with an empty body from Spring Security. The response interceptor (`api/client.ts:33`) treats that as session expiry: clears the token and fires the `onSessionExpired` hook wired in `main.ts:19`, which logs out and pushes to `login`.
 5. `App.vue:8` rehydrates the session on reload (`fetchMe` if a token exists without a user).
 
-Login UI (`views/LoginView.vue`): centered box, username + password, `401` → "Invalid username or password", otherwise backend `detail`; success honors `?redirect=` or goes to `feed`.
+Login UI (`views/LoginView.vue`): centered box, username + password, `401` → "Invalid username or password", otherwise backend `detail`; success honors `?redirect=` or goes to `feed`. The brand header is an animated title (`AuthTitleAnimation.vue`, randomly picking one of four terminal effects — `binarypath`, `decrypt`, `errorcorrect`, `matrix` — on mount, skipped for reduced-motion users) next to the `SarvMark` logo; the register view uses a static `SARV` heading instead.
 
 Registration UI (`views/RegisterView.vue`, two steps per `Design.md §§12`):
 
@@ -117,7 +118,7 @@ Registration UI (`views/RegisterView.vue`, two steps per `Design.md §§12`):
 
 ## API Layer
 
-`api/client.ts:21` creates `axios` with `baseURL: '/api'` (same-origin; proxied to the backend in dev and prod, so no CORS or frontend env vars). Failures are normalized to `ApiError { status, title, detail, instance }` from the backend RFC 9457 `ProblemDetail` (`types/api.ts:90`).
+`api/client.ts:21` creates `axios` with `baseURL: '/api'` (same-origin; proxied to the backend in dev and prod, so no CORS or frontend env vars). Failures are normalized to `ApiError { status, title, detail, instance }` (`api/client.ts:6`) converted from the backend RFC 9457 `ProblemDetail` (`types/api.ts:105`).
 
 | Module | Functions | Backend endpoints |
 |--------|-----------|-------------------|
@@ -129,7 +130,7 @@ Registration UI (`views/RegisterView.vue`, two steps per `Design.md §§12`):
 | `api/follows.ts` | `getFollowers`, `getFollowing`, `follow`, `unfollow` | `GET/POST/DELETE /api/users/{id}/followers`, `GET /api/users/{id}/following` |
 | `api/media.ts` | `uploadMedia(file, onProgress?)`, `getMediaBlob`, `getMediaMetadata` | `POST /api/media` (multipart `file`), `GET /api/media/{id}`, `GET /api/media/{id}/metadata` |
 
-Types in `types/api.ts:4` mirror the backend field-for-field (`Gender`, `UserStatus`, `PostCategory`, `CommentSort`, `ReactionFilter`, `UserResponse`, `UserSummaryResponse`, `UserStatsResponse`, `PostResponse` incl. `commentCount`, `ReactionResponse`, `MediaResponse`, `Page<T>` with `page { size, number, totalElements, totalPages }`).
+Types in `types/api.ts:4` mirror the backend field-for-field (`Gender`, `UserStatus`, `PostCategory`, `CommentSort`, `ReactionFilter`, `ReactionType`, `UserReaction`, `UserResponse`, `UserSummaryResponse`, `UserRegisterResponse`, `UserLoginResponse {token}`, `UserStatsResponse`, `PostResponse` incl. `commentCount`, `ReactionResponse`, `MediaResponse`, `MediaMetadataResponse`, `Pageable {page?, size?}`, `Page<T>` with `page { size, number, totalElements, totalPages }`, `ProblemDetail`).
 
 ### Feed behavior
 
@@ -183,7 +184,7 @@ The card's repost button opens a `RepostConfirm.vue` window (quoted snippet, `re
 
 | Component | Role (Design.md ref) |
 |-----------|----------------------|
-| `LeftSidebar.vue` + `SearchSection.vue`, `SearchModal.vue`, `UserSummary.vue`, `NavigationMenu.vue` | Search triggers + centered results modal, user summary, create-post action, home/profile/reactions/following/followers nav (§4) |
+| `LeftSidebar.vue` + `SearchSection.vue`, `SearchModal.vue`, `UserSummary.vue`, `NavigationMenu.vue` | Search triggers + centered results modal, user summary, home/profile/reactions/following/followers nav plus an external GitHub repo link (new tab) (§4); the create-post button lives in `LeftSidebar.vue` |
 | `PostCard.vue`, `PostCreateModal.vue`, `RepostConfirm.vue` | Feed posts, banners, previews, counts, actions (§7); same-page creation/comment/quote windows and repost confirmation (§8) |
 | `RightSidebar.vue` + `SarvLogo.vue`, `HotTopicsPanel.vue`, `PlatformNewsPanel.vue` | Animated Sarv name, hottest topics, platform news (§9) |
 | `UserSummaryList.vue` | Shared avatar/username/displayName rows, identity click-through to profiles (§6) |

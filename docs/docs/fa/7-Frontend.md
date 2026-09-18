@@ -58,7 +58,8 @@ views/        صفحه‌های سطح مسیر (AppShell، Feed، PostDetail، 
               Profile، LikedPosts، Following، Followers)
 components/   رابط‌های قابل‌استفاده‌مجدد (LeftSidebar، RightSidebar، PostCard،
               PostCreateModal، RepostConfirm، SearchSection، SearchModal،
-              UserSummary/List، NavigationMenu، SarvLogo، HotTopicsPanel،
+              UserSummary/List، NavigationMenu، SarvLogo، SarvMark،
+              AuthTitleAnimation، HotTopicsPanel،
               PlatformNewsPanel، AmbientNetwork، MobileTopBar، MobileBottomNav،
               AppIcon)
 assets/       استایل پایه (main.css — توکن‌های طراحی) و icons/pixelarticons.ts
@@ -107,7 +108,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 4. توکن نامعتبر/منقضی از سمت Spring Security خطای `403` با بدنه خالی می‌دهد. اینترسپتور پاسخ (`api/client.ts:33`) آن را انقضای نشست می‌داند: توکن را پاک و هوک `onSessionExpired` متصل‌شده در `main.ts:19` را صدا می‌زند که خروج و هدایت به `login` انجام می‌دهد.
 5. `App.vue:8` هنگام رفرش صفحه نشست را بازیابی می‌کند (اگر توکن هست ولی کاربر نیست، `fetchMe`).
 
-رابط ورود (`views/LoginView.vue`): جعبه وسط‌چین، نام کاربری + رمز عبور؛ `401` یعنی «نام کاربری یا رمز عبور اشتباه است»، وگرنه `detail` بک‌اند نمایش داده می‌شود؛ موفقیت با `?redirect=` یا رفتن به `feed`.
+رابط ورود (`views/LoginView.vue`): جعبه وسط‌چین، نام کاربری + رمز عبور؛ `401` یعنی «نام کاربری یا رمز عبور اشتباه است»، وگرنه `detail` بک‌اند نمایش داده می‌شود؛ موفقیت با `?redirect=` یا رفتن به `feed`. سربرگ برند یک عنوان متحرک است (`AuthTitleAnimation.vue` که هنگام mount تصادفی یکی از چهار افکت ترمینالی — `binarypath`، `decrypt`، `errorcorrect`، `matrix` — را انتخاب می‌کند و برای کاربران کم‌حرکت رد می‌شود) در کنار لوگوی `SarvMark`؛ نمای ثبت‌نام به‌جای آن از سربرگ ثابت `SARV` استفاده می‌کند.
 
 رابط ثبت‌نام (`views/RegisterView.vue`، دومرحله‌ای مطابق `Design.md §§12`):
 
@@ -118,7 +119,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 ## لایه API
 
-`api/client.ts:21` نمونه `axios` با `baseURL: '/api'` می‌سازد (same-origin؛ در توسعه و production به بک‌اند پراکسی می‌شود، پس CORS یا متغیر محیطی فرانت‌اند لازم نیست). خطاها به `ApiError { status, title, detail, instance }` از `ProblemDetail` استاندارد RFC 9457 بک‌اند نرمال می‌شوند (`types/api.ts:90`).
+`api/client.ts:21` نمونه `axios` با `baseURL: '/api'` می‌سازد (same-origin؛ در توسعه و production به بک‌اند پراکسی می‌شود، پس CORS یا متغیر محیطی فرانت‌اند لازم نیست). خطاها به `ApiError { status, title, detail, instance }` (`api/client.ts:6`) تبدیل‌شده از `ProblemDetail` استاندارد RFC 9457 بک‌اند (`types/api.ts:105`) نرمال می‌شوند.
 
 | ماژول | توابع | اندپوینت‌های بک‌اند |
 |--------|--------|---------------------|
@@ -130,7 +131,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 | `api/follows.ts` | `getFollowers`، `getFollowing`، `follow`، `unfollow` | `GET/POST/DELETE /api/users/{id}/followers`، `GET /api/users/{id}/following` |
 | `api/media.ts` | `uploadMedia(file, onProgress?)`، `getMediaBlob`، `getMediaMetadata` | `POST /api/media` (multipart با فیلد `file`)، `GET /api/media/{id}`، `GET /api/media/{id}/metadata` |
 
-تایپ‌های `types/api.ts:4` فیلدبه‌فیلد با بک‌اند مطابق‌اند (`Gender`، `UserStatus`، `PostCategory`، `CommentSort`، `ReactionFilter`، `UserResponse`، `UserSummaryResponse`، `UserStatsResponse`، `PostResponse` شامل `commentCount`، `ReactionResponse`، `MediaResponse` و `Page<T>` با `page { size, number, totalElements, totalPages }`).
+تایپ‌های `types/api.ts:4` فیلدبه‌فیلد با بک‌اند مطابق‌اند (`Gender`، `UserStatus`، `PostCategory`، `CommentSort`، `ReactionFilter`، `ReactionType`، `UserReaction`، `UserResponse`، `UserSummaryResponse`، `UserRegisterResponse`، `UserLoginResponse {token}`، `UserStatsResponse`، `PostResponse` شامل `commentCount`، `ReactionResponse`، `MediaResponse`، `MediaMetadataResponse`، `Pageable {page?، size?}`، `Page<T>` با `page { size, number, totalElements, totalPages }` و `ProblemDetail`).
 
 ### رفتار فید
 
@@ -184,7 +185,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 | کامپوننت | نقش (ارجاع Design.md) |
 |-----------|------------------------|
-| `LeftSidebar.vue` + `SearchSection.vue`، `SearchModal.vue`، `UserSummary.vue`، `NavigationMenu.vue` | محرک‌های جست‌وجو + مودال نتایج وسط‌چین، خلاصه کاربر، اکشن ایجاد پست، ناوبری خانه/پروفایل/واکنش‌ها/دنبال‌کردن‌ها (§4) |
+| `LeftSidebar.vue` + `SearchSection.vue`، `SearchModal.vue`، `UserSummary.vue`، `NavigationMenu.vue` | محرک‌های جست‌وجو + مودال نتایج وسط‌چین، خلاصه کاربر، ناوبری خانه/پروفایل/واکنش‌ها/دنبال‌کردن‌ها به‌علاوه لینک خارجی مخزن GitHub (در تب جدید) (§4)؛ دکمه ایجاد پست در `LeftSidebar.vue` قرار دارد |
 | `PostCard.vue`، `PostCreateModal.vue`، `RepostConfirm.vue` | پست‌های فید، بنرها، پیش‌نمایش‌ها، شمارنده‌ها، اکشن‌ها (§7)؛ پنجره‌های ایجاد/نظر/نقل‌قول و تأیید بازنشر در همان صفحه (§8) |
 | `RightSidebar.vue` + `SarvLogo.vue`، `HotTopicsPanel.vue`، `PlatformNewsPanel.vue` | نام متحرک Sarv، داغ‌ترین موضوعات، اخبار پلتفرم (§9) |
 | `UserSummaryList.vue` | ردیف‌های مشترک آواتار/نام‌کاربری/نام‌نمایشی با کلیک به پروفایل (§6) |
