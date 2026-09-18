@@ -32,7 +32,7 @@ All requests are served through a REST API and secured with JWT-based authentica
 | API Documentation | springdoc-openapi (Swagger UI) |
 | Media Storage | Local filesystem (`LocalStorageService`) |
 | Utility | Lombok |
-| Tests | JUnit 5, MockMvc, H2 (runtime scope) |
+| Tests | JUnit 5, MockMvc, Testcontainers Postgres |
 
 ---
 
@@ -49,7 +49,6 @@ entity/       JPA entities (User, Post, Media, Follow, Reaction, EventLog)
 entity/type/  Enums (PostCategory, EventType, Gender, UserStatus)
 dto/          request/ and response/ data transfer objects
 security/     SecurityConfig, JwtUtil, JwtAuthFilter, OpenApiConfig
-aspect/       LogEvent annotation + EventLoggingAspect
 exception/    Custom exceptions + GlobalExceptionHandler
 client/       RecommendationClient + RecommendationResponse (feed ranking)
 config/       RestClientConfig (recommendation HTTP client)
@@ -197,7 +196,7 @@ Uploads are content-addressed by SHA-256, so identical content is stored only on
 1. `POST /api/auth/register` creates the user (password hashed with BCrypt) and immediately returns a JWT. `POST /api/auth/login` verifies credentials through Spring Security's `AuthenticationManager` and returns a fresh token.
 2. The JWT is signed with HS256 and contains `sub` (username), `iat`, and `exp`. The signing secret comes from the `JWT_SECRET` environment variable and must be at least 32 bytes; `JWT_EXPIRATION` controls the token lifetime in milliseconds.
 3. Every request passes through `JwtAuthFilter`, which extracts the `Authorization: Bearer <token>` header, validates the token, loads the user, and sets the security context. Sessions are stateless and CSRF is disabled.
-4. The following paths are public: `/api/auth/login`, `/api/auth/register`, `/swagger-ui.html`, `/swagger-ui/**`, `/v3/api-docs/**`. Everything else requires authentication.
+4. The following paths are public: `/api/auth/login`, `/api/auth/register`, `/actuator/**`, `/swagger-ui.html`, `/swagger-ui/**`, `/v3/api-docs/**`. Everything else requires authentication.
 5. `CustomUserDetailsService` maps user status to account state: only `ACTIVE` users are enabled, and `SUSPENDED` users have their account locked.
 
 The OpenAPI specification with a global `bearerAuth` security scheme is available at `/swagger-ui.html`.
@@ -287,7 +286,7 @@ The test suite covers:
 - **Controller tests** with MockMvc for all controllers including `FeedController` (chronological and recommended: pagination, auth, 404, 405, identical `Page<PostResponse>` shape, sort-ignored) and `PostController` (user posts, post comments with `sortBy`, reacted posts with `filter`, post search, validation, auth, pagination metadata).
 - **Service unit tests** for Auth, User, Follow, Post, Reaction, Media, and `Feed` (chronological: rank-independent mapping, view-count recording; recommended: rank-order hydration, empty/exception fallback to chronological, invalid `post_id` skip, deleted filtering, visible-only view increments, `UserNotFound` propagation, total metadata), plus `CustomUserDetailsService`.
 - **Repository tests** for post listings (user posts, comments with ordering, reacted posts with reaction-type filtering, content search), view/comment counter increments, and pagination.
-- H2 is used as the test database (runtime scope); Flyway migrations are disabled and `recommendation.base-url=http://localhost:8000` is stubbed in `src/test/resources/application.properties`.
+- H2 is gone from the test classpath. JPA tests run against real PostgreSQL via Testcontainers: the shared `PostgresContainerBase` (`support/`, `postgres:18-alpine`, `@ServiceConnection`) spins up a container per test class, Flyway runs the real `V1`–`V7` migrations, and Hibernate uses `ddl-auto=validate`. Docker is required to run the backend tests. `recommendation.base-url=http://localhost:8000` is stubbed in `src/test/resources/application.properties`.
 
 Run the tests from the `backend/` directory:
 
@@ -305,7 +304,7 @@ The service is containerized. From the repository root:
 docker compose up --build
 ```
 
-This starts PostgreSQL, the Core Backend (port `8080`), the Recommendation Service (port `8000`), and the Frontend web client (port `3000`; see [7-Frontend.md](./7-Frontend.md)). A named volume (`uploads`) persists media files across container restarts. Alternatively, run locally with `./mvnw spring-boot:run` after exporting the environment variables above.
+This starts PostgreSQL, the Core Backend (port `8080`), the Recommendation Service (port `8000`), and the Frontend web client (port `3000`; see [7-Frontend.md](./7-Frontend.md)), plus the monitoring stack: Prometheus (port `9090`, scrapes `core-backend:8080/actuator/prometheus` among others per `monitoring/prometheus.yml`), Grafana (port `3001`, provisioned dashboards in `monitoring/grafana/`), and the Postgres/Redis exporters. A named volume (`uploads`) persists media files across container restarts. Alternatively, run locally with `./mvnw spring-boot:run` after exporting the environment variables above.
 
 ---
 
@@ -315,5 +314,5 @@ The following components remain **designed but not yet implemented** in the Core
 
 - **Feed generation:** ✅ Implemented — `GET /api/feed/chronological` (`deletedAt IS NULL ORDER BY createdAt DESC`) and `GET /api/feed/recommended` (`RecommendationClient` → `GET /feed?user_id=&page=&size=` → hydration via `findAllByIdsFiltered` preserving rank order, graceful fallback to chronological on empty/timeout, identical `Page<PostResponse>` shape) with `REQUEST_FEED` logging and `PageableDefault(size=20)`.
 - **Recommendation integration:** ✅ Implemented — `RestClientConfig` (`recommendation.base-url` / `RECOMMENDATION_URL`, 1500 ms timeout), `RecommendationClient`/`RecommendationResponse`/`RankedPost`, `docker-compose.yaml` healthcheck on `GET /health`; see [Recommendation Service](./6-Recommendation.md).
-- **Monitoring:** Spring Boot Actuator is included as a dependency, but no Prometheus/Grafana stack or metric export is wired up.
-- **Redis:** present in `docker-compose.yaml` but unused by the application so far.
+- **Monitoring:** ✅ Implemented — Actuator exposes `health,metrics,prometheus` (tagged `application=sarv`, percentile histograms on); Prometheus scrapes the backend plus Postgres/Redis/recommendation jobs (`monitoring/prometheus.yml`), Grafana ships provisioned dashboards (`monitoring/grafana/`).
+- **Redis:** declared as a dependency (`spring-boot-starter-data-redis`) and running in compose (with exporter), but no application code uses it yet — caching/rate limiting remain unimplemented.

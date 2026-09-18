@@ -32,7 +32,7 @@
 | مستندات API | springdoc-openapi (Swagger UI) |
 | ذخیره‌سازی رسانه | فایل‌سیستم محلی (`LocalStorageService`) |
 | ابزار کمکی | Lombok |
-| تست | JUnit 5، MockMvc و H2 (در زمان اجرای تست) |
+| تست | JUnit 5، MockMvc و Testcontainers Postgres |
 
 ---
 
@@ -49,7 +49,6 @@ entity/       موجودیت‌های JPA (User, Post, Media, Follow, Reaction, 
 entity/type/  Enum ها (PostCategory, EventType, Gender, UserStatus)
 dto/          اشیای انتقال داده request/ و response/
 security/     SecurityConfig, JwtUtil, JwtAuthFilter, OpenApiConfig
-aspect/       annotation لاج ایونت + EventLoggingAspect
 exception/    استثناهای سفارشی + GlobalExceptionHandler
 client/       RecommendationClient + RecommendationResponse (رتبه‌بندی فید)
 config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
@@ -197,7 +196,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 1. `POST /api/auth/register` کاربر را می‌سازد (رمز عبور با BCrypt هش می‌شود) و بلافاصله JWT برمی‌گرداند. `POST /api/auth/login` اعتبارنامه را از طریق `AuthenticationManager` اسپرینگ سکیوریتی بررسی و توکن جدید صادر می‌کند.
 2. JWT با HS256 امضا می‌شود و شامل `sub` (نام کاربری)، `iat` و `exp` است. کلید امضا از متغیر محیطی `JWT_SECRET` خوانده می‌شود و باید حداقل ۳۲ بایت باشد؛ `JWT_EXPIRATION` طول عمر توکن را به میلی‌ثانیه مشخص می‌کند.
 3. هر درخواست از `JwtAuthFilter` عبور می‌کند؛ این فیلتر توکن را از هدر `Authorization: Bearer <token>` استخراج، اعتبار آن را بررسی، کاربر را بارگذاری و زمینه امنیتی را تنظیم می‌کند. نشست‌ها بدون حالت (stateless) هستند و CSRF غیرفعال است.
-4. مسیرهای عمومی: `/api/auth/login`، `/api/auth/register`، `/swagger-ui.html`، `/swagger-ui/**`، `/v3/api-docs/**`. بقیه نقاط پایانی نیازمند احراز هویت هستند.
+4. مسیرهای عمومی: `/api/auth/login`، `/api/auth/register`، `/actuator/**`، `/swagger-ui.html`، `/swagger-ui/**`، `/v3/api-docs/**`. بقیه نقاط پایانی نیازمند احراز هویت هستند.
 5. `CustomUserDetailsService` وضعیت کاربر را به حالت حساب نگاشت می‌کند: فقط کاربران `ACTIVE` فعال هستند و کاربران `SUSPENDED` حساب قفل‌شده دارند.
 
 مشخصات OpenAPI با طرح امنیتی سراسری `bearerAuth` در `/swagger-ui.html` در دسترس است.
@@ -287,7 +286,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 - **تست‌های کنترلر** با MockMvc برای همه کنترلرها از جمله `FeedController` (زمانی و پیشنهادی: صفحه‌بندی، احراز هویت، ۴۰۴، ۴۰۵، شکل یکسان `Page<PostResponse>`، نادیده‌گرفتن sort) و `PostController` (پست‌های کاربر، کامنت‌های پست با `sortBy`، پست‌های واکنش‌نشان‌داده‌شده با `filter`، جست‌وجوی پست، اعتبارسنجی، احراز هویت، فراداده صفحه‌بندی).
 - **تست‌های واحد سرویس** برای Auth, User, Follow, Post, Reaction, Media و `Feed` (زمانی: نگاشت مستقل از رتبه، ثبت تعداد بازدید؛ پیشنهادی: هیدراته با حفظ ترتیب رتبه، fallback خالی/استثنا به زمانی، نادیده‌گرفتن `post_id` نامعتبر، فیلتر حذف‌شده، افزایش بازدید فقط پست‌های قابل‌مشاهده، انتشار `UserNotFound`، فراداده total) به‌علاوه `CustomUserDetailsService`.
 - **تست‌های مخزن** برای فهرست‌های پست (پست‌های کاربر، کامنت‌ها با مرتب‌سازی، پست‌های واکنش‌نشان‌داده‌شده با فیلتر نوع واکنش، جست‌وجوی محتوا)، افزایش شمارنده‌های بازدید/کامنت و صفحه‌بندی.
-- از H2 به عنوان پایگاه داده تست استفاده می‌شود، Flyway غیرفعال است و `recommendation.base-url=http://localhost:8000` در `src/test/resources/application.properties` شبیه‌سازی شده است.
+- H2 از وابستگی‌های تست حذف شده است. تست‌های JPA روی PostgreSQL واقعی با Testcontainers اجرا می‌شوند: کلاس پایه مشترک `PostgresContainerBase` (در `support/`، ایمیج `postgres:18-alpine`، اتصال با `@ServiceConnection`) برای هر کلاس تست یک کانتینر بالا می‌آورد، Flyway مهاجرت‌های واقعی `V1` تا `V7` را اجرا می‌کند و Hibernate با `ddl-auto=validate` کار می‌کند. اجرای تست‌های بک‌اند به Docker نیاز دارد. `recommendation.base-url=http://localhost:8000` در `src/test/resources/application.properties` شبیه‌سازی شده است.
 
 اجرای تست‌ها از دایرکتوری `backend/`:
 
@@ -305,7 +304,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 docker compose up --build
 ```
 
-این دستور PostgreSQL، بک‌اند اصلی (پورت `8080`)، سرویس پیشنهاددهی (پورت `8000`) و وب‌کلاینت فرانت‌اند (پورت `3000`؛ به [7-Frontend.md](./7-Frontend.md) مراجعه کنید) را راه‌اندازی می‌کند. یک volume نام‌گذاری‌شده (`uploads`) فایل‌های رسانه را در طول راه‌اندازی مجدد کانتینرها حفظ می‌کند. همچنین می‌توانید با `./mvnw spring-boot:run` پس از تنظیم متغیرهای محیطی بالا، به‌صورت محلی اجرا کنید.
+این دستور PostgreSQL، بک‌اند اصلی (پورت `8080`)، سرویس پیشنهاددهی (پورت `8000`) و وب‌کلاینت فرانت‌اند (پورت `3000`؛ به [7-Frontend.md](./7-Frontend.md) مراجعه کنید) را به‌علاوه پشته مانیتورینگ راه‌اندازی می‌کند: Prometheus (پورت `9090`؛ اسکرپ `core-backend:8080/actuator/prometheus` و موارد دیگر مطابق `monitoring/prometheus.yml`)، Grafana (پورت `3001`؛ داشبوردهای آماده در `monitoring/grafana/`) و اکسپورترهای Postgres/Redis. یک volume نام‌گذاری‌شده (`uploads`) فایل‌های رسانه را در طول راه‌اندازی مجدد کانتینرها حفظ می‌کند. همچنین می‌توانید با `./mvnw spring-boot:run` پس از تنظیم متغیرهای محیطی بالا، به‌صورت محلی اجرا کنید.
 
 ---
 
@@ -315,5 +314,5 @@ docker compose up --build
 
 - **تولید فید:** ✅ پیاده‌سازی‌شده — `GET /api/feed/chronological` (`deletedAt IS NULL ORDER BY createdAt DESC`) و `GET /api/feed/recommended` (`RecommendationClient` → `GET /feed?user_id=&page=&size=` → هیدراته از طریق `findAllByIdsFiltered` با حفظ ترتیب رتبه، تخریب مهربانانه به زمانی در صورت خالی/تایم‌اوت، شکل یکسان `Page<PostResponse>`) با ثبت `REQUEST_FEED` و `PageableDefault(size=20)`.
 - **یکپارچه‌سازی با سرویس پیشنهاددهی:** ✅ پیاده‌سازی‌شده — `RestClientConfig` (`recommendation.base-url` / `RECOMMENDATION_URL`، تایم‌اوت ۱۵۰۰ میلی‌ثانیه)، `RecommendationClient`/`RecommendationResponse`/`RankedPost`، `docker-compose.yaml` با بررسی سلامت `GET /health`؛ به [سرویس توصیه‌گر](./6-Recommendation.md) مراجعه کنید.
-- **مانیتورینگ:** Spring Boot Actuator به عنوان وابستگی وجود دارد اما پشته Prometheus/Grafana یا خروجی متریک متصل نشده است.
-- **Redis:** در `docker-compose.yaml` حضور دارد اما هنوز توسط برنامه استفاده نمی‌شود.
+- **مانیتورینگ:** ✅ پیاده‌سازی‌شده — Actuator نقاط `health,metrics,prometheus` را اکسپوز می‌کند (تگ `application=sarv`، هیستوگرام پرسنتیل فعال)؛ Prometheus بک‌اند و جاب‌های Postgres/Redis/توصیه‌گر را اسکرپ می‌کند (`monitoring/prometheus.yml`) و Grafana داشبوردهای آماده دارد (`monitoring/grafana/`).
+- **Redis:** به عنوان وابستگی اعلام شده (`spring-boot-starter-data-redis`) و در compose اجرا می‌شود (با اکسپورتر)، اما هنوز هیچ کد برنامه‌ای از آن استفاده نمی‌کند — کش و محدودسازی نرخ پیاده‌سازی نشده‌اند.

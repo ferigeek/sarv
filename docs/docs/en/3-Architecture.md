@@ -119,7 +119,7 @@ Separating analytics from the main application ensures that computationally inte
 ---
 ## Monitoring Subsystem
 
-Monitoring is not part of the primary request-processing workflow, but it plays a critical role in operating and maintaining the platform. It is **planned but not yet deployed** — the backend includes Spring Boot Actuator, but no Prometheus/Grafana stack or metric export is wired up yet.
+Monitoring is not part of the primary request-processing workflow, but it plays a critical role in operating and maintaining the platform. It is **deployed via docker compose** — the backend exposes Actuator `health,metrics,prometheus` (public `/actuator/**`, tagged `application=sarv`, percentile histograms on), Prometheus scrapes the backend plus Postgres/Redis/recommendation jobs (`monitoring/prometheus.yml`), and Grafana ships provisioned dashboards (`monitoring/grafana/`).
 
 All major services expose operational metrics describing their runtime behavior. These metrics include request latency, resource utilization, error rates, service availability, and other technical indicators.
 
@@ -152,5 +152,5 @@ As a result, each category of data is stored in the environment most suitable fo
 | Feed generation (chronological / smart feed) | Implemented — `GET /api/feed/chronological` and `GET /api/feed/recommended` with `Page<PostResponse>` and graceful fallback |
 | Backend ↔ Recommendation integration | Implemented — `RestClient` (`recommendation.base-url` / `RECOMMENDATION_URL`, 1500 ms timeout), `RecommendationClient` → `GET /feed?user_id=&page=&size=`, hydration via `findAllByIdsFiltered`, healthcheck on `GET /health` |
 | Analytics subsystem | Planned — not started |
-| Monitoring (Prometheus / Grafana) | Planned — only actuator dependency present |
-| Redis (caching / rate limiting) | Planned — container present, unused |
+| Monitoring (Prometheus / Grafana) | Implemented — actuator `prometheus` endpoint scraped; dashboards provisioned |
+| Redis (caching / rate limiting) | Declared + running (exporter scraped), unused by application code |
