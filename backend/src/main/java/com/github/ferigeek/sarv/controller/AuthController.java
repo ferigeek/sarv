@@ -2,6 +2,7 @@ package com.github.ferigeek.sarv.controller;
 
 import com.github.ferigeek.sarv.dto.request.UserLoginRequest;
 import com.github.ferigeek.sarv.dto.request.UserRegisterRequest;
+import com.github.ferigeek.sarv.dto.response.UserLoginResponse;
 import com.github.ferigeek.sarv.dto.response.UserRegisterResponse;
 import com.github.ferigeek.sarv.service.AuthService;
 import jakarta.validation.Valid;
@@ -23,7 +24,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public String login(@Valid @RequestBody UserLoginRequest userLoginRequest) {
+    public UserLoginResponse login(@Valid @RequestBody UserLoginRequest userLoginRequest) {
         return authService.login(userLoginRequest);
     }
 

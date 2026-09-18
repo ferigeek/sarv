@@ -2,6 +2,7 @@ package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.request.UserLoginRequest;
 import com.github.ferigeek.sarv.dto.request.UserRegisterRequest;
+import com.github.ferigeek.sarv.dto.response.UserLoginResponse;
 import com.github.ferigeek.sarv.dto.response.UserRegisterResponse;
 import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.exception.UsernameAlreadyExistsException;
@@ -43,23 +44,27 @@ public class AuthService {
         this.eventLogService = eventLogService;
     }
 
-    public String login(UserLoginRequest userLoginRequest) {
+    public UserLoginResponse login(UserLoginRequest userLoginRequest) {
+        return new UserLoginResponse(authenticateAndGenerateToken(
+                userLoginRequest.getUsername(),
+                userLoginRequest.getPassword()
+        ));
+    }
+
+    private String authenticateAndGenerateToken(String username, String password) {
         try {
             Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            userLoginRequest.getUsername(),
-                            userLoginRequest.getPassword()
-                    )
+                    new UsernamePasswordAuthenticationToken(username, password)
             );
             final UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-            log.info("User logged in with username={}", userLoginRequest.getUsername());
+            log.info("User logged in with username={}", username);
             logLoginSafely(userDetails.getUsername());
             return jwtUtil.generateToken(userDetails.getUsername());
         } catch (AuthenticationException e) {
-            log.warn("Failed login attempt username={}", userLoginRequest.getUsername());
+            log.warn("Failed login attempt username={}", username);
             throw e;
         } catch (RuntimeException e) {
-            log.error("Failed to generate token for username={}", userLoginRequest.getUsername(), e);
+            log.error("Failed to generate token for username={}", username, e);
             throw e;
         }
     }
@@ -86,9 +91,9 @@ public class AuthService {
         user = userRepository.save(user);
 
         try {
-            String token = login(new UserLoginRequest(
+            String token = authenticateAndGenerateToken(
                     userRegisterRequest.getUsername(),
-                    userRegisterRequest.getPassword())
+                    userRegisterRequest.getPassword()
             );
             log.info("User registered username={}", userRegisterRequest.getUsername());
             logRegisterSafely(userRegisterRequest.getUsername());
