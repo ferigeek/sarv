@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class EventLogService {
@@ -30,8 +31,12 @@ public class EventLogService {
         this.userRepository = userRepository;
     }
 
-    @Async
     public void logPostView(String username, Post post) {
+        logPostView(username, post, null);
+    }
+
+    @Async
+    public void logPostView(String username, Post post, UUID sessionId) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(username));
 
@@ -41,6 +46,7 @@ public class EventLogService {
         eventLog.setUser(user);
         eventLog.setCreatedAt(OffsetDateTime.now());
         eventLog.setEventType(EventType.VIEW_POST);
+        eventLog.setSessionId(sessionId);
 
         eventLogRepository.save(eventLog);
     }

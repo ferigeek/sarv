@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -41,11 +42,15 @@ public class PostService {
     }
 
     public PostResponse getPost(Long postId, String username) {
+        return getPost(postId, username, null);
+    }
+
+    public PostResponse getPost(Long postId, String username, UUID sessionId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new PostNotFoundException(postId));
         post.setViewCount((post.getViewCount() == null ? 0L : post.getViewCount()) + 1);
         postRepository.save(post);
-        logPostViewSafely(username, post);
+        logPostViewSafely(username, post, sessionId);
         return new PostResponse(post);
     }
 
@@ -270,12 +275,12 @@ public class PostService {
                 .map(PostResponse::new);
     }
 
-    private void logPostViewSafely(String username, Post post) {
+    private void logPostViewSafely(String username, Post post, UUID sessionId) {
         if (username == null) {
             return;
         }
         try {
-            eventLogService.logPostView(username, post);
+            eventLogService.logPostView(username, post, sessionId);
         } catch (Exception e) {
             log.warn("Failed to log post view event postId={} username={}", post.getId(), username, e);
         }

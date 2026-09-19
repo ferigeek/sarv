@@ -23,6 +23,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.UUID;
 
 @Validated
 @RestController
@@ -39,9 +40,10 @@ public class PostController {
     @GetMapping("/posts/{postId}")
     public PostResponse getPost(
             @Positive @PathVariable Long postId,
+            @RequestHeader(value = "X-Session-Id", required = false) UUID sessionId,
             @AuthenticationPrincipal UserDetails userDetails) {
         String username = userDetails != null ? userDetails.getUsername() : null;
-        return postService.getPost(postId, username);
+        return postService.getPost(postId, username, sessionId);
     }
 
     @PostMapping("/posts")

@@ -39,6 +39,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -124,7 +125,20 @@ class PostServiceTest {
             ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
             verify(postRepository).save(captor.capture());
             assertThat(captor.getValue().getViewCount()).isEqualTo(1L);
-            verify(eventLogService).logPostView(eq("owner"), any(Post.class));
+            verify(eventLogService).logPostView(eq("owner"), any(Post.class), isNull());
+        }
+
+        @Test
+        @DisplayName("should forward session id to view logging")
+        void shouldForwardSessionId() {
+            basePost.setViewCount(0L);
+            java.util.UUID sessionId = java.util.UUID.randomUUID();
+            when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
+            when(postRepository.save(any(Post.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            postService.getPost(100L, "owner", sessionId);
+
+            verify(eventLogService).logPostView(eq("owner"), any(Post.class), eq(sessionId));
         }
 
         @Test
@@ -133,7 +147,7 @@ class PostServiceTest {
             basePost.setViewCount(0L);
             when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
             when(postRepository.save(any(Post.class))).thenAnswer(inv -> inv.getArgument(0));
-            doThrow(new RuntimeException("log fail")).when(eventLogService).logPostView(eq("owner"), any(Post.class));
+            doThrow(new RuntimeException("log fail")).when(eventLogService).logPostView(eq("owner"), any(Post.class), isNull());
 
             PostResponse res = postService.getPost(100L, "owner");
 
