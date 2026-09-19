@@ -33,10 +33,11 @@ vi.mock('@/api/posts', async (importOriginal) => {
     getPost: vi.fn<(id: number) => Promise<PostResponse>>(),
     getPostAuthor: vi.fn<(id: number) => Promise<import('@/types/api').UserSummaryResponse>>(),
     getComments: vi.fn<(id: number, sortBy?: unknown, pageable?: unknown) => Promise<Page<PostResponse>>>(),
+    reportPostDwell: vi.fn<(id: number, payload: unknown) => Promise<void>>(),
   }
 })
 
-import { getComments as mockGetComments, getPost as mockGetPost, getPostAuthor as mockGetPostAuthor } from '@/api/posts'
+import { getComments as mockGetComments, getPost as mockGetPost, getPostAuthor as mockGetPostAuthor, reportPostDwell as mockReportPostDwell } from '@/api/posts'
 import { getReaction as mockGetReaction } from '@/api/reactions'
 import { getUser as mockGetUser } from '@/api/users'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
@@ -47,6 +48,7 @@ registerPixelicons()
 const mockedGetPost = vi.mocked(mockGetPost)
 const mockedGetPostAuthor = vi.mocked(mockGetPostAuthor)
 const mockedGetComments = vi.mocked(mockGetComments)
+const mockedReportPostDwell = vi.mocked(mockReportPostDwell)
 const mockedGetUser = vi.mocked(mockGetUser)
 const mockedGetReaction = vi.mocked(mockGetReaction)
 
@@ -164,5 +166,20 @@ describe('PostDetailView', () => {
     const { wrapper } = await mountDetail(999)
 
     expect(wrapper.find('[data-testid="post-detail-error"]').exists()).toBe(true)
+  })
+
+  it('reports dwell time with DETAIL source on unmount', async () => {
+    let nowValue = 1_000_000
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => nowValue)
+    try {
+      const { wrapper } = await mountDetail()
+
+      nowValue += 2500
+      wrapper.unmount()
+
+      expect(mockedReportPostDwell).toHaveBeenCalledWith(5, { durationMs: 2500, source: 'DETAIL' })
+    } finally {
+      nowSpy.mockRestore()
+    }
   })
 })

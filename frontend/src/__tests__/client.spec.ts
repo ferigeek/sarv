@@ -13,7 +13,7 @@ describe('apiClient', () => {
   it('attaches the X-Session-Id header to requests', async () => {
     let captured: InternalAxiosRequestConfig | undefined
     await apiClient.get('/ping', {
-      adapter: (async (config) => {
+      adapter: (async (config: InternalAxiosRequestConfig) => {
         captured = config
         return { data: {}, status: 200, statusText: 'OK', headers: {}, config }
       }) as never,

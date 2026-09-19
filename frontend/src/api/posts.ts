@@ -1,5 +1,6 @@
 import { apiClient } from './client'
 import type { CommentSort, Page, Pageable, PostCategory, PostResponse, UserSummaryResponse } from '@/types/api'
+import { getSessionId } from '@/utils/session'
 
 export interface PostCreatePayload {
   postCategory: PostCategory
@@ -66,6 +67,28 @@ export async function searchPosts(query: string, pageable: Pageable = {}): Promi
 export async function getPostAuthor(postId: number): Promise<UserSummaryResponse> {
   const { data } = await apiClient.get<UserSummaryResponse>(`/posts/${postId}/author`)
   return data
+}
+
+export type DwellSource = 'DETAIL' | 'FEED'
+
+export interface PostDwellPayload {
+  durationMs: number
+  source?: DwellSource
+  sessionId?: string
+}
+
+/* Best-effort dwell beacon: visible time on a post for backend event_logs.
+ * Never rejects — telemetry must not break navigation or unmount. */
+export async function reportPostDwell(postId: number, payload: PostDwellPayload): Promise<void> {
+  try {
+    await apiClient.post(`/posts/${postId}/dwell`, {
+      durationMs: payload.durationMs,
+      sessionId: payload.sessionId ?? getSessionId(),
+      source: payload.source ?? null,
+    })
+  } catch {
+    // ignore — dwell reporting must not surface errors to the UI
+  }
 }
 
 export async function getComments(
