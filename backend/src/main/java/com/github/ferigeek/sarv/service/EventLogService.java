@@ -33,6 +33,7 @@ public class EventLogService {
         this.userRepository = userRepository;
     }
 
+    @Async
     public void logPostView(String username, Post post) {
         logPostView(username, post, null);
     }
