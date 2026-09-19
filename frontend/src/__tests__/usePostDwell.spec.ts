@@ -39,7 +39,7 @@ describe('usePostDwell', () => {
     wrapper.unmount()
 
     expect(report).toHaveBeenCalledOnce()
-    expect(report).toHaveBeenCalledWith(7, { durationMs: 2500, source: 'DETAIL' })
+    expect(report).toHaveBeenCalledWith(7, { durationMs: 2500, source: 'DETAIL' }, {})
   })
 
   it('pauses while the tab is hidden', () => {
@@ -52,10 +52,10 @@ describe('usePostDwell', () => {
     advance(1000)
     wrapper.unmount()
 
-    expect(report).toHaveBeenCalledWith(7, { durationMs: 2000, source: 'DETAIL' })
+    expect(report).toHaveBeenCalledWith(7, { durationMs: 2000, source: 'DETAIL' }, {})
   })
 
-  it('reports only once across pagehide and unmount', () => {
+  it('reports only once across pagehide and unmount, via keepalive', () => {
     const { wrapper, report, advance } = mountDwell()
 
     advance(800)
@@ -63,6 +63,7 @@ describe('usePostDwell', () => {
     wrapper.unmount()
 
     expect(report).toHaveBeenCalledOnce()
+    expect(report).toHaveBeenCalledWith(7, { durationMs: 800, source: 'DETAIL' }, { keepalive: true })
   })
 
   it('skips the beacon below minDurationMs', () => {
@@ -80,7 +81,7 @@ describe('usePostDwell', () => {
     advance(MAX_DWELL_MS + 5000)
     wrapper.unmount()
 
-    expect(report).toHaveBeenCalledWith(7, { durationMs: MAX_DWELL_MS, source: 'DETAIL' })
+    expect(report).toHaveBeenCalledWith(7, { durationMs: MAX_DWELL_MS, source: 'DETAIL' }, {})
   })
 
   it('attributes accumulated time to the previous post on in-place navigation', async () => {
@@ -101,7 +102,7 @@ describe('usePostDwell', () => {
     wrapper.unmount()
 
     expect(report).toHaveBeenCalledTimes(2)
-    expect(report).toHaveBeenNthCalledWith(1, 7, { durationMs: 1000, source: 'DETAIL' })
-    expect(report).toHaveBeenNthCalledWith(2, 8, { durationMs: 500, source: 'DETAIL' })
+    expect(report).toHaveBeenNthCalledWith(1, 7, { durationMs: 1000, source: 'DETAIL' }, {})
+    expect(report).toHaveBeenNthCalledWith(2, 8, { durationMs: 500, source: 'DETAIL' }, {})
   })
 })

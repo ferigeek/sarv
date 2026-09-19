@@ -5,6 +5,10 @@ import { reportPostDwell, type DwellSource, type PostDwellPayload } from '@/api/
 /* Upper bound matching the backend @Max(1_800_000) validation. */
 export const MAX_DWELL_MS = 1_800_000
 
+export interface DwellReportOptions {
+  keepalive?: boolean
+}
+
 export interface UsePostDwellOptions {
   source: DwellSource
   /* When given, time only accumulates while the element is >=50% visible. */
@@ -12,7 +16,7 @@ export interface UsePostDwellOptions {
   /* Skips the beacon when visible time is below this (backend requires >= 1). */
   minDurationMs?: number
   enabled?: boolean
-  report?: (postId: number, payload: PostDwellPayload) => Promise<void> | void
+  report?: (postId: number, payload: PostDwellPayload, opts?: DwellReportOptions) => Promise<void> | void
   now?: () => number
 }
 
@@ -58,10 +62,10 @@ export function usePostDwell(
   }
 
   function flush() {
-    flushWith(activeId)
+    flushWith(activeId, {})
   }
 
-  function flushWith(id: number) {
+  function flushWith(id: number, opts: DwellReportOptions) {
     pause()
     if (!enabled || reported) return
     reported = true
@@ -71,7 +75,7 @@ export function usePostDwell(
     // Guarded for partially-mocked api modules in tests; real impl never rejects.
     if (typeof report !== 'function') return
     try {
-      const result = report(id, { durationMs, source })
+      const result = report(id, { durationMs, source }, opts)
       if (result && typeof (result as Promise<void>).catch === 'function') {
         ;(result as Promise<void>).catch(() => {})
       }
@@ -86,14 +90,15 @@ export function usePostDwell(
   }
 
   function onPageHide() {
-    flush()
+    // keepalive so the beacon survives tab close; plain requests may be cancelled on unload
+    flushWith(activeId, { keepalive: true })
   }
 
   // In-place navigation (e.g. /post/5 -> /post/6 reusing the view):
   // attribute accumulated time to the old post and restart for the new one.
   watch(resolveId, (next, prev) => {
     if (next === prev) return
-    flushWith(prev)
+    flushWith(prev, {})
     activeId = next
     accumulated = 0
     reported = false

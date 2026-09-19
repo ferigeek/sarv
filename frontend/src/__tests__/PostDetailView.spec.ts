@@ -177,7 +177,7 @@ describe('PostDetailView', () => {
       nowValue += 2500
       wrapper.unmount()
 
-      expect(mockedReportPostDwell).toHaveBeenCalledWith(5, { durationMs: 2500, source: 'DETAIL' })
+      expect(mockedReportPostDwell).toHaveBeenCalledWith(5, { durationMs: 2500, source: 'DETAIL' }, {})
     } finally {
       nowSpy.mockRestore()
     }

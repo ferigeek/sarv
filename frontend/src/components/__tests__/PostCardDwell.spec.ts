@@ -138,7 +138,7 @@ describe('PostCard dwell', () => {
     wrapper.unmount()
 
     expect(mockedReportPostDwell).toHaveBeenCalledOnce()
-    expect(mockedReportPostDwell).toHaveBeenCalledWith(1, { durationMs: 1500, source: 'FEED' })
+    expect(mockedReportPostDwell).toHaveBeenCalledWith(1, { durationMs: 1500, source: 'FEED' }, {})
   })
 
   it('reports nothing when the card never becomes visible', async () => {
