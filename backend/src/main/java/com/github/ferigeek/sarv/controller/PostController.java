@@ -1,6 +1,7 @@
 package com.github.ferigeek.sarv.controller;
 
 import com.github.ferigeek.sarv.dto.request.CommentSort;
+import com.github.ferigeek.sarv.dto.request.PostDwellRequest;
 import com.github.ferigeek.sarv.dto.request.PostRequest;
 import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
 import com.github.ferigeek.sarv.dto.request.ReactionFilter;
@@ -78,6 +79,22 @@ public class PostController {
             @Valid @RequestBody PostUpdateRequest postUpdateRequest,
             @AuthenticationPrincipal UserDetails userDetails) {
         return postService.updatePost(postId, postUpdateRequest, userDetails.getUsername());
+    }
+
+    @PostMapping("/posts/{postId}/dwell")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reportPostDwell(
+            @Positive @PathVariable Long postId,
+            @Valid @RequestBody PostDwellRequest dwellRequest,
+            @RequestHeader(value = "X-Session-Id", required = false) UUID headerSessionId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID sessionId = headerSessionId != null ? headerSessionId : dwellRequest.getSessionId();
+        postService.reportPostDwell(
+                postId,
+                userDetails.getUsername(),
+                dwellRequest.getDurationMs(),
+                sessionId,
+                dwellRequest.getSource());
     }
 
     @GetMapping("/users/{userId}/posts")

@@ -6,6 +6,7 @@ import com.github.ferigeek.sarv.entity.Reaction;
 import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.entity.type.PostCategory;
+import com.github.ferigeek.sarv.dto.request.DwellSource;
 import com.github.ferigeek.sarv.exception.UserNotFoundException;
 import com.github.ferigeek.sarv.repository.EventLogRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
@@ -14,6 +15,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -47,6 +49,28 @@ public class EventLogService {
         eventLog.setCreatedAt(OffsetDateTime.now());
         eventLog.setEventType(EventType.VIEW_POST);
         eventLog.setSessionId(sessionId);
+
+        eventLogRepository.save(eventLog);
+    }
+
+    @Async
+    public void logPostDwell(String username, Post post, long durationMs, UUID sessionId, DwellSource source) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException(username));
+
+        EventLog eventLog = new EventLog();
+
+        eventLog.setPost(post);
+        eventLog.setUser(user);
+        eventLog.setCreatedAt(OffsetDateTime.now());
+        eventLog.setEventType(EventType.VIEW_POST);
+        eventLog.setSessionId(sessionId);
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("duration_ms", durationMs);
+        if (source != null) {
+            metadata.put("source", source.name());
+        }
+        eventLog.setMetadata(metadata);
 
         eventLogRepository.save(eventLog);
     }

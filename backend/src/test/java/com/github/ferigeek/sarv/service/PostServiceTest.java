@@ -241,6 +241,49 @@ class PostServiceTest {
     }
 
     // -----------------------------------------------------------------------
+    // reportPostDwell
+    // -----------------------------------------------------------------------
+    @Nested
+    @DisplayName("reportPostDwell")
+    class ReportPostDwell {
+
+        @Test
+        @DisplayName("should log dwell with duration, session and source without touching viewCount")
+        void shouldLogDwell() {
+            java.util.UUID sessionId = java.util.UUID.randomUUID();
+            when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
+
+            postService.reportPostDwell(100L, "owner", 5000L, sessionId,
+                    com.github.ferigeek.sarv.dto.request.DwellSource.DETAIL);
+
+            verify(eventLogService).logPostDwell(eq("owner"), eq(basePost), eq(5000L), eq(sessionId),
+                    eq(com.github.ferigeek.sarv.dto.request.DwellSource.DETAIL));
+            verify(postRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should throw PostNotFoundException when post does not exist")
+        void shouldThrowWhenNotFound() {
+            when(postRepository.findById(99L)).thenReturn(Optional.empty());
+
+            assertThrows(PostNotFoundException.class,
+                    () -> postService.reportPostDwell(99L, "owner", 1000L, null, null));
+
+            verifyNoInteractions(eventLogService);
+        }
+
+        @Test
+        @DisplayName("should not fail when dwell logging fails")
+        void shouldSwallowLoggingFailure() {
+            when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
+            doThrow(new RuntimeException("log fail")).when(eventLogService)
+                    .logPostDwell(eq("owner"), any(Post.class), eq(1000L), isNull(), isNull());
+
+            postService.reportPostDwell(100L, "owner", 1000L, null, null);
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // createPost
     // -----------------------------------------------------------------------
     @Nested

@@ -1,6 +1,7 @@
 package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.request.PostRequest;
+import com.github.ferigeek.sarv.dto.request.DwellSource;
 import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
 import com.github.ferigeek.sarv.dto.request.ReactionFilter;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
@@ -52,6 +53,12 @@ public class PostService {
         postRepository.save(post);
         logPostViewSafely(username, post, sessionId);
         return new PostResponse(post);
+    }
+
+    public void reportPostDwell(Long postId, String username, long durationMs, UUID sessionId, DwellSource source) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new PostNotFoundException(postId));
+        logPostDwellSafely(username, post, durationMs, sessionId, source);
     }
 
     @Transactional
@@ -283,6 +290,17 @@ public class PostService {
             eventLogService.logPostView(username, post, sessionId);
         } catch (Exception e) {
             log.warn("Failed to log post view event postId={} username={}", post.getId(), username, e);
+        }
+    }
+
+    private void logPostDwellSafely(String username, Post post, long durationMs, UUID sessionId, DwellSource source) {
+        if (username == null) {
+            return;
+        }
+        try {
+            eventLogService.logPostDwell(username, post, durationMs, sessionId, source);
+        } catch (Exception e) {
+            log.warn("Failed to log post dwell event postId={} username={}", post.getId(), username, e);
         }
     }
 
