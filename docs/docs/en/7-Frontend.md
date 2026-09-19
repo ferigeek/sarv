@@ -53,7 +53,7 @@ api/          HTTP layer — one module per domain (client, auth, users, posts,
 router/       Route table + auth guards (index.ts)
 stores/       Pinia stores (auth.ts — the only shared store)
 types/        Backend-mirroring types (api.ts: User/Post/Reaction/Media, Page)
-utils/        token.ts (localStorage helpers)
+utils/        token.ts (localStorage helpers), session.ts (tab-scoped usage-session id)
 views/        Route-level screens (AppShell, Feed, PostDetail, Login, Register,
               Profile, LikedPosts, Following, Followers)
 components/   Reusable UI (LeftSidebar, RightSidebar, PostCard, PostCreateModal,
@@ -103,7 +103,7 @@ Flow (`stores/auth.ts:9`, `api/auth.ts:17`, `utils/token.ts:1`):
 
 1. `POST /api/auth/login` returns `{"token": "<jwt>"}`; `POST /api/auth/register` returns `{..., token}`. The store saves it to `localStorage` under `sarv.jwt` and calls `GET /api/users/me/summary` (`fetchMe` via `getMeSummary()`) to populate `user` with a `UserSummaryResponse`. The full `getMe()` (`GET /api/users/me`) is only used for own-profile display in `ProfileView`.
 2. `isAuthenticated` is derived from token presence only (`stores/auth.ts:13`).
-3. Every request carries `Authorization: Bearer <token>` via the `apiClient` request interceptor (`api/client.ts:25`).
+3. Every request carries `Authorization: Bearer <token>` via the `apiClient` request interceptor (`api/client.ts:25`), plus a tab-scoped `X-Session-Id` (`utils/session.ts`, UUID in `sessionStorage` under `sarv.session_id`) so backend event rows group into usage sessions.
 4. A missing/invalid/expired JWT yields `403` with an empty body from Spring Security. The response interceptor (`api/client.ts:33`) treats that as session expiry: clears the token and fires the `onSessionExpired` hook wired in `main.ts:19`, which logs out and pushes to `login`.
 5. `App.vue:8` rehydrates the session on reload (`fetchMe` if a token exists without a user).
 
@@ -125,7 +125,7 @@ Registration UI (`views/RegisterView.vue`, two steps per `Design.md §§12`):
 | `api/auth.ts` | `login`, `register` | `POST /api/auth/login`, `POST /api/auth/register` |
 | `api/users.ts` | `getMe`, `getMeSummary`, `getUser`, `updateMe`, `searchUsers(query, pageable)`, `getUserPosts`, `getReactedPosts(filter)`, `getUserStats` | `GET /api/users/me`, `GET /api/users/me/summary`, `GET /api/users/{id}`, `PUT /api/users/me`, `GET /api/users?query=`, `GET /api/users/{id}/posts`, `GET /api/users/{id}/reacted-posts?filter=`, `GET /api/users/{id}/stats` |
 | `api/feed.ts` | `getChronologicalFeed`, `getRecommendedFeed` | `GET /api/feed/chronological`, `GET /api/feed/recommended` |
-| `api/posts.ts` | `getPost`, `getPostAuthor`, `createPost`, `updatePost`, `deletePost`, `searchPosts`, `getComments`, `repostPost`, `quotePost` | `GET/POST /api/posts`, `PUT/DELETE /api/posts/{id}`, `GET /api/posts/{id}/author`, `GET /api/posts/search?query=`, `GET /api/posts/{id}/comments?sortBy=`, repost/quote via `POST /api/posts` |
+| `api/posts.ts` | `getPost`, `getPostAuthor`, `createPost`, `updatePost`, `deletePost`, `searchPosts`, `getComments`, `repostPost`, `quotePost`, `reportPostDwell(durationMs, source?)` | `GET/POST /api/posts`, `PUT/DELETE /api/posts/{id}`, `GET /api/posts/{id}/author`, `GET /api/posts/search?query=`, `GET /api/posts/{id}/comments?sortBy=`, repost/quote via `POST /api/posts`, dwell via `POST /api/posts/{id}/dwell` |
 | `api/reactions.ts` | `addReaction(1\|-1)`, `getReaction`, `removeReaction` | `POST/GET/DELETE /api/posts/{id}/reactions` |
 | `api/follows.ts` | `getFollowers`, `getFollowing`, `follow`, `unfollow` | `GET/POST/DELETE /api/users/{id}/followers`, `GET /api/users/{id}/following` |
 | `api/media.ts` | `uploadMedia(file, onProgress?)`, `getMediaBlob`, `getMediaMetadata` | `POST /api/media` (multipart `file`), `GET /api/media/{id}`, `GET /api/media/{id}/metadata` |
@@ -138,6 +138,14 @@ Types in `types/api.ts:4` mirror the backend field-for-field (`Gender`, `UserSta
 
 - **Latest** → `GET /api/feed/chronological` directly.
 - **For You** → `GET /api/feed/recommended`; on empty first page or on request failure the view **falls back to chronological itself** (`FeedView.vue:50`) — in addition to the backend's own graceful degradation (see [5-Backend.md](./5-Backend.md)). Rapid tab switches are guarded by a sequence counter so stale responses are ignored.
+
+### Dwell tracking
+
+Visible time on posts is reported best-effort via `composables/usePostDwell.ts` (single beacon on unmount/`pagehide`, paused in hidden tabs, capped at the backend `1800000` ms max):
+
+- **Detail page** (`PostDetailView.vue`) tracks with `source: DETAIL`; its cards render without dwell tracking, so exactly one beacon fires per visit. In-place navigation (`/post/5` → `/post/6`) attributes accumulated time to the old post and restarts for the new one.
+- **Feed cards** (`PostCard.vue` with `dwell-source="FEED"` from `FeedView.vue`) accumulate only while ≥50% visible (`IntersectionObserver`) and report only after 1 s of visibility.
+- `reportPostDwell` (`api/posts.ts`) never rejects; the `pagehide` path uses `fetch` with `keepalive: true` (plain requests may be cancelled on unload; `sendBeacon` cannot set the required `Authorization` header).
 
 ### Post creation (media first)
 

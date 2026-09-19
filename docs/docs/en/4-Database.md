@@ -89,8 +89,8 @@ User ID is nullable to allow anonymization.
 
 Additional fields (added in V4):
 
-- session_id (UUID) — groups the actions of one usage session; unrelated to JWT authentication
-- metadata (JSONB) — extra event-specific information that does not deserve its own column
+- session_id (UUID) — groups the actions of one usage session; unrelated to JWT authentication. Populated from the `X-Session-Id` request header (post views and dwell reports); the value is generated per tab visit by the frontend
+- metadata (JSONB) — extra event-specific information that does not deserve its own column. Conventions per event type: `REQUEST_FEED` → `{feed_type}`, dwell `VIEW_POST` rows → `{duration_ms, source: DETAIL|FEED}` (bare `VIEW_POST` rows are impressions with no metadata)
 
 ---
 ## Enums
@@ -160,6 +160,10 @@ PostgreSQL does not index foreign key columns automatically, and the existing un
 - event_logs (user_id, created_at) — per-user activity timelines for analytics
 - event_logs (type, created_at) — hot-topic / peak-usage aggregations
 - event_logs (post_id), event_logs (target_user_id) — entity-scoped analytics queries
+
+The following index was added by migration `V8`:
+
+- event_logs (session_id, created_at) — session-timeline grouping (pairing impression rows with dwell rows, per-session aggregates)
 
 ---
 ## Notes

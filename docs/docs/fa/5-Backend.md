@@ -101,7 +101,8 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 
 | متد | مسیر | احراز هویت | توضیح |
 |--------|------|------|-------------|
-| GET | `/api/posts/{postId}` | bearer | بازگرداندن پست و افزایش `view_count` آن؛ ثبت رویداد `VIEW_POST` |
+| GET | `/api/posts/{postId}` | bearer | بازگرداندن پست و افزایش `view_count` آن؛ ثبت رویداد `VIEW_POST` (هدر اختیاری `X-Session-Id` روی ردیف رویداد ذخیره می‌شود؛ UUID نامعتبر با `400` رد می‌شود) |
+| POST | `/api/posts/{postId}/dwell` | bearer | گزارش زمان مشاهده پست؛ پاسخ `204 No Content` و بدون افزایش `view_count`؛ ثبت رویداد `VIEW_POST` با `metadata {duration_ms, source}` |
 | GET | `/api/posts/{postId}/author` | bearer | بازگرداندن شناسه، نام کاربری، نام نمایشی و شناسه آواتار نویسنده پست (`UserSummaryResponse`)؛ رویداد `VIEW_PROFILE` ثبت نمی‌شود تا سربرگ کارت‌های فید، آمار بازدید پروفایل را آلوده نکند |
 | GET | `/api/posts/search?query=` | bearer | جست‌وجوی متن پست‌ها (بدون حساسیت به بزرگی/کوچکی حروف، تطبیق جزئی)، صفحه‌بندی‌شده؛ `query` خالی با `400` رد می‌شود؛ پیش‌فرض `size=10, sort=createdAt,DESC` |
 | POST | `/api/posts` | bearer | ایجاد پست؛ پاسخ `201 Created` با هدر `Location`؛ ثبت رویداد `CREATE_POST` |
@@ -220,7 +221,8 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 
 - متدهای سرویس `eventLogService.logX(...)` را صدا می‌زنند (مثل `logLogin`، `logProfileView`، `logFeedRequest`) که داخل کمک‌متدهای `logXSafely` پیچیده شده‌اند و خطاها را می‌بلعند تا تحلیل هیچ‌وقت درخواست را خراب نکند.
 - متدهای `EventLogService` با `@Async` اجرا می‌شوند: رویدادها خارج از مسیر درخواست در نخی جدا ذخیره می‌شوند.
-- اسکیمای `event_logs` شامل `session_id` (گروه‌بندی کنش‌های یک نشست کاربری؛ بی‌رابطه با JWT) و `metadata` (JSONB، برای اطلاعات خاص هر رویداد) نیز هست. برای `REQUEST_FEED` در حال حاضر `metadata` فقط `{feed_type: chronological|recommended}` را نگه می‌دارد.
+- اسکیمای `event_logs` شامل `session_id` (گروه‌بندی کنش‌های یک نشست کاربری؛ بی‌رابطه با JWT) و `metadata` (JSONB، برای اطلاعات خاص هر رویداد) نیز هست. شناسه نشست متعلق به فرانت‌اند است (یک UUID برای هر زبانه مرورگر) و با هدر `X-Session-Id` می‌آید و بدنه dwell جایگزین آن است. قرارداد `metadata` برای هر نوع رویداد: `REQUEST_FEED` برابر `{feed_type: chronological|recommended}` و گزارش‌های dwell برابر `{duration_ms, source: DETAIL|FEED}` است.
+- در نتیجه `VIEW_POST` دو شکل دارد: ردیف‌های بازدید خام (از `GET /api/posts/{postId}`) و ردیف‌های dwell (از `POST /api/posts/{postId}/dwell` با اعتبارسنجی `durationMs` در بازه `1..1800000`). شمارش بازدیدها باید ردیف‌های dwell را کنار بگذارد (`metadata ? 'duration_ms'`)؛ درگیری کاربر با میانگین `(metadata->>'duration_ms')::bigint` روی ردیف‌های dwell سنجیده می‌شود. ردیف‌های یک بازدید با `(user_id, post_id, session_id)` و ترتیب `created_at` به هم جفت می‌شوند.
 
 انواع رویداد: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `QUOTE_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`, `REGISTER`. `REQUEST_FEED` توسط هر دو نقطه پایانی فید (`GET /api/feed/chronological` و `GET /api/feed/recommended`) تولید می‌شود. پست‌های نقل‌قولی به `QUOTE_POST` نگاشت می‌شوند؛ ثبت‌نام هم `LOGIN` (ورود خودکار) و هم `REGISTER` ثبت می‌کند.
 

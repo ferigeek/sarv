@@ -53,7 +53,7 @@ api/          لایه HTTP — یک ماژول برای هر دامنه (client
 router/       جدول مسیرها + گاردهای احراز هویت (index.ts)
 stores/       استورهای Pinia (فقط auth.ts — تنها استور مشترک)
 types/        تایپ‌های منطبق با بک‌اند (api.ts: کاربر/پست/واکنش/رسانه، Page)
-utils/        توکن (token.ts — کمک‌تابع‌های localStorage)
+utils/        توکن (token.ts — کمک‌تابع‌های localStorage)، نشست کاربری (session.ts — شناسه نشست مختص هر زبانه)
 views/        صفحه‌های سطح مسیر (AppShell، Feed، PostDetail، Login، Register،
               Profile، LikedPosts، Following، Followers)
 components/   رابط‌های قابل‌استفاده‌مجدد (LeftSidebar، RightSidebar، PostCard،
@@ -104,7 +104,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 1. `POST /api/auth/login` آبجکت `{"token": "<jwt>"}` و `POST /api/auth/register` آبجکت `{...، token}` برمی‌گرداند. استور آن را در `localStorage` با کلید `sarv.jwt` ذخیره و برای پر کردن `user` با `UserSummaryResponse` صدای `GET /api/users/me/summary` (`fetchMe` از طریق `getMeSummary()`) را می‌زند. `getMe()` کامل (`GET /api/users/me`) فقط برای نمایش پروفایل خود کاربر در `ProfileView` استفاده می‌شود.
 2. `isAuthenticated` فقط از وجود توکن مشتق می‌شود (`stores/auth.ts:13`).
-3. هر درخواست با اینترسپتور `apiClient` هدر `Authorization: Bearer <token>` می‌گیرد (`api/client.ts:25`).
+3. هر درخواست با اینترسپتور `apiClient` هدر `Authorization: Bearer <token>` می‌گیرد (`api/client.ts:25`)، به‌علاوه `X-Session-Id` مختص هر زبانه (`utils/session.ts`، UUID در `sessionStorage` با کلید `sarv.session_id`) تا ردیف‌های رویداد بک‌اند در نشست‌های کاربری گروه‌بندی شوند.
 4. توکن نامعتبر/منقضی از سمت Spring Security خطای `403` با بدنه خالی می‌دهد. اینترسپتور پاسخ (`api/client.ts:33`) آن را انقضای نشست می‌داند: توکن را پاک و هوک `onSessionExpired` متصل‌شده در `main.ts:19` را صدا می‌زند که خروج و هدایت به `login` انجام می‌دهد.
 5. `App.vue:8` هنگام رفرش صفحه نشست را بازیابی می‌کند (اگر توکن هست ولی کاربر نیست، `fetchMe`).
 
@@ -126,7 +126,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 | `api/auth.ts` | `login`، `register` | `POST /api/auth/login`، `POST /api/auth/register` |
 | `api/users.ts` | `getMe`، `getMeSummary`، `getUser`، `updateMe`، `searchUsers(query, pageable)`، `getUserPosts`، `getReactedPosts(filter)`، `getUserStats` | `GET /api/users/me`، `GET /api/users/me/summary`، `GET /api/users/{id}`، `PUT /api/users/me`، `GET /api/users?query=`، `GET /api/users/{id}/posts`، `GET /api/users/{id}/reacted-posts?filter=`، `GET /api/users/{id}/stats` |
 | `api/feed.ts` | `getChronologicalFeed`، `getRecommendedFeed` | `GET /api/feed/chronological`، `GET /api/feed/recommended` |
-| `api/posts.ts` | `getPost`، `getPostAuthor`، `createPost`، `updatePost`، `deletePost`، `searchPosts`، `getComments`، `repostPost`، `quotePost` | `GET/POST /api/posts`، `PUT/DELETE /api/posts/{id}`، `GET /api/posts/{id}/author`، `GET /api/posts/search?query=`، `GET /api/posts/{id}/comments?sortBy=`، بازنشر/نقل‌قول با `POST /api/posts` |
+| `api/posts.ts` | `getPost`، `getPostAuthor`، `createPost`، `updatePost`، `deletePost`، `searchPosts`، `getComments`، `repostPost`، `quotePost`، `reportPostDwell(durationMs, source?)` | `GET/POST /api/posts`، `PUT/DELETE /api/posts/{id}`، `GET /api/posts/{id}/author`، `GET /api/posts/search?query=`، `GET /api/posts/{id}/comments?sortBy=`، بازنشر/نقل‌قول با `POST /api/posts`، گزارش dwell با `POST /api/posts/{id}/dwell` |
 | `api/reactions.ts` | `addReaction(1\|-1)`، `getReaction`، `removeReaction` | `POST/GET/DELETE /api/posts/{id}/reactions` |
 | `api/follows.ts` | `getFollowers`، `getFollowing`، `follow`، `unfollow` | `GET/POST/DELETE /api/users/{id}/followers`، `GET /api/users/{id}/following` |
 | `api/media.ts` | `uploadMedia(file, onProgress?)`، `getMediaBlob`، `getMediaMetadata` | `POST /api/media` (multipart با فیلد `file`)، `GET /api/media/{id}`، `GET /api/media/{id}/metadata` |
@@ -139,6 +139,14 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 - **Latest** ← مستقیم `GET /api/feed/chronological`.
 - **For You** ← `GET /api/feed/recommended`؛ اگر صفحه اول خالی باشد یا درخواست خطا بدهد، خود نما **به زمانی برمی‌گردد** (`FeedView.vue:50`) — علاوه بر تخریب مهربانانه سمت بک‌اند (به [5-Backend.md](./5-Backend.md) مراجعه کنید). تعویض سریع زبانه با شمارنده توالی محافظت می‌شود تا پاسخ‌های قدیمی نادیده گرفته شوند.
+
+### ردیابی dwell
+
+زمان مشاهده پست‌ها با `composables/usePostDwell.ts` به‌صورت بهترین‌تلاش گزارش می‌شود (تک بیکن هنگام unmount/`pagehide`، توقف در زبانه‌های مخفی، سقف حداکثر `1800000` میلی‌ثانیه بک‌اند):
+
+- **صفحه جزئیات** (`PostDetailView.vue`) با `source: DETAIL` ردیابی می‌کند؛ کارت‌های آن بدون ردیابی dwell رندر می‌شوند پس در هر بازدید دقیقاً یک بیکن می‌رود. ناوبری درجا (`/post/5` ← `/post/6`) زمان انباشته را به پست قبلی نسبت می‌دهد و برای پست جدید از نو شروع می‌کند.
+- **کارت‌های فید** (`PostCard.vue` با `dwell-source="FEED"` از `FeedView.vue`) فقط وقتی حداقل ۵۰٪ قابل‌مشاهده باشند (`IntersectionObserver`) انباشته می‌کنند و فقط بعد از ۱ ثانیه مشاهده گزارش می‌دهند.
+- `reportPostDwell` (`api/posts.ts`) هیچ‌وقت reject نمی‌شود؛ مسیر `pagehide` از `fetch` با `keepalive: true` استفاده می‌کند (درخواست‌های عادی هنگام بسته شدن زبانه ممکن است لغو شوند؛ `sendBeacon` نمی‌تواند هدر `Authorization` لازم را بگذارد).
 
 ### ایجاد پست (اول رسانه)
 

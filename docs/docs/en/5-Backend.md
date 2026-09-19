@@ -101,7 +101,8 @@ Self-following is prevented by a database check constraint.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/posts/{postId}` | bearer | Returns the post and increments its `view_count`; logs `VIEW_POST` |
+| GET | `/api/posts/{postId}` | bearer | Returns the post and increments its `view_count`; logs `VIEW_POST` (accepts optional `X-Session-Id`, stored on the event row; malformed UUID is rejected with `400`) |
+| POST | `/api/posts/{postId}/dwell` | bearer | Reports visible time on the post; `204 No Content`, never increments `view_count`; logs `VIEW_POST` with `metadata {duration_ms, source}` |
 | GET | `/api/posts/{postId}/author` | bearer | Returns the author's id, username, display name and avatar id (`UserSummaryResponse`); does not log `VIEW_PROFILE`, so feed card headers don't pollute profile-view analytics |
 | GET | `/api/posts/search?query=` | bearer | Searches post text (case-insensitive, partial match), paginated; blank `query` is rejected with `400`; default `size=10, sort=createdAt,DESC` |
 | POST | `/api/posts` | bearer | Creates a post; `201 Created` with a `Location` header; logs `CREATE_POST` |
@@ -220,7 +221,8 @@ User behavior is recorded by explicit, best-effort calls to `EventLogService` fr
 
 - Service methods call `eventLogService.logX(...)` (e.g. `logLogin`, `logProfileView`, `logFeedRequest`) wrapped in `logXSafely` helpers that swallow failures, so analytics never breaks the request.
 - The `EventLogService` methods are `@Async`: events are persisted out of band in a separate thread.
-- The `event_logs` schema also includes `session_id` (groups actions of one usage session; unrelated to JWT) and `metadata` (JSONB, for event-specific information). For `REQUEST_FEED` the metadata currently holds only `{feed_type: chronological|recommended}`.
+- The `event_logs` schema also includes `session_id` (groups actions of one usage session; unrelated to JWT) and `metadata` (JSONB, for event-specific information). The session id is frontend-owned (one UUID per tab visit) and arrives via the `X-Session-Id` header, with the dwell body as fallback. Per-type `metadata` conventions: `REQUEST_FEED` holds `{feed_type: chronological|recommended}`; dwell reports hold `{duration_ms, source: DETAIL|FEED}`.
+- `VIEW_POST` therefore has two shapes: bare impression rows (written by `GET /api/posts/{postId}`) and dwell rows (written by `POST /api/posts/{postId}/dwell`, `durationMs` validated `1..1800000`). View counts must exclude dwell rows (`metadata ? 'duration_ms'`); engagement is `AVG((metadata->>'duration_ms')::bigint)` over dwell rows. Rows of one visit pair up via `(user_id, post_id, session_id)` ordered by `created_at`.
 
 Event types: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `QUOTE_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`, `REGISTER`. `REQUEST_FEED` is produced by both feed endpoints (`GET /api/feed/chronological` and `GET /api/feed/recommended`). Quote posts map to `QUOTE_POST`; registration logs both `LOGIN` (automatic login) and `REGISTER`.
 

@@ -148,7 +148,7 @@ As a result, each category of data is stored in the environment most suitable fo
 | Core Backend (users, auth, posts, reactions, follows, media) | Implemented |
 | Frontend web client (auth, feed tabs, posts, reactions, profiles, search, media) | Implemented (AI-generated; topics/news content still placeholder — see [7-Frontend.md](./7-Frontend.md)) |
 | Media storage on local filesystem | Implemented |
-| Event logging (`event_logs`) | Implemented — 13 event types incl. `REGISTER` and `QUOTE_POST`; `REQUEST_FEED` with `metadata {feed_type}` |
+| Event logging (`event_logs`) | Implemented — 13 event types incl. `REGISTER` and `QUOTE_POST`; `REQUEST_FEED` with `metadata {feed_type}`; post dwell via `POST /api/posts/{id}/dwell` (`VIEW_POST` with `metadata {duration_ms, source}`) grouped by tab-scoped `session_id` (V8 index) |
 | Feed generation (chronological / smart feed) | Implemented — `GET /api/feed/chronological` and `GET /api/feed/recommended` with `Page<PostResponse>` and graceful fallback |
 | Backend ↔ Recommendation integration | Implemented — `RestClient` (`recommendation.base-url` / `RECOMMENDATION_URL`, 1500 ms timeout), `RecommendationClient` → `GET /feed?user_id=&page=&size=`, hydration via `findAllByIdsFiltered`, healthcheck on `GET /health` |
 | Analytics subsystem | Planned — not started |
