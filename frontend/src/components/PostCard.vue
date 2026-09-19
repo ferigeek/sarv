@@ -4,21 +4,33 @@ import { useRouter } from 'vue-router'
 import gsap from 'gsap'
 
 import { getMediaBlob, getMediaMetadata } from '@/api/media'
-import { getPost, getPostAuthor } from '@/api/posts'
+import { getPost, getPostAuthor, type DwellSource } from '@/api/posts'
 import { addReaction, getReaction, removeReaction } from '@/api/reactions'
 import type { PostResponse, UserSummaryResponse, UserReaction } from '@/types/api'
+import { usePostDwell } from '@/composables/usePostDwell'
 import AppIcon from './AppIcon.vue'
 import PostCreateModal from './PostCreateModal.vue'
 import RepostConfirm from './RepostConfirm.vue'
 
 const props = withDefaults(
-  defineProps<{ post: PostResponse; clickable?: boolean; detailed?: boolean }>(),
-  { clickable: true, detailed: false },
+  defineProps<{ post: PostResponse; clickable?: boolean; detailed?: boolean; dwellSource?: DwellSource | null }>(),
+  { clickable: true, detailed: false, dwellSource: null },
 )
 
 const emit = defineEmits<{ reposted: [id: number]; quoted: [id: number] }>()
 
 const router = useRouter()
+
+const cardRef = ref<HTMLElement | null>(null)
+
+// Feed impressions report dwell only after 1s of >=50% visibility;
+// cards without dwellSource (e.g. detail comments) track nothing.
+usePostDwell(() => props.post.id, {
+  source: props.dwellSource ?? 'FEED',
+  target: cardRef,
+  minDurationMs: 1000,
+  enabled: props.dwellSource != null,
+})
 
 const user = ref<UserSummaryResponse | null>(null)
 const avatarUrl = ref<string | null>(null)
@@ -403,6 +415,7 @@ async function onDislike() {
 
 <template>
   <article
+    ref="cardRef"
     class="post-card panel"
     :class="{ 'post-card--clickable': clickable && !detailed }"
     :data-testid="`post-card-${post.id}`"

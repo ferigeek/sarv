@@ -20,6 +20,7 @@ vi.mock('@/api/users', () => ({
 vi.mock('@/api/posts', () => ({
   getPost: vi.fn<(id: number) => Promise<PostResponse>>(),
   getPostAuthor: vi.fn<(id: number) => Promise<import('@/types/api').UserSummaryResponse>>(),
+  reportPostDwell: vi.fn<(id: number, payload: unknown) => Promise<void>>(),
 }))
 
 vi.mock('@/api/reactions', () => ({
@@ -41,6 +42,7 @@ import { getUser as mockGetUser } from '@/api/users'
 import { getMediaBlob as mockGetMediaBlob } from '@/api/media'
 import { getMeSummary as mockGetMeSummary } from '@/api/users'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
+import PostCard from '@/components/PostCard.vue'
 import { createAppRouter } from '@/router'
 import FeedView from '@/views/FeedView.vue'
 
@@ -240,5 +242,20 @@ describe('FeedView', () => {
     expect(card.find('[data-testid="post-like-count"]').exists()).toBe(true)
     expect(card.find('[data-testid="post-dislike-count"]').exists()).toBe(true)
     expect(card.find('[data-testid="post-content"]').text()).toBe('hello')
+  })
+
+  it('passes FEED dwell tracking to post cards', async () => {
+    mockedGetRecommendedFeed.mockResolvedValue(makePage([makePost(1), makePost(2)]))
+
+    const { wrapper } = await mountFeed()
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    const cards = wrapper.findAllComponents(PostCard)
+    expect(cards.length).toBe(2)
+    for (const card of cards) {
+      expect(card.props('dwellSource')).toBe('FEED')
+    }
   })
 })

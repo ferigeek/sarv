@@ -20,6 +20,7 @@ vi.mock('@/api/posts', () => ({
   getComments: vi.fn<() => Promise<unknown>>(),
   repostPost: vi.fn<(id: number) => Promise<PostResponse>>(),
   quotePost: vi.fn<() => Promise<PostResponse>>(),
+  reportPostDwell: vi.fn<(id: number, payload: unknown) => Promise<void>>(),
 }))
 
 vi.mock('@/api/reactions', () => ({

@@ -19,6 +19,7 @@ vi.mock('@/api/posts', () => ({
   deletePost: vi.fn<() => Promise<void>>(),
   searchPosts: vi.fn<(query: string, pageable?: unknown) => Promise<Page<import('@/types/api').PostResponse>>>(),
   getComments: vi.fn<() => Promise<unknown>>(),
+  reportPostDwell: vi.fn<(id: number, payload: unknown) => Promise<void>>(),
 }))
 
 vi.mock('@/api/media', () => ({

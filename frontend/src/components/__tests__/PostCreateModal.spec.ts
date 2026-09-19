@@ -17,6 +17,7 @@ vi.mock('@/api/posts', () => ({
   deletePost: vi.fn<() => Promise<void>>(),
   repostPost: vi.fn<() => Promise<PostResponse>>(),
   quotePost: vi.fn<(id: number, payload: unknown) => Promise<PostResponse>>(),
+  reportPostDwell: vi.fn<(id: number, payload: unknown) => Promise<void>>(),
 }))
 
 vi.mock('@/api/users', () => ({

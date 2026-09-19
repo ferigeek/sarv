@@ -19,6 +19,7 @@ vi.mock('@/api/users', () => ({
 vi.mock('@/api/posts', () => ({
   getPost: vi.fn<(id: number) => Promise<PostResponse>>(),
   getPostAuthor: vi.fn<(id: number) => Promise<import('@/types/api').UserSummaryResponse>>(),
+  reportPostDwell: vi.fn<(id: number, payload: unknown) => Promise<void>>(),
 }))
 
 vi.mock('@/api/reactions', () => ({
