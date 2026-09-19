@@ -2,6 +2,7 @@ import axios, { AxiosError } from 'axios'
 
 import type { ProblemDetail } from '@/types/api'
 import { clearToken, getToken } from '@/utils/token'
+import { getSessionId } from '@/utils/session'
 
 export interface ApiError {
   status: number
@@ -26,6 +27,12 @@ apiClient.interceptors.request.use((config) => {
   const token = getToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  // Groups backend event_logs rows of one tab visit; best-effort, never blocks requests.
+  try {
+    config.headers['X-Session-Id'] = getSessionId()
+  } catch {
+    // ignore — telemetry must not break api calls
   }
   return config
 })
