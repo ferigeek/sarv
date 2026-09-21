@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from logging import getLogger
 from time import perf_counter
 from fastapi import FastAPI, Query
 from cache import cache_key, close_cache, get_cached_page, open_cache, set_cached_page
@@ -8,10 +9,18 @@ from metrics import observe_cache, observe_request, observe_result, observe_scor
 from prometheus_fastapi_instrumentator import Instrumentator
 from scoring import MODEL_VERSION, score_post
 
+log = getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await open_pool()
+    try:
+        await open_pool()
+    except Exception:
+        # Stay up without a pool (local runs, early boot): /feed 500s with a
+        # clear error until DB_* is configured, while /health and /metrics
+        # keep serving. The backend falls back to chronological meanwhile.
+        log.exception("Database pool failed to open, starting degraded")
     await open_cache()
     yield
     await close_cache()
