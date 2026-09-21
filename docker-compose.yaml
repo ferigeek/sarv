@@ -53,11 +53,18 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_HOST: postgres
       DB_PORT: 5432
+      DB_POOL_MIN: ${DB_POOL_MIN:-2}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-5}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      FEED_CACHE_TTL_SECONDS: ${FEED_CACHE_TTL_SECONDS:-45}
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request, sys; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read() or sys.exit(1)\""]
       interval: 10s

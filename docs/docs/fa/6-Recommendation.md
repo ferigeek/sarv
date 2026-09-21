@@ -55,8 +55,13 @@ Swagger UI در `http://localhost:8000/docs` (خودکار FastAPI) در دست�
 | `DB_PASSWORD` | رمز DB | — | `your-password` |
 | `DB_HOST` | هاست DB | `localhost` | `postgres` (در `docker-compose.yaml`) |
 | `DB_PORT` | پورت DB | `5432` | `5432` |
+| `DB_POOL_MIN` | کف استخر اتصال | `2` | `2` |
+| `DB_POOL_MAX` | سقف استخر اتصال | `10` | `10` |
+| `DB_POOL_TIMEOUT` | تایم‌اوت اتصال (ثانیه) | `5` | `5` |
+| `REDIS_URL` | ردیس کش فید | `redis://localhost:6379` | `redis://redis:6379` (در `docker-compose.yaml`) |
+| `FEED_CACHE_TTL_SECONDS` | ماندگاری صفحه کش | `45` | `45` |
 
-`docker-compose.yaml` مقدار `DB_HOST=postgres` و `DB_PORT=5432` را تنظیم می‌کند؛ به‌صورت محلی پیش‌فرض‌ها به `localhost` برمی‌گردند. وابستگی `redis` در `pyproject.toml` فعلاً استفاده نمی‌شود.
+`docker-compose.yaml` مقادیر `DB_HOST=postgres`، `DB_PORT=5432`، اندازه استخر و `REDIS_URL=redis://redis:6379` را تنظیم می‌کند. استخر در `lifespan` برنامه باز می‌شود؛ ردیس اختیاری است — خرابی آن با `WARN` به DB مستقیم برمی‌گردد.
 
 اتصال بک‌اند جداگانه از طریق `RECOMMENDATION_URL` پیکربندی می‌شود (به [5-Backend.md](./5-Backend.md) مراجعه کنید).
 
@@ -71,7 +76,7 @@ Swagger UI در `http://localhost:8000/docs` (خودکار FastAPI) در دست�
 - **احراز هویت:** ندارد (شبکه داخلی)
 - **پاسخ `200`:**
 ```json
-{ "status": "ok" }
+{ "status": "ok", "model": "heuristic-v0" }
 ```
 
 ### `GET /feed`
@@ -122,7 +127,7 @@ curl "http://localhost:8000/feed?user_id=42&page=1&size=10"
 
 ## تولید کاندید
 
-`CandidateGenerator(user_id).generate_candidates()` (`candidate.py:7`) سه منبع (`search_span_days=7`) را ترکیب و با حفظ ترتیب `trending → following → follower` حذف تکراری می‌کند (`seen = set()`).
+`CandidateGenerator(user_id).generate_candidates()` (`candidate.py`) سه منبع (`search_span_days=7`) را با یک `_fetch` ناهمگام ترکیب و با اولویت نسخه پرچم‌دار حذف تکراری می‌کند (ترتیب `trending → following → follower`).
 
 همه کوئری‌ها روی `deleted_at IS NULL AND type='NORMAL' AND created_at >= now - 7d` (UTC) فیلتر می‌کنند:
 
@@ -152,9 +157,11 @@ FROM posts p JOIN follows f ON p.user_id = f.follower_id
 WHERE f.followed_id = %s AND ...
 ORDER BY p.created_at DESC LIMIT 50
 ```
-نیز `from_followed=True` (همان تقویت دنبال‌شونده؛ تفاوت مورد نظر مستند نشده).
+نیز `from_followed=False` (بدون تقویت؛ تقویت فقط برای دنبال‌شونده‌ها).
 
-حداکثر کاندید خام: `100 + 50 + 50 = 200` قبل از حذف تکراری. `database.py:12` `get_connection()` برای هر فراخوانی یک اتصال جدید `psycopg` باز می‌کند (بدون pool).
+حداکثر کاندید خام: `100 + 50 + 50 = 200` قبل از حذف تکراری. اتصال‌ها از `AsyncConnectionPool` مشترک در `lifespan` برنامه می‌آیند (`DB_POOL_MIN/MAX/TIMEOUT`). تأخیر و تعداد هر منبع با `feed_db_query_seconds{query}` و `feed_candidates_count{source}` ثبت می‌شود.
+
+پشتیبانی با `V9__add_recommendation_indexes.sql`: `idx_posts_trending` جزئی برای مرتب‌سازی تعامل و `idx_posts_user_type_created_at` جزئی برای تایم‌لاین‌های دنبال‌شونده/دنبال‌کننده.
 
 ---
 
@@ -195,6 +202,10 @@ return engagement * recency_boost * follow_boost
 
 ---
 
+## کش
+
+کش read-through ردیس (`cache.py`): کلید `feed:v0:user:{id}:page:{p}:size:{s}`، مقدار `{posts, total}`، ماندگاری `FEED_CACHE_TTL_SECONDS` (۴۵ ثانیه). هیت DB را دور می‌زند؛ هر خطا با `WARN` به DB مستقیم برمی‌گردد. با `feed_cache_events_total{outcome}` ثبت می‌شود.
+
 ## صفحه‌بندی و قرارداد
 
 - `page` مبتنی بر صفر، `size` ۱ تا ۱۰۰، اعتبارسنجی توسط FastAPI `Query`.
@@ -203,6 +214,10 @@ return engagement * recency_boost * follow_boost
 - قرارداد مورد نظر فقط شناسه‌ها است؛ `score` فعلی برای اشکال‌زدایی است و توسط بک‌اند جز برای مرتب‌سازی نادیده گرفته می‌شود.
 
 ---
+
+## متریک‌ها
+
+علاوه بر هیستوگرام‌های پیش‌فرض instrumentator (`metrics.py`): `feed_cache_events_total{outcome}`، `feed_db_query_seconds{query}`، `feed_candidates_count{source}`، `feed_scoring_seconds`، `feed_request_seconds{outcome}`، `feed_result_total`، `feed_scores`، `feed_model_info{version}`. در `monitoring/prometheus.yml` به‌عنوان `sarv-recommendation` scrape می‌شود.
 
 ## یکپارچه‌سازی با هسته مرکزی
 
@@ -224,8 +239,8 @@ return engagement * recency_boost * follow_boost
 **Dockerfile** (`intelligence/recommendation/Dockerfile:40`):
 
 - چندمرحله‌ای: `python:3.13-slim` بیلد + ران‌تایم، `ghcr.io/astral-sh/uv:latest` (`uv`/`uvx`)، `UV_COMPILE_BYTECODE=1`, `UV_LINK_MODE=copy`.
-- `COPY pyproject.toml uv.lock` → `uv sync --frozen --no-install-project` → `COPY main.py candidate.py scoring.py database.py` → `uv sync --frozen`.
-- ران‌تایم: کاربر غیرریشه `appuser`، کپی `.venv` + ۴ فایل پایتون `chown appuser`، `PATH="/app/.venv/bin"`، `EXPOSE 8000`، `CMD ["uvicorn","main:app","--host","0.0.0.0","--port","8000"]`.
+- `COPY pyproject.toml uv.lock` → `uv sync --frozen --no-install-project` → `COPY main.py candidate.py scoring.py database.py cache.py metrics.py` → `uv sync --frozen`.
+- ران‌تایم: کاربر غیرریشه `appuser`، کپی `.venv` + ۶ فایل پایتون `chown appuser`، `PATH="/app/.venv/bin"`، `EXPOSE 8000`، `CMD ["uvicorn","main:app","--host","0.0.0.0","--port","8000"]`.
 - `.dockerignore` ` .env`, `.venv`, `__pycache__` را حذف می‌کند.
 
 **بررسی سلامت** (`docker-compose.yaml:40`):
@@ -250,6 +265,8 @@ healthcheck:
 - `test_scoring.py` — موارد لبه `score_post` (صفر/منفی، جریمه دیسلایک، تاریخ آینده، نیمه‌عمر ۴۸ ساعته، ضریب `1.5×` دنبال‌شونده، ترتیب).
 - `test_candidate_dedup.py` — هم‌پوشانی داغ/دنبال‌شونده نسخه پرچم‌دار را نگه می‌دارد، پست‌های دنبال‌کننده بدون پرچم، حفظ ترتیب (بدون DB واقعی).
 - `test_feed_contract.py` — قرارداد `/feed` با `CandidateGenerator` ساختگی (کلیدها، `score desc`، `page/size/total`، صفحه خالی، `422`).
+- `test_feed_cache.py` — هیت کش DB را دور می‌زند، میس ذخیره می‌کند، خطا به DB برمی‌گردد (کش ساختگی).
+- `test_metrics.py` — `/metrics` همه سری‌های جدید و نسخه مدل را نشان می‌دهد.
 
 تست‌های قرارداد بک‌اند همچنان منبع حقیقت یکپارچه‌سازی هستند:
 
@@ -267,7 +284,9 @@ healthcheck:
 - **صفحه‌بندی:** پیاده‌سازی‌شده سمت سرور `score desc`
 - **Docker و سلامت:** پیاده‌سازی‌شده
 - **یکپارچه‌سازی:** پیاده‌سازی‌شده (بک‌اند `RestClient` + fallback)
-- **تست:** پیاده‌سازی‌شده (`tests/test_scoring|dedup|contract`، ۱۴ مورد)
-- **موارد باقی‌مانده:** قرارداد فقط شناسه، کش `redis` (اعلام‌شده ولی استفاده نشده)، متریک/Prometheus
+- **تست:** پیاده‌سازی‌شده (`tests/test_scoring|dedup|contract|cache|metrics`، ۱۸ مورد)
+- **لایه داده (P1):** پیاده‌سازی‌شده (`AsyncConnectionPool` + lifespan، `_fetch` یکپارچه، کش read-through ردیس `feed:v0:*` با ۴۵ ثانیه ماندگاری و bypass، ایندکس‌های جزئی `V9`)
+- **مشاهده‌پذیری (P1):** پیاده‌سازی‌شده (متریک‌های کش/کوئری/کاندید/امتیاز/درخواست/نتیجه/امتیازها + `feed_model_info`)
+- **موارد باقی‌مانده:** قرارداد فقط شناسه
 
 به [5-Backend.md](./5-Backend.md) و [3-Architecture.md](./3-Architecture.md) نیز مراجعه کنید.

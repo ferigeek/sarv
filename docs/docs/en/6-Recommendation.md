@@ -55,8 +55,13 @@ The service uses `pydantic-settings` (`database.py:7` `BaseSettings` with `env_p
 | `DB_PASSWORD` | DB password | — | `your-password` |
 | `DB_HOST` | DB host | `localhost` | `postgres` (in `docker-compose.yaml`) |
 | `DB_PORT` | DB port | `5432` | `5432` |
+| `DB_POOL_MIN` | Async pool floor | `2` | `2` |
+| `DB_POOL_MAX` | Async pool ceiling | `10` | `10` |
+| `DB_POOL_TIMEOUT` | Pool checkout timeout (s) | `5` | `5` |
+| `REDIS_URL` | Redis for the feed cache | `redis://localhost:6379` | `redis://redis:6379` (in `docker-compose.yaml`) |
+| `FEED_CACHE_TTL_SECONDS` | Ranked-page TTL | `45` | `45` |
 
-`docker-compose.yaml` sets `DB_HOST=postgres` and `DB_PORT=5432`; locally the defaults resolve to `localhost`. No additional env is required. The `redis` dependency in `pyproject.toml` is currently unused (see [Implementation Status](#implementation-status)).
+`docker-compose.yaml` sets `DB_HOST=postgres`, `DB_PORT=5432`, pool sizes, and `REDIS_URL=redis://redis:6379`; locally the defaults resolve to `localhost`. The pool opens in the app `lifespan` (`database.py` `open_pool`/`close_pool`); Redis is optional — startup and every request degrade to direct DB on failure with a `WARN` log.
 
 Backend connection is configured separately via `RECOMMENDATION_URL` (see [5-Backend.md](./5-Backend.md)).
 
@@ -71,7 +76,7 @@ Health probe for `docker-compose.yaml` (`interval 10s, timeout 3s, retries 3, st
 - **Auth:** none (internal network)
 - **Response `200`:**
 ```json
-{ "status": "ok" }
+{ "status": "ok", "model": "heuristic-v0" }
 ```
 
 ### `GET /feed`
@@ -122,7 +127,7 @@ curl "http://localhost:8000/feed?user_id=42&page=1&size=10"
 
 ## Candidate Generation
 
-`CandidateGenerator(user_id).generate_candidates()` (`candidate.py:7`) combines three sources (`search_span_days=7`) and deduplicates preserving `trending → following → follower` order (`seen = set()`).
+`CandidateGenerator(user_id).generate_candidates()` (`candidate.py`) combines three sources (`search_span_days=7`) via one async `_fetch` helper and deduplicates preferring the flagged copy (`trending → following → follower` order).
 
 All queries filter `deleted_at IS NULL AND type='NORMAL' AND created_at >= now - 7d` (UTC):
 
@@ -152,9 +157,11 @@ FROM posts p JOIN follows f ON p.user_id = f.follower_id
 WHERE f.followed_id = %s AND ...
 ORDER BY p.created_at DESC LIMIT 50
 ```
-Also `from_followed=True` (same boost as following; intended to distinguish but currently identical).
+Also `from_followed=False` (no boost for mere followers).
 
-Max raw candidates: `100 + 50 + 50 = 200` before dedup. `database.py:12` `get_connection()` opens a new `psycopg` connection per call (no pooling).
+Max raw candidates: `100 + 50 + 50 = 200` before dedup. Connections come from a shared `AsyncConnectionPool` opened in the app `lifespan` (`database.py` `open_pool`/`close_pool`, `DB_POOL_MIN/MAX/TIMEOUT`). Per-source latency and counts are observed as `feed_db_query_seconds{query}` / `feed_candidates_count{source}`.
+
+Backed by `V9__add_recommendation_indexes.sql`: partial `idx_posts_trending` for the engagement sort and partial `idx_posts_user_type_created_at` for the follow timelines.
 
 ---
 
@@ -195,6 +202,10 @@ The `ranked = sorted(candidates, key=score_post, reverse=True)` determines final
 
 ---
 
+## Caching
+
+Read-through Redis (`cache.py`): key `feed:v0:user:{id}:page:{p}:size:{s}`, value `{posts, total}`, TTL `FEED_CACHE_TTL_SECONDS` (45s). Hits skip the DB; any failure logs `WARN` and bypasses. Observed as `feed_cache_events_total{outcome}`.
+
 ## Pagination & Contract
 
 - `page` zero-based, `size` 1–100, validated by FastAPI `Query`.
@@ -203,6 +214,10 @@ The `ranked = sorted(candidates, key=score_post, reverse=True)` determines final
 - Intended contract is IDs-only; current `score` is for debugging and ignored by backend except for sort.
 
 ---
+
+## Metrics
+
+Default `prometheus-fastapi-instrumentator` histograms plus (`metrics.py`): `feed_cache_events_total{outcome}`, `feed_db_query_seconds{query}`, `feed_candidates_count{source}`, `feed_scoring_seconds`, `feed_request_seconds{outcome}`, `feed_result_total`, `feed_scores`, `feed_model_info{version}`. Scraped as `sarv-recommendation` in `monitoring/prometheus.yml`.
 
 ## Integration with Core Backend
 
@@ -224,8 +239,8 @@ The `ranked = sorted(candidates, key=score_post, reverse=True)` determines final
 **Dockerfile** (`intelligence/recommendation/Dockerfile:40`):
 
 - Multi-stage: `python:3.13-slim` build + runtime, `ghcr.io/astral-sh/uv:latest` (`uv`/`uvx`), `UV_COMPILE_BYTECODE=1`, `UV_LINK_MODE=copy`.
-- `COPY pyproject.toml uv.lock` → `uv sync --frozen --no-install-project` → `COPY main.py candidate.py scoring.py database.py` → `uv sync --frozen`.
-- Runtime: non-root `appuser`, copies `.venv` + 4 py files `chown appuser`, `PATH="/app/.venv/bin"`, `EXPOSE 8000`, `CMD ["uvicorn","main:app","--host","0.0.0.0","--port","8000"]`.
+- `COPY pyproject.toml uv.lock` → `uv sync --frozen --no-install-project` → `COPY main.py candidate.py scoring.py database.py cache.py metrics.py` → `uv sync --frozen`.
+- Runtime: non-root `appuser`, copies `.venv` + 6 py files `chown appuser`, `PATH="/app/.venv/bin"`, `EXPOSE 8000`, `CMD ["uvicorn","main:app","--host","0.0.0.0","--port","8000"]`.
 - `.dockerignore` excludes `.env`, `.venv`, `__pycache__`.
 
 **Healthcheck** (`docker-compose.yaml:40`):
@@ -250,6 +265,8 @@ Python tests live under `intelligence/recommendation/tests/` (`uv run pytest`):
 - `test_scoring.py` — `score_post` edges (zero/negative clamp, dislike penalty, future-date clamp, 48h half-life, `1.5×` follow boost, ordering).
 - `test_candidate_dedup.py` — trending/following overlap keeps the flagged copy, follower posts unflagged, order preserved (mocked cursor, no live DB).
 - `test_feed_contract.py` — `TestClient` with mocked `CandidateGenerator` (keys, `score desc`, `page/size/total`, empty out-of-range page, `422`).
+- `test_feed_cache.py` — cache hit skips DB, miss stores, error falls back (mocked cache).
+- `test_metrics.py` — `/metrics` exposes every new series plus the model version.
 
 Backend contract tests remain the source of truth for integration:
 
@@ -267,7 +284,9 @@ Backend contract tests remain the source of truth for integration:
 - **Pagination:** Implemented server-side `score desc`
 - **Docker & healthcheck:** Implemented
 - **Integration:** Implemented (backend `RestClient` + fallback)
-- **Testing:** Implemented (`tests/test_scoring|dedup|contract`, 14 cases)
-- **Outstanding:** IDs-only contract, `redis` caching (declared but unused), metrics/Prometheus
+- **Testing:** Implemented (`tests/test_scoring|dedup|contract|cache|metrics`, 18 cases)
+- **Data layer (P1):** Implemented (`AsyncConnectionPool` + lifespan, unified `_fetch`, Redis read-through `feed:v0:*` 45s TTL with bypass, `V9` partial indexes)
+- **Observability (P1):** Implemented (cache/query/candidate/scoring/request/result/score metrics + `feed_model_info`)
+- **Outstanding:** IDs-only contract
 
 See also [5-Backend.md](./5-Backend.md) and [3-Architecture.md](./3-Architecture.md).
