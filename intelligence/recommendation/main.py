@@ -26,16 +26,17 @@ async def get_feed(
     the backend; sorting is always by server-side ranking (score desc).
     """
     candidates = CandidateGenerator(user_id).generate_candidates()
-    ranked = sorted(candidates, key=score_post, reverse=True)
+    scored = [(post, score_post(post)) for post in candidates]
+    scored.sort(key=lambda item: item[1], reverse=True)
 
-    total = len(ranked)
+    total = len(scored)
     start = page * size
     end = start + size
-    paged = ranked[start:end] if start < total else []
+    paged = scored[start:end] if start < total else []
 
     return {
         "user_id": user_id,
-        "posts": [{"post_id": p.post_id, "score": score_post(p)} for p in paged],
+        "posts": [{"post_id": post.post_id, "score": score} for post, score in paged],
         "page": page,
         "size": size,
         "total": total,
