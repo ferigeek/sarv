@@ -13,21 +13,25 @@ class CandidateGenerator:
         """
         Returns candidate posts for the user as a list of PostFeatures.
         Trending posts come first, then posts from followings and followers.
+        Only authors the user follows get the follow boost; duplicates keep
+        the flagged copy so the boost is not silently dropped.
         """
         with get_connection() as conn:
             trending = self._get_trending_posts(conn)
             following_posts = self._get_following_posts(conn)
             follower_posts = self._get_follower_posts(conn)
 
-        # Combine and deduplicate by post id, preserving order
-        seen = set()
-        candidates = []
+        # Combine and deduplicate by post id, preserving first-seen order
+        # but preferring the flagged (from_followed) copy on duplicates.
+        by_id = {}
         for post in trending + following_posts + follower_posts:
-            if post.post_id not in seen:
-                seen.add(post.post_id)
-                candidates.append(post)
+            existing = by_id.get(post.post_id)
+            if existing is None:
+                by_id[post.post_id] = post
+            elif post.from_followed and not existing.from_followed:
+                by_id[post.post_id] = post
 
-        return candidates
+        return list(by_id.values())
 
     def _get_trending_posts(self, conn) -> List[PostFeatures]:
         """
@@ -82,6 +86,8 @@ class CandidateGenerator:
     def _get_follower_posts(self, conn) -> List[PostFeatures]:
         """
         Returns recent posts from users that follow the current user.
+        These get no follow boost: the boost is reserved for authors
+        the requesting user follows.
         """
         cutoff = datetime.now(timezone.utc) - timedelta(days=self.search_span_days)
 
@@ -102,6 +108,6 @@ class CandidateGenerator:
             rows = cur.fetchall()
 
         return [
-            PostFeatures(str(row[0]), row[1], row[2], row[3], row[4], from_followed=True)
+            PostFeatures(str(row[0]), row[1], row[2], row[3], row[4])
             for row in rows
         ]
