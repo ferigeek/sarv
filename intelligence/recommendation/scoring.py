@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+MODEL_VERSION = "heuristic-v0"
+
 
 @dataclass
 class PostFeatures:

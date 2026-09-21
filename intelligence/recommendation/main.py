@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Query
 from candidate import CandidateGenerator
 from prometheus_fastapi_instrumentator import Instrumentator
-from scoring import score_post
+from scoring import MODEL_VERSION, score_post
 
 app = FastAPI()
 
@@ -11,7 +11,7 @@ Instrumentator(excluded_handlers=["/metrics", "/health"]).instrument(app).expose
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "model": MODEL_VERSION}
 
 
 @app.get("/feed")
