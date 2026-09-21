@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query
+from cache import cache_key, close_cache, get_cached_page, open_cache, set_cached_page
 from candidate import CandidateGenerator
 from database import close_pool, open_pool
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -9,7 +10,9 @@ from scoring import MODEL_VERSION, score_post
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await open_pool()
+    await open_cache()
     yield
+    await close_cache()
     await close_pool()
 
 
@@ -34,7 +37,22 @@ async def get_feed(
     Returns a ranked list of recommended post IDs with their scores
     for the given user. Supports pagination via page/size forwarded from
     the backend; sorting is always by server-side ranking (score desc).
+    Read-through Redis cache first; any cache failure bypasses to the DB.
     """
+    key = cache_key(user_id, page, size)
+    try:
+        cached = await get_cached_page(key)
+    except Exception:
+        cached = None
+    if cached is not None:
+        return {
+            "user_id": user_id,
+            "posts": cached["posts"],
+            "page": page,
+            "size": size,
+            "total": cached["total"],
+        }
+
     candidates = await CandidateGenerator(user_id).generate_candidates()
     scored = [(post, score_post(post)) for post in candidates]
     scored.sort(key=lambda item: item[1], reverse=True)
@@ -43,10 +61,16 @@ async def get_feed(
     start = page * size
     end = start + size
     paged = scored[start:end] if start < total else []
+    posts = [{"post_id": post.post_id, "score": score} for post, score in paged]
+
+    try:
+        await set_cached_page(key, {"posts": posts, "total": total})
+    except Exception:
+        pass
 
     return {
         "user_id": user_id,
-        "posts": [{"post_id": post.post_id, "score": score} for post, score in paged],
+        "posts": posts,
         "page": page,
         "size": size,
         "total": total,
