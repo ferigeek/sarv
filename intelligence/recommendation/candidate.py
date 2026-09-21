@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
+from time import perf_counter
 from typing import List
 from database import get_connection
+from metrics import observe_candidates, observe_db_query
 from scoring import PostFeatures
 
 
@@ -31,13 +33,20 @@ class CandidateGenerator:
             elif post.from_followed and not existing.from_followed:
                 by_id[post.post_id] = post
 
-        return list(by_id.values())
+        candidates = list(by_id.values())
+        observe_candidates("trending", len(trending))
+        observe_candidates("following", len(following_posts))
+        observe_candidates("follower", len(follower_posts))
+        observe_candidates("deduped", len(candidates))
+        return candidates
 
-    async def _fetch(self, conn, query: str, params: tuple, *, from_followed: bool = False) -> List[PostFeatures]:
+    async def _fetch(self, conn, query: str, params: tuple, *, source: str, from_followed: bool = False) -> List[PostFeatures]:
         """Runs one candidate query and maps rows to PostFeatures."""
+        start = perf_counter()
         async with conn.cursor() as cur:
             await cur.execute(query, params)
             rows = await cur.fetchall()
+        observe_db_query(source, perf_counter() - start)
 
         return [
             PostFeatures(str(row[0]), row[1], row[2], row[3], row[4], from_followed=from_followed)
@@ -61,7 +70,7 @@ class CandidateGenerator:
             LIMIT 100
         """
 
-        return await self._fetch(conn, query, (cutoff,))
+        return await self._fetch(conn, query, (cutoff,), source="trending")
 
     async def _get_following_posts(self, conn) -> List[PostFeatures]:
         """
@@ -81,7 +90,7 @@ class CandidateGenerator:
             LIMIT 50
         """
 
-        return await self._fetch(conn, query, (self.user_id, cutoff), from_followed=True)
+        return await self._fetch(conn, query, (self.user_id, cutoff), source="following", from_followed=True)
 
     async def _get_follower_posts(self, conn) -> List[PostFeatures]:
         """
@@ -103,4 +112,4 @@ class CandidateGenerator:
             LIMIT 50
         """
 
-        return await self._fetch(conn, query, (self.user_id, cutoff))
+        return await self._fetch(conn, query, (self.user_id, cutoff), source="follower")
