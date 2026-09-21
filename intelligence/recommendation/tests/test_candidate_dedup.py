@@ -1,6 +1,6 @@
-from contextlib import contextmanager
+import asyncio
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import candidate as candidate_module
 from candidate import CandidateGenerator
@@ -10,9 +10,10 @@ NOW = datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc)
 
 def fake_cursor(rows):
     cur = MagicMock()
-    cur.fetchall.return_value = rows
-    cur.__enter__ = MagicMock(return_value=cur)
-    cur.__exit__ = MagicMock(return_value=False)
+    cur.execute = AsyncMock()
+    cur.fetchall = AsyncMock(return_value=rows)
+    cur.__aenter__ = AsyncMock(return_value=cur)
+    cur.__aexit__ = AsyncMock(return_value=False)
     return cur
 
 
@@ -25,14 +26,19 @@ def run_with_rows(trending, following, follower):
         fake_cursor(follower),
     ]
 
-    @contextmanager
-    def fake_connection():
+    async def fake_connection():
+        yield conn
+
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def fake_get_connection():
         yield conn
 
     original = candidate_module.get_connection
-    candidate_module.get_connection = fake_connection
+    candidate_module.get_connection = fake_get_connection
     try:
-        return gen.generate_candidates()
+        return asyncio.run(gen.generate_candidates())
     finally:
         candidate_module.get_connection = original
 

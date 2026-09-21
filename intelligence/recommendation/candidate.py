@@ -9,17 +9,17 @@ class CandidateGenerator:
         self.user_id = user_id
         self.search_span_days = 7  # How many days back to look for trending posts
 
-    def generate_candidates(self) -> List[PostFeatures]:
+    async def generate_candidates(self) -> List[PostFeatures]:
         """
         Returns candidate posts for the user as a list of PostFeatures.
         Trending posts come first, then posts from followings and followers.
         Only authors the user follows get the follow boost; duplicates keep
         the flagged copy so the boost is not silently dropped.
         """
-        with get_connection() as conn:
-            trending = self._get_trending_posts(conn)
-            following_posts = self._get_following_posts(conn)
-            follower_posts = self._get_follower_posts(conn)
+        async with get_connection() as conn:
+            trending = await self._get_trending_posts(conn)
+            following_posts = await self._get_following_posts(conn)
+            follower_posts = await self._get_follower_posts(conn)
 
         # Combine and deduplicate by post id, preserving first-seen order
         # but preferring the flagged (from_followed) copy on duplicates.
@@ -33,7 +33,18 @@ class CandidateGenerator:
 
         return list(by_id.values())
 
-    def _get_trending_posts(self, conn) -> List[PostFeatures]:
+    async def _fetch(self, conn, query: str, params: tuple, *, from_followed: bool = False) -> List[PostFeatures]:
+        """Runs one candidate query and maps rows to PostFeatures."""
+        async with conn.cursor() as cur:
+            await cur.execute(query, params)
+            rows = await cur.fetchall()
+
+        return [
+            PostFeatures(str(row[0]), row[1], row[2], row[3], row[4], from_followed=from_followed)
+            for row in rows
+        ]
+
+    async def _get_trending_posts(self, conn) -> List[PostFeatures]:
         """
         Returns trending posts, i.e. posts with high engagement in the recent
         time window, ordered by engagement.
@@ -50,13 +61,9 @@ class CandidateGenerator:
             LIMIT 100
         """
 
-        with conn.cursor() as cur:
-            cur.execute(query, (cutoff,))
-            rows = cur.fetchall()
+        return await self._fetch(conn, query, (cutoff,))
 
-        return [PostFeatures(str(row[0]), row[1], row[2], row[3], row[4]) for row in rows]
-
-    def _get_following_posts(self, conn) -> List[PostFeatures]:
+    async def _get_following_posts(self, conn) -> List[PostFeatures]:
         """
         Returns recent posts from users that the current user follows.
         """
@@ -74,16 +81,9 @@ class CandidateGenerator:
             LIMIT 50
         """
 
-        with conn.cursor() as cur:
-            cur.execute(query, (self.user_id, cutoff))
-            rows = cur.fetchall()
+        return await self._fetch(conn, query, (self.user_id, cutoff), from_followed=True)
 
-        return [
-            PostFeatures(str(row[0]), row[1], row[2], row[3], row[4], from_followed=True)
-            for row in rows
-        ]
-
-    def _get_follower_posts(self, conn) -> List[PostFeatures]:
+    async def _get_follower_posts(self, conn) -> List[PostFeatures]:
         """
         Returns recent posts from users that follow the current user.
         These get no follow boost: the boost is reserved for authors
@@ -103,11 +103,4 @@ class CandidateGenerator:
             LIMIT 50
         """
 
-        with conn.cursor() as cur:
-            cur.execute(query, (self.user_id, cutoff))
-            rows = cur.fetchall()
-
-        return [
-            PostFeatures(str(row[0]), row[1], row[2], row[3], row[4])
-            for row in rows
-        ]
+        return await self._fetch(conn, query, (self.user_id, cutoff))

@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -17,7 +17,7 @@ POSTS = [
 
 def make_client(posts):
     with patch.object(main, "CandidateGenerator") as gen:
-        gen.return_value.generate_candidates.return_value = posts
+        gen.return_value.generate_candidates = AsyncMock(return_value=posts)
         client = TestClient(main.app)
         yield client
 

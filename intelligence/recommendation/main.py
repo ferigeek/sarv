@@ -1,9 +1,19 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query
 from candidate import CandidateGenerator
+from database import close_pool, open_pool
 from prometheus_fastapi_instrumentator import Instrumentator
 from scoring import MODEL_VERSION, score_post
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await open_pool()
+    yield
+    await close_pool()
+
+
+app = FastAPI(lifespan=lifespan)
 
 # Excluded so scrape/healthcheck traffic doesn't drown out real request metrics.
 Instrumentator(excluded_handlers=["/metrics", "/health"]).instrument(app).expose(app)
@@ -25,7 +35,7 @@ async def get_feed(
     for the given user. Supports pagination via page/size forwarded from
     the backend; sorting is always by server-side ranking (score desc).
     """
-    candidates = CandidateGenerator(user_id).generate_candidates()
+    candidates = await CandidateGenerator(user_id).generate_candidates()
     scored = [(post, score_post(post)) for post in candidates]
     scored.sort(key=lambda item: item[1], reverse=True)
 
