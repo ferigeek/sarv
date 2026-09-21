@@ -12,7 +12,7 @@ vi.mock('@/api/auth', () => ({
 }))
 
 vi.mock('@/api/users', () => ({
-  getMe: vi.fn<() => Promise<UserResponse>>(),
+  getMeSummary: vi.fn<() => Promise<UserSummaryResponse>>(),
   getUser: vi.fn<(id: number) => Promise<UserResponse>>(),
   updateMe: vi.fn<(payload: unknown) => Promise<UserResponse>>(),
   searchUsers: vi.fn<() => Promise<Page<UserSummaryResponse>>>(),
@@ -37,7 +37,7 @@ vi.mock('@/api/media', () => ({
 
 import { getChronologicalFeed as mockChrono, getRecommendedFeed as mockRecommended } from '@/api/feed'
 import { getReaction as mockGetReaction } from '@/api/reactions'
-import { getMe as mockGetMe } from '@/api/users'
+import { getMeSummary as mockGetMeSummary } from '@/api/users'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
 import { createAppRouter } from '@/router'
 import AppShell from '@/views/AppShell.vue'
@@ -45,7 +45,7 @@ import App from '../App.vue'
 
 registerPixelicons()
 
-const mockedGetMe = vi.mocked(mockGetMe)
+const mockedGetMe = vi.mocked(mockGetMeSummary)
 const mockedRecommended = vi.mocked(mockRecommended)
 const mockedChrono = vi.mocked(mockChrono)
 const mockedGetReaction = vi.mocked(mockGetReaction)
@@ -56,11 +56,7 @@ function setAuthenticated() {
     id: 1,
     username: 'alice',
     displayName: 'Alice',
-    bio: null,
-    gender: 'FEMALE',
-    location: null,
     profilePictureId: null,
-    status: 'ACTIVE',
   })
 }
 

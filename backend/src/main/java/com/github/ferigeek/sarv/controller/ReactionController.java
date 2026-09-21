@@ -1,9 +1,7 @@
 package com.github.ferigeek.sarv.controller;
 
-import com.github.ferigeek.sarv.aspect.LogEvent;
 import com.github.ferigeek.sarv.dto.request.ReactionRequest;
 import com.github.ferigeek.sarv.dto.response.ReactionResponse;
-import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.ReactionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -27,7 +25,6 @@ public class ReactionController {
     }
 
     @PostMapping
-    @LogEvent(EventType.LIKE_POST)
     public ReactionResponse addReaction(
             @Positive @PathVariable Long postId,
             @Valid @RequestBody ReactionRequest reactionRequest,

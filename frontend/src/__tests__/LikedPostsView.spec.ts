@@ -16,6 +16,12 @@ vi.mock('@/api/users', () => ({
   getUserStats: vi.fn<() => Promise<unknown>>(),
 }))
 
+vi.mock('@/api/posts', () => ({
+  getPost: vi.fn<(id: number) => Promise<PostResponse>>(),
+  getPostAuthor: vi.fn<(id: number) => Promise<import('@/types/api').UserSummaryResponse>>(),
+  reportPostDwell: vi.fn<(id: number, payload: unknown) => Promise<void>>(),
+}))
+
 vi.mock('@/api/reactions', () => ({
   addReaction: vi.fn<() => Promise<unknown>>(),
   getReaction: vi.fn<() => Promise<ReactionResponse>>(),
@@ -37,6 +43,7 @@ vi.mock('@/stores/auth', () => ({
 }))
 
 import { getReactedPosts as mockGetReactedPosts, getUser as mockGetUser } from '@/api/users'
+import { getPostAuthor as mockGetPostAuthor } from '@/api/posts'
 import { getReaction as mockGetReaction } from '@/api/reactions'
 import { getMediaBlob as mockGetMediaBlob } from '@/api/media'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
@@ -46,6 +53,7 @@ registerPixelicons()
 
 const mockedGetReactedPosts = vi.mocked(mockGetReactedPosts)
 const mockedGetUser = vi.mocked(mockGetUser)
+const mockedGetPostAuthor = vi.mocked(mockGetPostAuthor)
 const mockedGetReaction = vi.mocked(mockGetReaction)
 const mockedGetMediaBlob = vi.mocked(mockGetMediaBlob)
 
@@ -114,6 +122,12 @@ describe('LikedPostsView', () => {
       location: null,
       profilePictureId: null,
       status: 'ACTIVE',
+    })
+    mockedGetPostAuthor.mockResolvedValue({
+      id: 9,
+      username: 'bob',
+      displayName: 'Bob',
+      profilePictureId: null,
     })
     mockedGetReaction.mockResolvedValue({ likeCount: 2, dislikeCount: 0, userReaction: 1 })
     mockedGetMediaBlob.mockResolvedValue(new Blob(['x'], { type: 'image/png' }))

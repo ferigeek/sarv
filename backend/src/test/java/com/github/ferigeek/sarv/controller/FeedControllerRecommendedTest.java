@@ -170,12 +170,12 @@ class FeedControllerRecommendedTest {
         @DisplayName("should return 404 when UserNotFoundException")
         void shouldReturn404WhenUserNotFound() throws Exception {
             when(feedService.getRecommended(eq("ghost"), any(Pageable.class)))
-                    .thenThrow(new UserNotFoundException("User not found with username: <ghost>"));
+                    .thenThrow(new UserNotFoundException("User not found with username: ghost"));
 
             mockMvc.perform(get("/api/feed/recommended")
                             .with(user(testUser("ghost"))))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("User not found with username: <ghost>"));
+                    .andExpect(jsonPath("$.detail").value("User not found with username: ghost"));
         }
 
         @Test

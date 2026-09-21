@@ -1,9 +1,11 @@
 package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.request.PostRequest;
+import com.github.ferigeek.sarv.dto.request.DwellSource;
 import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
 import com.github.ferigeek.sarv.dto.request.ReactionFilter;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
+import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.Post;
 import com.github.ferigeek.sarv.entity.User;
@@ -12,6 +14,8 @@ import com.github.ferigeek.sarv.exception.*;
 import com.github.ferigeek.sarv.repository.MediaRepository;
 import com.github.ferigeek.sarv.repository.PostRepository;
 import com.github.ferigeek.sarv.repository.UserRepository;
+
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,34 +23,49 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
+@Slf4j
 @Service
 public class PostService {
 
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final MediaRepository mediaRepository;
+    private final EventLogService eventLogService;
 
     @Autowired
-    public PostService(PostRepository postRepository, UserRepository userRepository, MediaRepository mediaRepository) {
+    public PostService(PostRepository postRepository, UserRepository userRepository, MediaRepository mediaRepository, EventLogService eventLogService) {
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.mediaRepository = mediaRepository;
+        this.eventLogService = eventLogService;
     }
 
-    public PostResponse getPost(Long postId) {
+    public PostResponse getPost(Long postId, String username) {
+        return getPost(postId, username, null);
+    }
+
+    public PostResponse getPost(Long postId, String username, UUID sessionId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new PostNotFoundException(postId));
-        post.setViewCount(post.getViewCount() + 1);
+        post.setViewCount((post.getViewCount() == null ? 0L : post.getViewCount()) + 1);
         postRepository.save(post);
+        logPostViewSafely(username, post, sessionId);
         return new PostResponse(post);
+    }
+
+    public void reportPostDwell(Long postId, String username, long durationMs, UUID sessionId, DwellSource source) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new PostNotFoundException(postId));
+        logPostDwellSafely(username, post, durationMs, sessionId, source);
     }
 
     @Transactional
     public PostResponse createPost(PostRequest postRequest, String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(
-                        "User not found with username: <%s>".formatted(username))
+                        "User not found with username: %s".formatted(username))
                 );
 
         Post post = new Post();
@@ -168,24 +187,32 @@ public class PostService {
             postRepository.incrementCommentCount(post.getParent().getId());
         }
 
-        return new PostResponse(postRepository.save(post));
+        Post saved = postRepository.save(post);
+        logPostCreationSafely(username, saved, postCategory);
+        PostResponse response = new PostResponse(saved);
+        log.info("Post created ID={} by username={}", response.getId(), username);
+        return response;
     }
 
     public void deletePost(Long postId, String username) {
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new RuntimeException("Post not found"));
+                .orElseThrow(() -> new PostNotFoundException(postId));
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(
-                        "User not found with username: <%s>".formatted(username))
+                        "User not found with username: %s".formatted(username))
                 );
 
         if (!post.getUser().getId().equals(user.getId())) {
-            throw new RuntimeException("You are not the owner of this post");
+            throw new UnAuthorizedUpdateException(
+                    "User with ID: %d is not the owner of post with ID: %d".formatted(user.getId(), post.getId())
+            );
         }
         post.setDeletedAt(OffsetDateTime.now());
         post.setUser(null);
         postRepository.save(post);
+
+        log.info("Post ID={} deleted", postId);
     }
 
     public PostResponse updatePost(Long postId, PostUpdateRequest postUpdateRequest, String username) {
@@ -194,12 +221,12 @@ public class PostService {
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException(
-                        "User not found with username: <%s>".formatted(username))
+                        "User not found with username: %s".formatted(username))
                 );
 
         if (!post.getUser().getId().equals(user.getId())) {
             throw new UnAuthorizedUpdateException(
-                    "User with ID: <%d> is not the owner of post with ID: <%d>".formatted(user.getId(), post.getId())
+                    "User with ID: %d is not the owner of post with ID: %d".formatted(user.getId(), post.getId())
             );
         }
 
@@ -223,6 +250,8 @@ public class PostService {
                     .orElseThrow(() -> new MediaNotFoundException(postUpdateRequest.getMediaId()));
             post.setMedia(media);
         }
+
+        log.info("Post ID={} updated", postId);
 
         return new PostResponse(postRepository.save(post));
     }
@@ -251,5 +280,48 @@ public class PostService {
         }
         return postRepository.findCommentsByParentId(postId, pageable)
                 .map(PostResponse::new);
+    }
+
+    private void logPostViewSafely(String username, Post post, UUID sessionId) {
+        if (username == null) {
+            return;
+        }
+        try {
+            eventLogService.logPostView(username, post, sessionId);
+        } catch (Exception e) {
+            log.warn("Failed to log post view event postId={} username={}", post.getId(), username, e);
+        }
+    }
+
+    private void logPostDwellSafely(String username, Post post, long durationMs, UUID sessionId, DwellSource source) {
+        if (username == null) {
+            return;
+        }
+        try {
+            eventLogService.logPostDwell(username, post, durationMs, sessionId, source);
+        } catch (Exception e) {
+            log.warn("Failed to log post dwell event postId={} username={}", post.getId(), username, e);
+        }
+    }
+
+    private void logPostCreationSafely(String username, Post post, PostCategory postCategory) {
+        if (username == null) {
+            return;
+        }
+        try {
+            eventLogService.logPostCreation(username, post, postCategory);
+        } catch (Exception e) {
+            log.warn("Failed to log post creation event username={}", username, e);
+        }
+    }
+
+    public UserSummaryResponse getPostAuthor(Long postId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new PostNotFoundException(postId));
+        User user = post.getUser();
+        if (user == null) {
+            throw new UserNotFoundException("Author of the post with ID: %d not found".formatted(postId));
+        }
+        return new UserSummaryResponse(user);
     }
 }

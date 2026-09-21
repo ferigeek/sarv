@@ -45,7 +45,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -152,7 +154,7 @@ class PostControllerTest {
         @DisplayName("should return 200 with PostResponse when authenticated")
         void shouldReturn200() throws Exception {
             PostResponse resp = postResponse(1L, 10L, PostCategory.NORMAL, "content", 5L, null, null);
-            when(postService.getPost(1L)).thenReturn(resp);
+            when(postService.getPost(eq(1L), eq("alice"), isNull())).thenReturn(resp);
 
             mockMvc.perform(get("/api/posts/1")
                             .with(user(testUser("alice"))))
@@ -169,10 +171,35 @@ class PostControllerTest {
         }
 
         @Test
+        @DisplayName("should forward X-Session-Id header to service")
+        void shouldForwardSessionId() throws Exception {
+            PostResponse resp = postResponse(1L, 10L, PostCategory.NORMAL, "content", 5L, null, null);
+            java.util.UUID sessionId = java.util.UUID.randomUUID();
+            when(postService.getPost(eq(1L), eq("alice"), eq(sessionId))).thenReturn(resp);
+
+            mockMvc.perform(get("/api/posts/1")
+                            .header("X-Session-Id", sessionId.toString())
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(1));
+
+            verify(postService).getPost(eq(1L), eq("alice"), eq(sessionId));
+        }
+
+        @Test
+        @DisplayName("should return 400 for invalid X-Session-Id")
+        void shouldReturn400InvalidSessionId() throws Exception {
+            mockMvc.perform(get("/api/posts/1")
+                            .header("X-Session-Id", "not-a-uuid")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
         @DisplayName("should handle null media/repost/parent as absent")
         void shouldHandleNulls() throws Exception {
             PostResponse resp = postResponse(2L, 10L, PostCategory.NORMAL, "content", null, null, null);
-            when(postService.getPost(2L)).thenReturn(resp);
+            when(postService.getPost(eq(2L), eq("alice"), isNull())).thenReturn(resp);
 
             mockMvc.perform(get("/api/posts/2")
                             .with(user(testUser("alice"))))
@@ -185,14 +212,14 @@ class PostControllerTest {
         @Test
         @DisplayName("should return 404 when PostNotFoundException")
         void shouldReturn404() throws Exception {
-            when(postService.getPost(99L)).thenThrow(new PostNotFoundException(99L));
+            when(postService.getPost(eq(99L), eq("alice"), isNull())).thenThrow(new PostNotFoundException(99L));
 
             mockMvc.perform(get("/api/posts/99")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isNotFound())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                     .andExpect(jsonPath("$.status").value(404))
-                    .andExpect(jsonPath("$.detail").value("Post not found with ID: <99>"))
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 99"))
                     .andExpect(jsonPath("$.title").value("Not Found"))
                     .andExpect(jsonPath("$.instance").value("/api/posts/99"));
         }
@@ -231,7 +258,7 @@ class PostControllerTest {
         @Test
         @DisplayName("should return 500 for unexpected exception")
         void shouldReturn500() throws Exception {
-            when(postService.getPost(1L)).thenThrow(new RuntimeException("fail"));
+            when(postService.getPost(eq(1L), eq("alice"), isNull())).thenThrow(new RuntimeException("fail"));
 
             mockMvc.perform(get("/api/posts/1")
                             .with(user(testUser("alice"))))
@@ -245,6 +272,139 @@ class PostControllerTest {
             mockMvc.perform(post("/api/posts/1")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isMethodNotAllowed());
+        }
+    }
+
+    // ===================================================================
+    // POST /api/posts/{postId}/dwell
+    // ===================================================================
+    @Nested
+    @DisplayName("POST /api/posts/{postId}/dwell")
+    class ReportDwell {
+
+        private String dwellJson(Long durationMs, String sessionId, String source) {
+            return """
+                    {"durationMs":%s,"sessionId":%s,"source":%s}
+                    """.formatted(
+                    durationMs == null ? "null" : durationMs.toString(),
+                    sessionId == null ? "null" : "\"" + sessionId + "\"",
+                    source == null ? "null" : "\"" + source + "\"");
+        }
+
+        @Test
+        @DisplayName("should return 204 and forward duration, session and source")
+        void shouldReturn204() throws Exception {
+            java.util.UUID sessionId = java.util.UUID.randomUUID();
+
+            mockMvc.perform(post("/api/posts/1/dwell")
+                            .with(user(testUser("alice")))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .header("X-Session-Id", sessionId.toString())
+                            .content(dwellJson(5000L, null, "DETAIL")))
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
+
+            verify(postService).reportPostDwell(eq(1L), eq("alice"), eq(5000L), eq(sessionId),
+                    eq(com.github.ferigeek.sarv.dto.request.DwellSource.DETAIL));
+        }
+
+        @Test
+        @DisplayName("should prefer X-Session-Id header over body sessionId")
+        void shouldPreferHeaderSession() throws Exception {
+            java.util.UUID headerSession = java.util.UUID.randomUUID();
+            java.util.UUID bodySession = java.util.UUID.randomUUID();
+
+            mockMvc.perform(post("/api/posts/1/dwell")
+                            .with(user(testUser("alice")))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .header("X-Session-Id", headerSession.toString())
+                            .content(dwellJson(2000L, bodySession.toString(), null)))
+                    .andExpect(status().isNoContent());
+
+            verify(postService).reportPostDwell(eq(1L), eq("alice"), eq(2000L), eq(headerSession), isNull());
+        }
+
+        @Test
+        @DisplayName("should fall back to body sessionId when header absent")
+        void shouldFallbackToBodySession() throws Exception {
+            java.util.UUID bodySession = java.util.UUID.randomUUID();
+
+            mockMvc.perform(post("/api/posts/1/dwell")
+                            .with(user(testUser("alice")))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(dwellJson(2000L, bodySession.toString(), "FEED")))
+                    .andExpect(status().isNoContent());
+
+            verify(postService).reportPostDwell(eq(1L), eq("alice"), eq(2000L), eq(bodySession),
+                    eq(com.github.ferigeek.sarv.dto.request.DwellSource.FEED));
+        }
+
+        @Test
+        @DisplayName("should return 403 when unauthenticated")
+        void shouldReturn403() throws Exception {
+            mockMvc.perform(post("/api/posts/1/dwell")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(dwellJson(1000L, null, null)))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("should return 400 when durationMs missing, zero, negative or over cap")
+        void shouldReturn400InvalidDuration() throws Exception {
+            mockMvc.perform(post("/api/posts/1/dwell")
+                            .with(user(testUser("alice")))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(dwellJson(null, null, null)))
+                    .andExpect(status().isBadRequest());
+
+            for (long bad : new long[]{0L, -5L, 1_800_001L}) {
+                mockMvc.perform(post("/api/posts/1/dwell")
+                                .with(user(testUser("alice")))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(dwellJson(bad, null, null)))
+                        .andExpect(status().isBadRequest());
+            }
+        }
+
+        @Test
+        @DisplayName("should return 400 for invalid session header or source")
+        void shouldReturn400InvalidHeaderAndSource() throws Exception {
+            mockMvc.perform(post("/api/posts/1/dwell")
+                            .with(user(testUser("alice")))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .header("X-Session-Id", "not-a-uuid")
+                            .content(dwellJson(1000L, null, null)))
+                    .andExpect(status().isBadRequest());
+
+            mockMvc.perform(post("/api/posts/1/dwell")
+                            .with(user(testUser("alice")))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(dwellJson(1000L, null, "UNKNOWN")))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("should return 404 when PostNotFoundException")
+        void shouldReturn404() throws Exception {
+            org.mockito.Mockito.doThrow(new PostNotFoundException(99L)).when(postService)
+                    .reportPostDwell(eq(99L), any(), anyLong(), any(), any());
+
+            mockMvc.perform(post("/api/posts/99/dwell")
+                            .with(user(testUser("alice")))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(dwellJson(1000L, null, null)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 99"));
+        }
+
+        @Test
+        @DisplayName("should return 400 for non-positive postId")
+        void shouldReturn400BadPostId() throws Exception {
+            mockMvc.perform(post("/api/posts/0/dwell")
+                            .with(user(testUser("alice")))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(dwellJson(1000L, null, null)))
+                    .andExpect(status().isBadRequest());
         }
     }
 
@@ -466,14 +626,14 @@ class PostControllerTest {
         @Test
         @DisplayName("should return 404 when UserNotFoundException")
         void shouldReturn404WhenUserNotFound() throws Exception {
-            when(postService.createPost(any(), any())).thenThrow(new UserNotFoundException("User not found with username: <bob>"));
+            when(postService.createPost(any(), any())).thenThrow(new UserNotFoundException("User not found with username: bob"));
 
             mockMvc.perform(post("/api/posts")
                             .with(user(testUser("bob")))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(validNormalRequest())))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("User not found with username: <bob>"));
+                    .andExpect(jsonPath("$.detail").value("User not found with username: bob"));
         }
 
         @Test
@@ -486,7 +646,7 @@ class PostControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(new PostRequest(PostCategory.NORMAL, "content", 999L, null, null))))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Media not found with ID: <999>"));
+                    .andExpect(jsonPath("$.detail").value("Media not found with ID: 999"));
         }
 
         @Test
@@ -499,7 +659,7 @@ class PostControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(validNormalRequest())))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Post not found with ID: <77>"));
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 77"));
         }
 
         @Test
@@ -599,14 +759,35 @@ class PostControllerTest {
         }
 
         @Test
+        @DisplayName("should return 404 when PostNotFoundException on delete")
+        void shouldReturn404WhenPostNotFound() throws Exception {
+            org.mockito.Mockito.doThrow(new PostNotFoundException(99L)).when(postService).deletePost(eq(99L), any());
+
+            mockMvc.perform(delete("/api/posts/99")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 99"));
+        }
+
+        @Test
+        @DisplayName("should return 403 when UnAuthorizedUpdateException on delete")
+        void shouldReturn403WhenNotOwner() throws Exception {
+            org.mockito.Mockito.doThrow(new UnAuthorizedUpdateException("User with ID: 2 is not the owner of post with ID: 1")).when(postService).deletePost(eq(1L), any());
+
+            mockMvc.perform(delete("/api/posts/1")
+                            .with(user(testUser("bob"))))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
         @DisplayName("should return 404 when UserNotFoundException")
         void shouldReturn404WhenUserNotFound() throws Exception {
-            org.mockito.Mockito.doThrow(new UserNotFoundException("User not found with username: <ghost>")).when(postService).deletePost(any(), any());
+            org.mockito.Mockito.doThrow(new UserNotFoundException("User not found with username: ghost")).when(postService).deletePost(any(), any());
 
             mockMvc.perform(delete("/api/posts/1")
                             .with(user(testUser("ghost"))))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("User not found with username: <ghost>"));
+                    .andExpect(jsonPath("$.detail").value("User not found with username: ghost"));
         }
 
         @Test
@@ -831,13 +1012,13 @@ class PostControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(validUpdate())))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Post not found with ID: <99>"));
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 99"));
         }
 
         @Test
         @DisplayName("should return 404 when UserNotFoundException")
         void shouldReturn404WhenUserNotFound() throws Exception {
-            when(postService.updatePost(any(), any(), any())).thenThrow(new UserNotFoundException("User not found with username: <ghost>"));
+            when(postService.updatePost(any(), any(), any())).thenThrow(new UserNotFoundException("User not found with username: ghost"));
 
             mockMvc.perform(put("/api/posts/1")
                             .with(user(testUser("ghost")))
@@ -856,13 +1037,13 @@ class PostControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(validUpdate())))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Media not found with ID: <77>"));
+                    .andExpect(jsonPath("$.detail").value("Media not found with ID: 77"));
         }
 
         @Test
         @DisplayName("should return 403 when UnAuthorizedUpdateException on update")
         void shouldReturn403WhenUnauthorized() throws Exception {
-            when(postService.updatePost(any(), any(), any())).thenThrow(new UnAuthorizedUpdateException("User with ID: <1> is not the owner of post with ID: <1>"));
+            when(postService.updatePost(any(), any(), any())).thenThrow(new UnAuthorizedUpdateException("User with ID: 1 is not the owner of post with ID: 1"));
 
             mockMvc.perform(put("/api/posts/1")
                             .with(user(testUser("alice")))
@@ -1144,7 +1325,7 @@ class PostControllerTest {
             mockMvc.perform(get("/api/posts/99/comments")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Post not found with ID: <99>"));
+                    .andExpect(jsonPath("$.detail").value("Post not found with ID: 99"));
         }
 
         @Test

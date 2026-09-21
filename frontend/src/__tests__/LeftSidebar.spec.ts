@@ -6,7 +6,7 @@ import { createMemoryHistory } from 'vue-router'
 import type { Page, PostResponse, UserResponse, UserSummaryResponse } from '@/types/api'
 
 vi.mock('@/api/users', () => ({
-  getMe: vi.fn<() => Promise<UserResponse>>(),
+  getMeSummary: vi.fn<() => Promise<UserSummaryResponse>>(),
   getUser: vi.fn<(id: number) => Promise<UserResponse>>(),
   updateMe: vi.fn<(payload: unknown) => Promise<UserResponse>>(),
   searchUsers: vi.fn<(query: string, pageable?: unknown) => Promise<Page<UserSummaryResponse>>>(),
@@ -19,6 +19,7 @@ vi.mock('@/api/posts', () => ({
   deletePost: vi.fn<() => Promise<void>>(),
   searchPosts: vi.fn<(query: string, pageable?: unknown) => Promise<Page<import('@/types/api').PostResponse>>>(),
   getComments: vi.fn<() => Promise<unknown>>(),
+  reportPostDwell: vi.fn<(id: number, payload: unknown) => Promise<void>>(),
 }))
 
 vi.mock('@/api/media', () => ({
@@ -34,14 +35,14 @@ vi.mock('@/api/auth', () => ({
 
 import { getMediaBlob as mockGetMediaBlob } from '@/api/media'
 import { searchPosts as mockSearchPosts } from '@/api/posts'
-import { getMe as mockGetMe, searchUsers as mockSearchUsers } from '@/api/users'
+import { getMeSummary as mockGetMeSummary, searchUsers as mockSearchUsers } from '@/api/users'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
 import LeftSidebar from '@/components/LeftSidebar.vue'
 import { createAppRouter } from '@/router'
 
 registerPixelicons()
 
-const mockedGetMe = vi.mocked(mockGetMe)
+const mockedGetMe = vi.mocked(mockGetMeSummary)
 const mockedSearchUsers = vi.mocked(mockSearchUsers)
 const mockedSearchPosts = vi.mocked(mockSearchPosts)
 const mockedGetMediaBlob = vi.mocked(mockGetMediaBlob)
@@ -70,11 +71,7 @@ function setAuthenticated(withAvatar = false) {
     id: 1,
     username: 'alice',
     displayName: 'Alice',
-    bio: null,
-    gender: 'FEMALE',
-    location: null,
     profilePictureId: withAvatar ? 42 : null,
-    status: 'ACTIVE',
   })
 }
 

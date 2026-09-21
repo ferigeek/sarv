@@ -12,19 +12,19 @@ vi.mock('@/api/auth', () => ({
 }))
 
 vi.mock('@/api/users', () => ({
-  getMe: vi.fn<() => Promise<UserResponse>>(),
+  getMeSummary: vi.fn<() => Promise<UserSummaryResponse>>(),
   getUser: vi.fn<(id: number) => Promise<UserResponse>>(),
   updateMe: vi.fn<(payload: unknown) => Promise<UserResponse>>(),
   searchUsers: vi.fn<(query: string) => Promise<Page<UserSummaryResponse>>>(),
 }))
 
 import { login as mockLogin } from '@/api/auth'
-import { getMe as mockGetMe } from '@/api/users'
+import { getMeSummary as mockGetMeSummary } from '@/api/users'
 import { createAppRouter } from '../router'
 import LoginView from '../views/LoginView.vue'
 
 const mockedLogin = vi.mocked(mockLogin)
-const mockedGetMe = vi.mocked(mockGetMe)
+const mockedGetMeSummary = vi.mocked(mockGetMeSummary)
 
 function mountLogin() {
   const pinia = createPinia()
@@ -69,15 +69,11 @@ describe('LoginView', () => {
 
   it('logs in and redirects to the feed on success', async () => {
     mockedLogin.mockResolvedValue('jwt')
-    mockedGetMe.mockResolvedValue({
+    mockedGetMeSummary.mockResolvedValue({
       id: 1,
       username: 'alice',
       displayName: 'Alice',
-      bio: null,
-      gender: 'FEMALE',
-      location: null,
       profilePictureId: null,
-      status: 'ACTIVE',
     })
     const { wrapper, router } = mountLogin()
     await router.push('/login')

@@ -148,14 +148,14 @@ class FollowControllerTest {
         @DisplayName("should return 404 when user not found")
         void shouldReturn404() throws Exception {
             when(followService.getFollowers(eq(99L), any(Pageable.class)))
-                    .thenThrow(new UserNotFoundException("User not found with ID: <99>"));
+                    .thenThrow(new UserNotFoundException("User not found with ID: 99"));
 
             mockMvc.perform(get("/api/users/99/followers")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isNotFound())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                     .andExpect(jsonPath("$.status").value(404))
-                    .andExpect(jsonPath("$.detail").value("User not found with ID: <99>"))
+                    .andExpect(jsonPath("$.detail").value("User not found with ID: 99"))
                     .andExpect(jsonPath("$.title").value("Not Found"))
                     .andExpect(jsonPath("$.instance").value("/api/users/99/followers"));
         }
@@ -272,12 +272,12 @@ class FollowControllerTest {
         @DisplayName("should return 404 when user not found")
         void shouldReturn404() throws Exception {
             when(followService.getFollowing(eq(99L), any(Pageable.class)))
-                    .thenThrow(new UserNotFoundException("User not found with ID: <99>"));
+                    .thenThrow(new UserNotFoundException("User not found with ID: 99"));
 
             mockMvc.perform(get("/api/users/99/following")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("User not found with ID: <99>"));
+                    .andExpect(jsonPath("$.detail").value("User not found with ID: 99"));
         }
 
         @Test
@@ -365,26 +365,26 @@ class FollowControllerTest {
         @Test
         @DisplayName("should return 404 when follower not found (username)")
         void shouldReturn404WhenFollowerNotFound() throws Exception {
-            doThrow(new UserNotFoundException("Follower user not found with username: <ghost>"))
+            doThrow(new UserNotFoundException("Follower user not found with username: ghost"))
                     .when(followService).followUser(eq("ghost"), eq(2L));
 
             mockMvc.perform(post("/api/users/2/followers")
                             .with(user(testUser("ghost"))))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Follower user not found with username: <ghost>"))
+                    .andExpect(jsonPath("$.detail").value("Follower user not found with username: ghost"))
                     .andExpect(jsonPath("$.status").value(404));
         }
 
         @Test
         @DisplayName("should return 404 when followed not found (id)")
         void shouldReturn404WhenFollowedNotFound() throws Exception {
-            doThrow(new UserNotFoundException("Followed user not found with ID: <99>"))
+            doThrow(new UserNotFoundException("Followed user not found with ID: 99"))
                     .when(followService).followUser(eq("alice"), eq(99L));
 
             mockMvc.perform(post("/api/users/99/followers")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Followed user not found with ID: <99>"));
+                    .andExpect(jsonPath("$.detail").value("Followed user not found with ID: 99"));
         }
 
         @Test
@@ -423,11 +423,23 @@ class FollowControllerTest {
                     .andExpect(status().isCreated());
 
             // verify indirectly by stubbing specific username – if service called with wrong username it would throw
-            doThrow(new UserNotFoundException("Follower user not found with username: <bob>"))
+            doThrow(new UserNotFoundException("Follower user not found with username: bob"))
                     .when(followService).followUser(eq("bob"), eq(2L));
             mockMvc.perform(post("/api/users/2/followers")
                             .with(user(testUser("bob"))))
                     .andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("should return 400 when self-follow")
+        void shouldReturn400OnSelfFollow() throws Exception {
+            doThrow(new IllegalArgumentException("User cannot follow themselves ID: 1"))
+                    .when(followService).followUser(eq("alice"), eq(1L));
+
+            mockMvc.perform(post("/api/users/1/followers")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail").value("User cannot follow themselves ID: 1"));
         }
     }
 
@@ -457,19 +469,19 @@ class FollowControllerTest {
         @Test
         @DisplayName("should return 404 when follower not found")
         void shouldReturn404WhenFollowerNotFound() throws Exception {
-            doThrow(new UserNotFoundException("Follower user not found with username: <ghost>"))
+            doThrow(new UserNotFoundException("Follower user not found with username: ghost"))
                     .when(followService).unfollowUser(eq("ghost"), eq(2L));
 
             mockMvc.perform(delete("/api/users/2/followers")
                             .with(user(testUser("ghost"))))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.detail").value("Follower user not found with username: <ghost>"));
+                    .andExpect(jsonPath("$.detail").value("Follower user not found with username: ghost"));
         }
 
         @Test
         @DisplayName("should return 404 when followed not found")
         void shouldReturn404WhenFollowedNotFound() throws Exception {
-            doThrow(new UserNotFoundException("Followed user not found with ID: <99>"))
+            doThrow(new UserNotFoundException("Followed user not found with ID: 99"))
                     .when(followService).unfollowUser(eq("alice"), eq(99L));
 
             mockMvc.perform(delete("/api/users/99/followers")
@@ -480,7 +492,7 @@ class FollowControllerTest {
         @Test
         @DisplayName("should return 400 when FollowException (not following)")
         void shouldReturn400WhenFollowException() throws Exception {
-            doThrow(new FollowException("A follow from user with ID: <1>, following user with ID: <2>, doesn't exist"))
+            doThrow(new FollowException("A follow from user with ID: 1, following user with ID: 2, doesn't exist"))
                     .when(followService).unfollowUser(eq("alice"), eq(2L));
 
             mockMvc.perform(delete("/api/users/2/followers")
@@ -488,9 +500,21 @@ class FollowControllerTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                     .andExpect(jsonPath("$.status").value(400))
-                    .andExpect(jsonPath("$.detail").value("A follow from user with ID: <1>, following user with ID: <2>, doesn't exist"))
+                    .andExpect(jsonPath("$.detail").value("A follow from user with ID: 1, following user with ID: 2, doesn't exist"))
                     .andExpect(jsonPath("$.title").value("Bad Request"))
                     .andExpect(jsonPath("$.instance").value("/api/users/2/followers"));
+        }
+
+        @Test
+        @DisplayName("should return 400 when self-unfollow")
+        void shouldReturn400OnSelfUnfollow() throws Exception {
+            doThrow(new IllegalArgumentException("User cannot unfollow themselves ID: 1"))
+                    .when(followService).unfollowUser(eq("alice"), eq(1L));
+
+            mockMvc.perform(delete("/api/users/1/followers")
+                            .with(user(testUser("alice"))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail").value("User cannot unfollow themselves ID: 1"));
         }
 
         @Test

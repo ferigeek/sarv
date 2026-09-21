@@ -153,6 +153,7 @@ onMounted(() => {
           v-for="p in posts"
           :key="p.id"
           :post="p"
+          dwell-source="FEED"
           @reposted="onReposted"
           @quoted="onReposted"
         />

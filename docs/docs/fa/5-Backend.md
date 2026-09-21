@@ -32,7 +32,7 @@
 | مستندات API | springdoc-openapi (Swagger UI) |
 | ذخیره‌سازی رسانه | فایل‌سیستم محلی (`LocalStorageService`) |
 | ابزار کمکی | Lombok |
-| تست | JUnit 5، MockMvc و H2 (در زمان اجرای تست) |
+| تست | JUnit 5، MockMvc و Testcontainers Postgres |
 
 ---
 
@@ -49,7 +49,6 @@ entity/       موجودیت‌های JPA (User, Post, Media, Follow, Reaction, 
 entity/type/  Enum ها (PostCategory, EventType, Gender, UserStatus)
 dto/          اشیای انتقال داده request/ و response/
 security/     SecurityConfig, JwtUtil, JwtAuthFilter, OpenApiConfig
-aspect/       annotation لاج ایونت + EventLoggingAspect
 exception/    استثناهای سفارشی + GlobalExceptionHandler
 client/       RecommendationClient + RecommendationResponse (رتبه‌بندی فید)
 config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
@@ -68,9 +67,9 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 | متد | مسیر | احراز هویت | توضیح |
 |--------|------|------|-------------|
 | POST | `/api/auth/register` | عمومی | ثبت‌نام کاربر جدید و بازگرداندن پروفایل به همراه توکن JWT |
-| POST | `/api/auth/login` | عمومی | احراز هویت کاربر و بازگرداندن توکن JWT |
+| POST | `/api/auth/login` | عمومی | احراز هویت کاربر و بازگرداندن `{"token": "<jwt>"}` |
 
-فیلدهای ثبت‌نام: `username` (حداقل ۲ کاراکتر)، `password` (۸ تا ۵۰ کاراکتر)، `confirmPassword` (باید با `password` مطابقت داشته باشد)، `email`، `displayName` (حداقل ۲ کاراکتر)، `gender` (`MALE`, `FEMALE`, `RATHER_NOT_TO_SAY`). نام کاربری تکراری با `409 Conflict` رد می‌شود. در هر ورود موفق رویداد `LOGIN` ثبت می‌شود؛ ثبت‌نام نیز ورود خودکار انجام می‌دهد و بنابراین رویداد `LOGIN` نیز تولید می‌کند.
+فیلدهای ثبت‌نام: `username` (حداقل ۲ کاراکتر)، `password` (۸ تا ۵۰ کاراکتر)، `confirmPassword` (باید با `password` مطابقت داشته باشد)، `email`، `displayName` (حداقل ۲ کاراکتر)، `gender` (`MALE`, `FEMALE`, `RATHER_NOT_TO_SAY`). نام کاربری تکراری با `409 Conflict` رد می‌شود. در هر ورود موفق رویداد `LOGIN` ثبت می‌شود؛ ثبت‌نام نیز ورود خودکار انجام می‌دهد و بنابراین هم رویداد `LOGIN` و هم رویداد `REGISTER` تولید می‌کند.
 
 ### کاربران و پروفایل (`/api/users`)
 
@@ -78,6 +77,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 |--------|------|------|-------------|
 | GET | `/api/users/{userId}` | bearer | بازگرداندن پروفایل یک کاربر؛ ثبت رویداد `VIEW_PROFILE` |
 | GET | `/api/users/me` | bearer | بازگرداندن پروفایل کاربر احراز هویت‌شده؛ ثبت رویداد `VIEW_PROFILE` |
+| GET | `/api/users/me/summary` | bearer | بازگرداندن شناسه، نام کاربری، نام نمایشی و شناسه آواتار کاربر احراز هویت‌شده (`UserSummaryResponse`)؛ رویداد `VIEW_PROFILE` ثبت نمی‌شود تا واکشی کاربر نشست، آمار بازدید پروفایل را آلوده نکند |
 | PUT | `/api/users/me` | bearer | به‌روزرسانی پروفایل کاربر احراز هویت‌شده |
 | GET | `/api/users?query=` | bearer | جست‌وجوی کاربران بر اساس نام کاربری یا نام نمایشی (بدون حساسیت به بزرگی/کوچکی حروف، تطبیق جزئی)، صفحه‌بندی‌شده |
 | GET | `/api/users/{userId}/posts` | bearer | پست‌های صفحه‌بندی‌شده یک کاربر، از جدید به قدیم (`size=10, sort=createdAt,DESC`)؛ برای کاربران ناشناس صفحه خالی |
@@ -101,7 +101,9 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 
 | متد | مسیر | احراز هویت | توضیح |
 |--------|------|------|-------------|
-| GET | `/api/posts/{postId}` | bearer | بازگرداندن پست و افزایش `view_count` آن؛ ثبت رویداد `VIEW_POST` |
+| GET | `/api/posts/{postId}` | bearer | بازگرداندن پست و افزایش `view_count` آن؛ ثبت رویداد `VIEW_POST` (هدر اختیاری `X-Session-Id` روی ردیف رویداد ذخیره می‌شود؛ UUID نامعتبر با `400` رد می‌شود) |
+| POST | `/api/posts/{postId}/dwell` | bearer | گزارش زمان مشاهده پست؛ پاسخ `204 No Content` و بدون افزایش `view_count`؛ ثبت رویداد `VIEW_POST` با `metadata {duration_ms, source}` |
+| GET | `/api/posts/{postId}/author` | bearer | بازگرداندن شناسه، نام کاربری، نام نمایشی و شناسه آواتار نویسنده پست (`UserSummaryResponse`)؛ رویداد `VIEW_PROFILE` ثبت نمی‌شود تا سربرگ کارت‌های فید، آمار بازدید پروفایل را آلوده نکند |
 | GET | `/api/posts/search?query=` | bearer | جست‌وجوی متن پست‌ها (بدون حساسیت به بزرگی/کوچکی حروف، تطبیق جزئی)، صفحه‌بندی‌شده؛ `query` خالی با `400` رد می‌شود؛ پیش‌فرض `size=10, sort=createdAt,DESC` |
 | POST | `/api/posts` | bearer | ایجاد پست؛ پاسخ `201 Created` با هدر `Location`؛ ثبت رویداد `CREATE_POST` |
 | GET | `/api/posts/{postId}/comments?sortBy=` | bearer | کامنت‌های صفحه‌بندی‌شده یک پست؛ `sortBy` برابر `NEWEST` (پیش‌فرض، `createdAt DESC`) یا `MOST_LIKED` (`likeCount DESC`) است؛ پارامتر `sort` کلاینت نادیده گرفته می‌شود |
@@ -123,11 +125,11 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 
 | متد | مسیر | احراز هویت | توضیح |
 |--------|------|------|-------------|
-| POST | `/api/posts/{postId}/reactions` | bearer | افزودن یا تغییر واکنش (`reactionType`: `1` = لایک، `-1` = دیسلایک)؛ ثبت رویداد `LIKE_POST` |
+| POST | `/api/posts/{postId}/reactions` | bearer | افزودن یا تغییر واکنش (`reactionType`: `1` = لایک، `-1` = دیسلایک)؛ ثبت رویداد `LIKE_POST` برای لایک و `DISLIKE_POST` برای دیسلایک |
 | GET | `/api/posts/{postId}/reactions` | bearer | بازگرداندن تعداد لایک/دیسلایک و واکنش فعلی کاربر (`0` = بدون واکنش) |
 | DELETE | `/api/posts/{postId}/reactions` | bearer | حذف واکنش کاربر؛ پاسخ `204 No Content` |
 
-هر کاربر حداکثر یک واکنش برای هر پست دارد (محدودیت یکتا روی `post_id + user_id`). افزودن واکنش از نوع مخالف، واکنش قبلی را تغییر می‌دهد و شمارنده‌های `like_count` / `dislike_count` پست متناسباً به‌روزرسانی می‌شوند. در پیاده‌سازی فعلی رویداد `LIKE_POST` برای هر دو نوع لایک و دیسلایک ثبت می‌شود؛ حذف واکنش ثبت نمی‌شود.
+هر کاربر حداکثر یک واکنش برای هر پست دارد (محدودیت یکتا روی `post_id + user_id`). افزودن واکنش از نوع مخالف، واکنش قبلی را تغییر می‌دهد و شمارنده‌های `like_count` / `dislike_count` پست متناسباً به‌روزرسانی می‌شوند. لایک رویداد `LIKE_POST` و دیسلایک رویداد `DISLIKE_POST` ثبت می‌کند؛ حذف واکنش ثبت نمی‌شود.
 
 ### فید (`/api/feed`)
 
@@ -176,7 +178,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 **وابستگی‌ها:**
 `recommendation.base-url` (متغیر `RECOMMENDATION_URL`، پیش‌فرض `http://recommendation:8000` از طریق `RestClientConfig`) و `recommendation.timeout-ms` (`RECOMMENDATION_TIMEOUT_MS`، پیش‌فرض `1500`، در تست `500`) با `SimpleClientHttpRequestFactory` برای تایم‌اوت connect/read و بررسی سلامت `GET /health` (docker-compose `interval 10s`).
 
-هر دو نقطه پایانی `REQUEST_FEED` را با `metadata {feed_type: chronological|recommended, page,size,total_elements,returned,requested_page,requested_size}` برای تحلیل ثبت می‌کنند؛ به بخش ثبت رویداد مراجعه کنید.
+هر دو نقطه پایانی `REQUEST_FEED` را با `metadata {feed_type: chronological|recommended}` برای تحلیل ثبت می‌کنند؛ به بخش ثبت رویداد مراجعه کنید.
 
 ### رسانه (`/api/media`)
 
@@ -195,7 +197,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 1. `POST /api/auth/register` کاربر را می‌سازد (رمز عبور با BCrypt هش می‌شود) و بلافاصله JWT برمی‌گرداند. `POST /api/auth/login` اعتبارنامه را از طریق `AuthenticationManager` اسپرینگ سکیوریتی بررسی و توکن جدید صادر می‌کند.
 2. JWT با HS256 امضا می‌شود و شامل `sub` (نام کاربری)، `iat` و `exp` است. کلید امضا از متغیر محیطی `JWT_SECRET` خوانده می‌شود و باید حداقل ۳۲ بایت باشد؛ `JWT_EXPIRATION` طول عمر توکن را به میلی‌ثانیه مشخص می‌کند.
 3. هر درخواست از `JwtAuthFilter` عبور می‌کند؛ این فیلتر توکن را از هدر `Authorization: Bearer <token>` استخراج، اعتبار آن را بررسی، کاربر را بارگذاری و زمینه امنیتی را تنظیم می‌کند. نشست‌ها بدون حالت (stateless) هستند و CSRF غیرفعال است.
-4. مسیرهای عمومی: `/api/auth/login`، `/api/auth/register`، `/swagger-ui.html`، `/swagger-ui/**`، `/v3/api-docs/**`. بقیه نقاط پایانی نیازمند احراز هویت هستند.
+4. مسیرهای عمومی: `/api/auth/login`، `/api/auth/register`، `/actuator/**`، `/swagger-ui.html`، `/swagger-ui/**`، `/v3/api-docs/**`. بقیه نقاط پایانی نیازمند احراز هویت هستند.
 5. `CustomUserDetailsService` وضعیت کاربر را به حالت حساب نگاشت می‌کند: فقط کاربران `ACTIVE` فعال هستند و کاربران `SUSPENDED` حساب قفل‌شده دارند.
 
 مشخصات OpenAPI با طرح امنیتی سراسری `bearerAuth` در `/swagger-ui.html` در دسترس است.
@@ -215,13 +217,14 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 
 ## ثبت رویداد
 
-رفتار کاربران از طریق مکانیزم مبتنی بر AOP ثبت می‌شود:
+رفتار کاربران با فراخوانی‌های صریح و بهترین‌تلاش (best-effort) به `EventLogService` از لایه سرویس ثبت می‌شود:
 
-- متدهای کنترلر که با `@LogEvent(EventType.XXX)` علامت‌گذاری شده‌اند، پس از اجرای موفق (`@AfterReturning`) یک ردیف در `event_logs` ایجاد می‌کنند.
-- `EventLoggingAspect` کاربر عامل، نوع رویداد، زمان و — بسته به نوع رویداد — پست یا کاربر هدف را ذخیره می‌کند.
-- اسکیمای `event_logs` شامل `session_id` (گروه‌بندی کنش‌های یک نشست کاربری؛ بی‌رابطه با JWT) و `metadata` (JSONB، برای اطلاعات خاص هر رویداد) نیز هست. برای `REQUEST_FEED` اکنون aspect مقدار `metadata` را با `{feed_type: chronological|recommended, page, size, total_elements, returned, requested_page, requested_size}` پر می‌کند.
+- متدهای سرویس `eventLogService.logX(...)` را صدا می‌زنند (مثل `logLogin`، `logProfileView`، `logFeedRequest`) که داخل کمک‌متدهای `logXSafely` پیچیده شده‌اند و خطاها را می‌بلعند تا تحلیل هیچ‌وقت درخواست را خراب نکند.
+- متدهای `EventLogService` با `@Async` اجرا می‌شوند: رویدادها خارج از مسیر درخواست در نخی جدا ذخیره می‌شوند.
+- اسکیمای `event_logs` شامل `session_id` (گروه‌بندی کنش‌های یک نشست کاربری؛ بی‌رابطه با JWT) و `metadata` (JSONB، برای اطلاعات خاص هر رویداد) نیز هست. شناسه نشست متعلق به فرانت‌اند است (یک UUID برای هر زبانه مرورگر) و با هدر `X-Session-Id` می‌آید و بدنه dwell جایگزین آن است. قرارداد `metadata` برای هر نوع رویداد: `REQUEST_FEED` برابر `{feed_type: chronological|recommended}` و گزارش‌های dwell برابر `{duration_ms, source: DETAIL|FEED}` است.
+- در نتیجه `VIEW_POST` دو شکل دارد: ردیف‌های بازدید خام (از `GET /api/posts/{postId}`) و ردیف‌های dwell (از `POST /api/posts/{postId}/dwell` با اعتبارسنجی `durationMs` در بازه `1..1800000`). شمارش بازدیدها باید ردیف‌های dwell را کنار بگذارد (`metadata ? 'duration_ms'`)؛ درگیری کاربر با میانگین `(metadata->>'duration_ms')::bigint` روی ردیف‌های dwell سنجیده می‌شود. ردیف‌های یک بازدید با `(user_id, post_id, session_id)` و ترتیب `created_at` به هم جفت می‌شوند.
 
-انواع رویداد: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`. `REQUEST_FEED` توسط هر دو نقطه پایانی فید (`GET /api/feed/chronological` و `GET /api/feed/recommended`) تولید می‌شود.
+انواع رویداد: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `QUOTE_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`, `REGISTER`. `REQUEST_FEED` توسط هر دو نقطه پایانی فید (`GET /api/feed/chronological` و `GET /api/feed/recommended`) تولید می‌شود. پست‌های نقل‌قولی به `QUOTE_POST` نگاشت می‌شوند؛ ثبت‌نام هم `LOGIN` (ورود خودکار) و هم `REGISTER` ثبت می‌کند.
 
 ---
 
@@ -235,10 +238,13 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 | خطای اعتبارسنجی، JSON نامعتبر، درخواست بد | `400 Bad Request` |
 | تغییر بدون مجوز (غیر از مالک) | `403 Forbidden` |
 | نام کاربری تکراری | `409 Conflict` |
+| مسابقه ایجاد منبع تکراری (نقض یکپارچگی داده) | `409 Conflict` |
 | اعتبارنامه نادرست / شکست احراز هویت | `401 Unauthorized` |
+| متد HTTP اشتباه روی مسیر موجود | `405 Method Not Allowed` |
+| خطای فرارکرده سرویس توصیه‌گر پایین‌دستی | `502 Bad Gateway` |
 | خطای ذخیره‌سازی و استثناهای غیرمنتظره | `500 Internal Server Error` |
 
-هر `ProblemDetail` شامل `status`, `title`, `detail` و `instance` (URI درخواست) است.
+هر `ProblemDetail` شامل `status`, `title`, `detail` و `instance` (URI درخواست) است. نکته‌ها: نوع رسانه پشتیبانی‌نشده به `400` نگاشت می‌شود (نه `415` معمول)؛ مسیر `502` در حال حاضر از نقاط پایانی فید دست‌نیافتنی است چون `FeedService` خطاهای پایین‌دستی را گرفته و به فید زمانی برمی‌گردد.
 
 ---
 
@@ -250,7 +256,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 
 ## پایگاه داده و مهاجرت‌ها
 
-- اسکیما منحصراً با مهاجرت‌های Flyway در `backend/src/main/resources/db/migration/` مدیریت می‌شود (`V1` اسکیمای اولیه تا `V6` شمارنده کامنت).
+- اسکیما منحصراً با مهاجرت‌های Flyway در `backend/src/main/resources/db/migration/` مدیریت می‌شود (`V1` اسکیمای اولیه تا `V7` انواع رویداد ثبت‌نام و نقل‌قول).
 - Hibernate با `ddl-auto=validate` پیکربندی شده است؛ بنابراین نگاشت موجودیت‌ها هنگام راه‌اندازی با اسکیمای مهاجرت‌شده بررسی می‌شود.
 - اسکیمای کامل در [4-Database.md](./4-Database.md) شرح داده شده است.
 
@@ -282,7 +288,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 - **تست‌های کنترلر** با MockMvc برای همه کنترلرها از جمله `FeedController` (زمانی و پیشنهادی: صفحه‌بندی، احراز هویت، ۴۰۴، ۴۰۵، شکل یکسان `Page<PostResponse>`، نادیده‌گرفتن sort) و `PostController` (پست‌های کاربر، کامنت‌های پست با `sortBy`، پست‌های واکنش‌نشان‌داده‌شده با `filter`، جست‌وجوی پست، اعتبارسنجی، احراز هویت، فراداده صفحه‌بندی).
 - **تست‌های واحد سرویس** برای Auth, User, Follow, Post, Reaction, Media و `Feed` (زمانی: نگاشت مستقل از رتبه، ثبت تعداد بازدید؛ پیشنهادی: هیدراته با حفظ ترتیب رتبه، fallback خالی/استثنا به زمانی، نادیده‌گرفتن `post_id` نامعتبر، فیلتر حذف‌شده، افزایش بازدید فقط پست‌های قابل‌مشاهده، انتشار `UserNotFound`، فراداده total) به‌علاوه `CustomUserDetailsService`.
 - **تست‌های مخزن** برای فهرست‌های پست (پست‌های کاربر، کامنت‌ها با مرتب‌سازی، پست‌های واکنش‌نشان‌داده‌شده با فیلتر نوع واکنش، جست‌وجوی محتوا)، افزایش شمارنده‌های بازدید/کامنت و صفحه‌بندی.
-- از H2 به عنوان پایگاه داده تست استفاده می‌شود، Flyway غیرفعال است و `recommendation.base-url=http://localhost:8000` در `src/test/resources/application.properties` شبیه‌سازی شده است.
+- H2 از وابستگی‌های تست حذف شده است. تست‌های JPA روی PostgreSQL واقعی با Testcontainers اجرا می‌شوند: کلاس پایه مشترک `PostgresContainerBase` (در `support/`، ایمیج `postgres:18-alpine`، اتصال با `@ServiceConnection`) برای هر کلاس تست یک کانتینر بالا می‌آورد، Flyway مهاجرت‌های واقعی `V1` تا `V7` را اجرا می‌کند و Hibernate با `ddl-auto=validate` کار می‌کند. اجرای تست‌های بک‌اند به Docker نیاز دارد. `recommendation.base-url=http://localhost:8000` در `src/test/resources/application.properties` شبیه‌سازی شده است.
 
 اجرای تست‌ها از دایرکتوری `backend/`:
 
@@ -300,7 +306,7 @@ config/       RestClientConfig (کلاینت HTTP توصیه‌گر)
 docker compose up --build
 ```
 
-این دستور PostgreSQL، بک‌اند اصلی (پورت `8080`)، سرویس پیشنهاددهی (پورت `8000`) و وب‌کلاینت فرانت‌اند (پورت `3000`؛ به [7-Frontend.md](./7-Frontend.md) مراجعه کنید) را راه‌اندازی می‌کند. یک volume نام‌گذاری‌شده (`uploads`) فایل‌های رسانه را در طول راه‌اندازی مجدد کانتینرها حفظ می‌کند. همچنین می‌توانید با `./mvnw spring-boot:run` پس از تنظیم متغیرهای محیطی بالا، به‌صورت محلی اجرا کنید.
+این دستور PostgreSQL، بک‌اند اصلی (پورت `8080`)، سرویس پیشنهاددهی (پورت `8000`) و وب‌کلاینت فرانت‌اند (پورت `3000`؛ به [7-Frontend.md](./7-Frontend.md) مراجعه کنید) را به‌علاوه پشته مانیتورینگ راه‌اندازی می‌کند: Prometheus (پورت `9090`؛ اسکرپ `core-backend:8080/actuator/prometheus` و موارد دیگر مطابق `monitoring/prometheus.yml`)، Grafana (پورت `3001`؛ داشبوردهای آماده در `monitoring/grafana/`) و اکسپورترهای Postgres/Redis. یک volume نام‌گذاری‌شده (`uploads`) فایل‌های رسانه را در طول راه‌اندازی مجدد کانتینرها حفظ می‌کند. همچنین می‌توانید با `./mvnw spring-boot:run` پس از تنظیم متغیرهای محیطی بالا، به‌صورت محلی اجرا کنید.
 
 ---
 
@@ -310,5 +316,5 @@ docker compose up --build
 
 - **تولید فید:** ✅ پیاده‌سازی‌شده — `GET /api/feed/chronological` (`deletedAt IS NULL ORDER BY createdAt DESC`) و `GET /api/feed/recommended` (`RecommendationClient` → `GET /feed?user_id=&page=&size=` → هیدراته از طریق `findAllByIdsFiltered` با حفظ ترتیب رتبه، تخریب مهربانانه به زمانی در صورت خالی/تایم‌اوت، شکل یکسان `Page<PostResponse>`) با ثبت `REQUEST_FEED` و `PageableDefault(size=20)`.
 - **یکپارچه‌سازی با سرویس پیشنهاددهی:** ✅ پیاده‌سازی‌شده — `RestClientConfig` (`recommendation.base-url` / `RECOMMENDATION_URL`، تایم‌اوت ۱۵۰۰ میلی‌ثانیه)، `RecommendationClient`/`RecommendationResponse`/`RankedPost`، `docker-compose.yaml` با بررسی سلامت `GET /health`؛ به [سرویس توصیه‌گر](./6-Recommendation.md) مراجعه کنید.
-- **مانیتورینگ:** Spring Boot Actuator به عنوان وابستگی وجود دارد اما پشته Prometheus/Grafana یا خروجی متریک متصل نشده است.
-- **Redis:** در `docker-compose.yaml` حضور دارد اما هنوز توسط برنامه استفاده نمی‌شود.
+- **مانیتورینگ:** ✅ پیاده‌سازی‌شده — Actuator نقاط `health,metrics,prometheus` را اکسپوز می‌کند (تگ `application=sarv`، هیستوگرام پرسنتیل فعال)؛ Prometheus بک‌اند و جاب‌های Postgres/Redis/توصیه‌گر را اسکرپ می‌کند (`monitoring/prometheus.yml`) و Grafana داشبوردهای آماده دارد (`monitoring/grafana/`).
+- **Redis:** به عنوان وابستگی اعلام شده (`spring-boot-starter-data-redis`) و در compose اجرا می‌شود (با اکسپورتر)، اما هنوز هیچ کد برنامه‌ای از آن استفاده نمی‌کند — کش و محدودسازی نرخ پیاده‌سازی نشده‌اند.

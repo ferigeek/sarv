@@ -41,6 +41,10 @@ export interface UserRegisterResponse {
   token: string
 }
 
+export interface UserLoginResponse {
+  token: string
+}
+
 export interface PostResponse {
   id: number
   userId: number

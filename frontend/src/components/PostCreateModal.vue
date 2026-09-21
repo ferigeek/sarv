@@ -4,9 +4,8 @@ import gsap from 'gsap'
 
 import type { ApiError } from '@/api/client'
 import { uploadMedia } from '@/api/media'
-import { createPost, getPost, quotePost } from '@/api/posts'
-import { getUser } from '@/api/users'
-import type { PostResponse, UserResponse } from '@/types/api'
+import { createPost, getPost, getPostAuthor, quotePost } from '@/api/posts'
+import type { PostResponse, UserSummaryResponse } from '@/types/api'
 
 const emit = defineEmits<{ close: []; created: [id: number] }>()
 
@@ -32,7 +31,7 @@ const composerPlaceholder = computed(() => {
 
 /* Quoted original preview (quote mode only, non-interactive) */
 const original = ref<PostResponse | null>(null)
-const originalAuthor = ref<UserResponse | null>(null)
+const originalAuthor = ref<UserSummaryResponse | null>(null)
 const originalMissing = ref(false)
 
 const originalSnippet = computed(() => {
@@ -52,7 +51,7 @@ async function loadOriginal() {
     if (props.repostOfId !== id) return
     original.value = o
     try {
-      originalAuthor.value = await getUser(o.userId)
+      originalAuthor.value = await getPostAuthor(id)
     } catch {
       originalAuthor.value = null
     }

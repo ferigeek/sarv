@@ -12,29 +12,25 @@ vi.mock('@/api/auth', () => ({
 }))
 
 vi.mock('@/api/users', () => ({
-  getMe: vi.fn<() => Promise<UserResponse>>(),
+  getMeSummary: vi.fn<() => Promise<UserSummaryResponse>>(),
   getUser: vi.fn<(id: number) => Promise<UserResponse>>(),
   updateMe: vi.fn<(payload: unknown) => Promise<UserResponse>>(),
   searchUsers: vi.fn<() => Promise<Page<UserSummaryResponse>>>(),
 }))
 
-import { getMe as mockGetMe } from '@/api/users'
+import { getMeSummary as mockGetMeSummary } from '@/api/users'
 import App from '../App.vue'
 import { createAppRouter } from '../router'
 
-const mockedGetMe = vi.mocked(mockGetMe)
+const mockedGetMeSummary = vi.mocked(mockGetMeSummary)
 
 function setAuthenticated() {
   localStorage.setItem('sarv.jwt', 'test-jwt')
-  mockedGetMe.mockResolvedValue({
+  mockedGetMeSummary.mockResolvedValue({
     id: 1,
     username: 'alice',
     displayName: 'Alice',
-    bio: null,
-    gender: 'FEMALE',
-    location: null,
     profilePictureId: null,
-    status: 'ACTIVE',
   })
 }
 

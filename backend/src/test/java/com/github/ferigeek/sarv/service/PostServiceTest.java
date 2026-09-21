@@ -39,6 +39,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,6 +51,8 @@ class PostServiceTest {
     private UserRepository userRepository;
     @Mock
     private MediaRepository mediaRepository;
+    @Mock
+    private EventLogService eventLogService;
 
     @InjectMocks
     private PostService postService;
@@ -113,7 +116,7 @@ class PostServiceTest {
             when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
             when(postRepository.save(any(Post.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            PostResponse res = postService.getPost(100L);
+            PostResponse res = postService.getPost(100L, "owner");
 
             assertThat(res.getId()).isEqualTo(100L);
             assertThat(res.getViewCount()).isEqualTo(1L);
@@ -122,6 +125,46 @@ class PostServiceTest {
             ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
             verify(postRepository).save(captor.capture());
             assertThat(captor.getValue().getViewCount()).isEqualTo(1L);
+            verify(eventLogService).logPostView(eq("owner"), any(Post.class), isNull());
+        }
+
+        @Test
+        @DisplayName("should forward session id to view logging")
+        void shouldForwardSessionId() {
+            basePost.setViewCount(0L);
+            java.util.UUID sessionId = java.util.UUID.randomUUID();
+            when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
+            when(postRepository.save(any(Post.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            postService.getPost(100L, "owner", sessionId);
+
+            verify(eventLogService).logPostView(eq("owner"), any(Post.class), eq(sessionId));
+        }
+
+        @Test
+        @DisplayName("should still return post when view logging fails")
+        void shouldReturnWhenLoggingFails() {
+            basePost.setViewCount(0L);
+            when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
+            when(postRepository.save(any(Post.class))).thenAnswer(inv -> inv.getArgument(0));
+            doThrow(new RuntimeException("log fail")).when(eventLogService).logPostView(eq("owner"), any(Post.class), isNull());
+
+            PostResponse res = postService.getPost(100L, "owner");
+
+            assertThat(res.getViewCount()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("should skip logging when username is null")
+        void shouldSkipLoggingWhenAnonymous() {
+            basePost.setViewCount(0L);
+            when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
+            when(postRepository.save(any(Post.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            PostResponse res = postService.getPost(100L, null);
+
+            assertThat(res.getViewCount()).isEqualTo(1L);
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
@@ -131,9 +174,21 @@ class PostServiceTest {
             when(postRepository.findById(1L)).thenReturn(Optional.of(basePost));
             when(postRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            PostResponse res = postService.getPost(1L);
+            PostResponse res = postService.getPost(1L, "owner");
 
             assertThat(res.getViewCount()).isEqualTo(6L);
+        }
+
+        @Test
+        @DisplayName("should treat null viewCount as zero")
+        void shouldHandleNullViewCount() {
+            basePost.setViewCount(null);
+            when(postRepository.findById(1L)).thenReturn(Optional.of(basePost));
+            when(postRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            PostResponse res = postService.getPost(1L, "owner");
+
+            assertThat(res.getViewCount()).isEqualTo(1L);
         }
 
         @Test
@@ -141,10 +196,11 @@ class PostServiceTest {
         void shouldThrowWhenNotFound() {
             when(postRepository.findById(99L)).thenReturn(Optional.empty());
 
-            PostNotFoundException ex = assertThrows(PostNotFoundException.class, () -> postService.getPost(99L));
+            PostNotFoundException ex = assertThrows(PostNotFoundException.class, () -> postService.getPost(99L, "owner"));
 
             assertThat(ex.getMessage()).contains("99");
             verify(postRepository, never()).save(any());
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
@@ -160,7 +216,7 @@ class PostServiceTest {
             when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
             when(postRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            PostResponse res = postService.getPost(100L);
+            PostResponse res = postService.getPost(100L, "owner");
 
             assertThat(res.getMediaId()).isEqualTo(10L);
             assertThat(res.getParentId()).isEqualTo(200L);
@@ -176,11 +232,54 @@ class PostServiceTest {
             when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
             when(postRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            PostResponse res = postService.getPost(100L);
+            PostResponse res = postService.getPost(100L, "owner");
 
             assertThat(res.getMediaId()).isNull();
             assertThat(res.getParentId()).isNull();
             assertThat(res.getRepostOfId()).isNull();
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // reportPostDwell
+    // -----------------------------------------------------------------------
+    @Nested
+    @DisplayName("reportPostDwell")
+    class ReportPostDwell {
+
+        @Test
+        @DisplayName("should log dwell with duration, session and source without touching viewCount")
+        void shouldLogDwell() {
+            java.util.UUID sessionId = java.util.UUID.randomUUID();
+            when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
+
+            postService.reportPostDwell(100L, "owner", 5000L, sessionId,
+                    com.github.ferigeek.sarv.dto.request.DwellSource.DETAIL);
+
+            verify(eventLogService).logPostDwell(eq("owner"), eq(basePost), eq(5000L), eq(sessionId),
+                    eq(com.github.ferigeek.sarv.dto.request.DwellSource.DETAIL));
+            verify(postRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should throw PostNotFoundException when post does not exist")
+        void shouldThrowWhenNotFound() {
+            when(postRepository.findById(99L)).thenReturn(Optional.empty());
+
+            assertThrows(PostNotFoundException.class,
+                    () -> postService.reportPostDwell(99L, "owner", 1000L, null, null));
+
+            verifyNoInteractions(eventLogService);
+        }
+
+        @Test
+        @DisplayName("should not fail when dwell logging fails")
+        void shouldSwallowLoggingFailure() {
+            when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
+            doThrow(new RuntimeException("log fail")).when(eventLogService)
+                    .logPostDwell(eq("owner"), any(Post.class), eq(1000L), isNull(), isNull());
+
+            postService.reportPostDwell(100L, "owner", 1000L, null, null);
         }
     }
 
@@ -218,6 +317,61 @@ class PostServiceTest {
             assertThat(saved.getMedia()).isNull();
             assertThat(saved.getParent()).isNull();
             assertThat(saved.getRepostOf()).isNull();
+            verify(eventLogService).logPostCreation(eq("owner"), any(Post.class), eq(PostCategory.NORMAL));
+        }
+
+        @Test
+        @DisplayName("should log correct event type per post category")
+        void shouldLogPerCategory() {
+            Post parent = new Post(); parent.setId(200L); parent.setUser(owner); parent.setPostCategory(PostCategory.NORMAL);
+            Post repost = new Post(); repost.setId(300L); repost.setUser(owner); repost.setPostCategory(PostCategory.NORMAL);
+            when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+            when(postRepository.findById(200L)).thenReturn(Optional.of(parent));
+            when(postRepository.findById(300L)).thenReturn(Optional.of(repost));
+            when(postRepository.save(any(Post.class))).thenAnswer(inv -> {
+                Post p = inv.getArgument(0);
+                p.setId(9L);
+                return p;
+            });
+
+            postService.createPost(req(PostCategory.COMMENT, "c", null, 200L, null), "owner");
+            verify(eventLogService).logPostCreation(eq("owner"), any(Post.class), eq(PostCategory.COMMENT));
+
+            postService.createPost(req(PostCategory.QUOTE, "q", null, null, 300L), "owner");
+            verify(eventLogService).logPostCreation(eq("owner"), any(Post.class), eq(PostCategory.QUOTE));
+
+            postService.createPost(req(PostCategory.REPOST, null, null, null, 300L), "owner");
+            verify(eventLogService).logPostCreation(eq("owner"), any(Post.class), eq(PostCategory.REPOST));
+        }
+
+        @Test
+        @DisplayName("should still return response when creation logging fails")
+        void shouldReturnWhenCreationLoggingFails() {
+            when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+            when(postRepository.save(any(Post.class))).thenAnswer(inv -> {
+                Post p = inv.getArgument(0);
+                p.setId(1L);
+                p.setViewCount(0L); p.setLikeCount(0L); p.setDislikeCount(0L);
+                return p;
+            });
+            doThrow(new RuntimeException("log fail"))
+                    .when(eventLogService).logPostCreation(eq("owner"), any(Post.class), eq(PostCategory.NORMAL));
+
+            PostRequest r = req(PostCategory.NORMAL, "hello", null, null, null);
+            PostResponse res = postService.createPost(r, "owner");
+
+            assertThat(res.getContent()).isEqualTo("hello");
+        }
+
+        @Test
+        @DisplayName("should not log when creation validation fails")
+        void shouldNotLogWhenValidationFails() {
+            when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+
+            PostRequest r = req(PostCategory.NORMAL, "   ", null, null, null);
+            assertThrows(PostNotValidException.class, () -> postService.createPost(r, "owner"));
+
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
@@ -541,11 +695,11 @@ class PostServiceTest {
         }
 
         @Test
-        @DisplayName("should throw RuntimeException when post not found")
+        @DisplayName("should throw PostNotFoundException when post not found")
         void shouldThrowWhenPostNotFound() {
             when(postRepository.findById(99L)).thenReturn(Optional.empty());
 
-            assertThrows(RuntimeException.class, () -> postService.deletePost(99L, "owner"));
+            assertThrows(PostNotFoundException.class, () -> postService.deletePost(99L, "owner"));
         }
 
         @Test
@@ -558,7 +712,7 @@ class PostServiceTest {
         }
 
         @Test
-        @DisplayName("should throw RuntimeException when not owner (different id)")
+        @DisplayName("should throw UnAuthorizedUpdateException when not owner (different id)")
         void shouldThrowWhenNotOwner() {
             Post post = new Post();
             post.setId(100L);
@@ -566,8 +720,8 @@ class PostServiceTest {
             when(postRepository.findById(100L)).thenReturn(Optional.of(post));
             when(userRepository.findByUsername("other")).thenReturn(Optional.of(otherUser)); // id 2
 
-            RuntimeException ex = assertThrows(RuntimeException.class, () -> postService.deletePost(100L, "other"));
-            assertThat(ex.getMessage()).contains("You are not the owner");
+            UnAuthorizedUpdateException ex = assertThrows(UnAuthorizedUpdateException.class, () -> postService.deletePost(100L, "other"));
+            assertThat(ex.getMessage()).contains("2").contains("100");
             verify(postRepository, never()).save(any());
         }
 
@@ -577,7 +731,7 @@ class PostServiceTest {
             when(postRepository.findById(100L)).thenReturn(Optional.of(basePost));
             when(userRepository.findByUsername("other")).thenReturn(Optional.of(otherUser));
 
-            assertThrows(RuntimeException.class, () -> postService.deletePost(100L, "other"));
+            assertThrows(UnAuthorizedUpdateException.class, () -> postService.deletePost(100L, "other"));
 
             verify(postRepository, never()).save(any());
         }
@@ -731,9 +885,9 @@ class PostServiceTest {
             UnAuthorizedUpdateException ex = assertThrows(UnAuthorizedUpdateException.class,
                     () -> postService.updatePost(100L, req, "other"));
             assertThat(ex.getMessage()).contains("1").contains("100"); // actually message contains user id and post id
-            // message is "User with ID: <2> is not the owner of post with ID: <100>"
-            assertThat(ex.getMessage()).contains("<2>");
-            assertThat(ex.getMessage()).contains("<100>");
+            // message is "User with ID: 2 is not the owner of post with ID: 100"
+            assertThat(ex.getMessage()).contains("2");
+            assertThat(ex.getMessage()).contains("100");
         }
 
         @Test

@@ -2,13 +2,13 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { login as apiLogin, register as apiRegister, type RegisterPayload } from '@/api/auth'
-import { getMe } from '@/api/users'
-import type { UserResponse } from '@/types/api'
+import { getMeSummary } from '@/api/users'
+import type { UserSummaryResponse } from '@/types/api'
 import { clearToken, getToken, setToken } from '@/utils/token'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(getToken())
-  const user = ref<UserResponse | null>(null)
+  const user = ref<UserSummaryResponse | null>(null)
 
   const isAuthenticated = computed(() => Boolean(token.value))
 
@@ -34,7 +34,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function fetchMe() {
     if (!token.value) return
-    user.value = await getMe()
+    user.value = await getMeSummary()
   }
 
   return { token, user, isAuthenticated, login, register, logout, fetchMe }

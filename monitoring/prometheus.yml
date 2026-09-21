@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "sarv-backend"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets: ["core-backend:8080"]
+
+  - job_name: "sarv-postgres"
+    static_configs:
+      - targets: ["postgres_exporter:9187"]
+
+  - job_name: "sarv-redis"
+    static_configs:
+      - targets: ["redis_exporter:9121"]
+
+  - job_name: "sarv-recommendation"
+    static_configs:
+      - targets: ["recommendation:8000"]

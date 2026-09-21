@@ -1,6 +1,7 @@
 package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.client.RecommendationClient;
+import com.github.ferigeek.sarv.client.RecommendationException;
 import com.github.ferigeek.sarv.client.RecommendationResponse;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
 import com.github.ferigeek.sarv.entity.Post;
@@ -27,24 +28,26 @@ public class FeedService {
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final RecommendationClient recommendationClient;
+    private final EventLogService eventLogService;
 
-    public FeedService(PostRepository postRepository, UserRepository userRepository, RecommendationClient recommendationClient) {
+    public FeedService(PostRepository postRepository, UserRepository userRepository, RecommendationClient recommendationClient, EventLogService eventLogService) {
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.recommendationClient = recommendationClient;
+        this.eventLogService = eventLogService;
     }
 
     @Transactional
-    public Page<PostResponse> getChronological(Pageable pageable) {
-        Page<Post> page = postRepository.findChronologicalFeed(pageable);
-        recordViews(page.getContent().stream().map(Post::getId).toList());
-        return page.map(this::withRecordedView);
+    public Page<PostResponse> getChronological(Pageable pageable, String username) {
+        Page<PostResponse> page = fetchChronological(pageable);
+        logFeedRequestSafely(username, "chronological");
+        return page;
     }
 
     @Transactional
     public Page<PostResponse> getRecommended(String username, Pageable pageable) {
         Long userId = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found with username: <%s>".formatted(username)))
+                .orElseThrow(() -> new UserNotFoundException("User not found with username: %s".formatted(username)))
                 .getId();
 
         try {
@@ -53,7 +56,9 @@ public class FeedService {
 
             if (rankedIds.isEmpty()) {
                 log.info("Recommendation returned empty for userId={}, falling back to chronological", userId);
-                return getChronological(pageable);
+                Page<PostResponse> fallback = fetchChronological(pageable);
+                logFeedRequestSafely(username, "recommended");
+                return fallback;
             }
 
             List<Post> hyd = postRepository.findAllByIdsFiltered(rankedIds);
@@ -76,12 +81,30 @@ public class FeedService {
                 total = content.size();
             }
 
+            logFeedRequestSafely(username, "recommended");
             return new PageImpl<>(content, pageable, total);
-        } catch (UserNotFoundException ex) {
-            throw ex;
-        } catch (Exception ex) {
+        } catch (RecommendationException ex) {
             log.warn("Failed to fetch recommended feed for user {} (page {} size {}), falling back to chronological: {}", username, pageable.getPageNumber(), pageable.getPageSize(), ex.toString());
-            return getChronological(pageable);
+            Page<PostResponse> fallback = fetchChronological(pageable);
+            logFeedRequestSafely(username, "recommended");
+            return fallback;
+        }
+    }
+
+    private Page<PostResponse> fetchChronological(Pageable pageable) {
+        Page<Post> page = postRepository.findChronologicalFeed(pageable);
+        recordViews(page.getContent().stream().map(Post::getId).toList());
+        return page.map(this::withRecordedView);
+    }
+
+    private void logFeedRequestSafely(String username, String feedType) {
+        if (username == null) {
+            return;
+        }
+        try {
+            eventLogService.logFeedRequest(username, feedType);
+        } catch (Exception e) {
+            log.warn("Failed to log feed request event username={} feedType={}", username, feedType, e);
         }
     }
 
@@ -89,7 +112,11 @@ public class FeedService {
         if (postIds.isEmpty()) {
             return;
         }
-        postRepository.incrementViewCounts(postIds);
+        try {
+            postRepository.incrementViewCounts(postIds);
+        } catch (Exception ex) {
+            log.warn("Failed to record views for {} posts: {}", postIds.size(), ex.toString());
+        }
     }
 
     private PostResponse withRecordedView(Post post) {

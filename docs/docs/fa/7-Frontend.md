@@ -53,12 +53,13 @@ api/          لایه HTTP — یک ماژول برای هر دامنه (client
 router/       جدول مسیرها + گاردهای احراز هویت (index.ts)
 stores/       استورهای Pinia (فقط auth.ts — تنها استور مشترک)
 types/        تایپ‌های منطبق با بک‌اند (api.ts: کاربر/پست/واکنش/رسانه، Page)
-utils/        توکن (token.ts — کمک‌تابع‌های localStorage)
+utils/        توکن (token.ts — کمک‌تابع‌های localStorage)، نشست کاربری (session.ts — شناسه نشست مختص هر زبانه)
 views/        صفحه‌های سطح مسیر (AppShell، Feed، PostDetail، Login، Register،
               Profile، LikedPosts، Following، Followers)
 components/   رابط‌های قابل‌استفاده‌مجدد (LeftSidebar، RightSidebar، PostCard،
               PostCreateModal، RepostConfirm، SearchSection، SearchModal،
-              UserSummary/List، NavigationMenu، SarvLogo، HotTopicsPanel،
+              UserSummary/List، NavigationMenu، SarvLogo، SarvMark،
+              AuthTitleAnimation، HotTopicsPanel،
               PlatformNewsPanel، AmbientNetwork، MobileTopBar، MobileBottomNav،
               AppIcon)
 assets/       استایل پایه (main.css — توکن‌های طراحی) و icons/pixelarticons.ts
@@ -101,13 +102,13 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 گردش کار (`stores/auth.ts:9`، `api/auth.ts:17`، `utils/token.ts:1`):
 
-1. `POST /api/auth/login` یک رشته JWT خام و `POST /api/auth/register` آبجکت `{...، token}` برمی‌گرداند. استور آن را در `localStorage` با کلید `sarv.jwt` ذخیره و برای پر کردن `user` صدای `GET /api/users/me` (`fetchMe`) را می‌زند.
+1. `POST /api/auth/login` آبجکت `{"token": "<jwt>"}` و `POST /api/auth/register` آبجکت `{...، token}` برمی‌گرداند. استور آن را در `localStorage` با کلید `sarv.jwt` ذخیره و برای پر کردن `user` با `UserSummaryResponse` صدای `GET /api/users/me/summary` (`fetchMe` از طریق `getMeSummary()`) را می‌زند. `getMe()` کامل (`GET /api/users/me`) فقط برای نمایش پروفایل خود کاربر در `ProfileView` استفاده می‌شود.
 2. `isAuthenticated` فقط از وجود توکن مشتق می‌شود (`stores/auth.ts:13`).
-3. هر درخواست با اینترسپتور `apiClient` هدر `Authorization: Bearer <token>` می‌گیرد (`api/client.ts:25`).
+3. هر درخواست با اینترسپتور `apiClient` هدر `Authorization: Bearer <token>` می‌گیرد (`api/client.ts:25`)، به‌علاوه `X-Session-Id` مختص هر زبانه (`utils/session.ts`، UUID در `sessionStorage` با کلید `sarv.session_id`) تا ردیف‌های رویداد بک‌اند در نشست‌های کاربری گروه‌بندی شوند.
 4. توکن نامعتبر/منقضی از سمت Spring Security خطای `403` با بدنه خالی می‌دهد. اینترسپتور پاسخ (`api/client.ts:33`) آن را انقضای نشست می‌داند: توکن را پاک و هوک `onSessionExpired` متصل‌شده در `main.ts:19` را صدا می‌زند که خروج و هدایت به `login` انجام می‌دهد.
 5. `App.vue:8` هنگام رفرش صفحه نشست را بازیابی می‌کند (اگر توکن هست ولی کاربر نیست، `fetchMe`).
 
-رابط ورود (`views/LoginView.vue`): جعبه وسط‌چین، نام کاربری + رمز عبور؛ `401` یعنی «نام کاربری یا رمز عبور اشتباه است»، وگرنه `detail` بک‌اند نمایش داده می‌شود؛ موفقیت با `?redirect=` یا رفتن به `feed`.
+رابط ورود (`views/LoginView.vue`): جعبه وسط‌چین، نام کاربری + رمز عبور؛ `401` یعنی «نام کاربری یا رمز عبور اشتباه است»، وگرنه `detail` بک‌اند نمایش داده می‌شود؛ موفقیت با `?redirect=` یا رفتن به `feed`. سربرگ برند یک عنوان متحرک است (`AuthTitleAnimation.vue` که هنگام mount تصادفی یکی از چهار افکت ترمینالی — `binarypath`، `decrypt`، `errorcorrect`، `matrix` — را انتخاب می‌کند و برای کاربران کم‌حرکت رد می‌شود) در کنار لوگوی `SarvMark`؛ نمای ثبت‌نام به‌جای آن از سربرگ ثابت `SARV` استفاده می‌کند.
 
 رابط ثبت‌نام (`views/RegisterView.vue`، دومرحله‌ای مطابق `Design.md §§12`):
 
@@ -118,19 +119,19 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 ## لایه API
 
-`api/client.ts:21` نمونه `axios` با `baseURL: '/api'` می‌سازد (same-origin؛ در توسعه و production به بک‌اند پراکسی می‌شود، پس CORS یا متغیر محیطی فرانت‌اند لازم نیست). خطاها به `ApiError { status, title, detail, instance }` از `ProblemDetail` استاندارد RFC 9457 بک‌اند نرمال می‌شوند (`types/api.ts:90`).
+`api/client.ts:21` نمونه `axios` با `baseURL: '/api'` می‌سازد (same-origin؛ در توسعه و production به بک‌اند پراکسی می‌شود، پس CORS یا متغیر محیطی فرانت‌اند لازم نیست). خطاها به `ApiError { status, title, detail, instance }` (`api/client.ts:6`) تبدیل‌شده از `ProblemDetail` استاندارد RFC 9457 بک‌اند (`types/api.ts:105`) نرمال می‌شوند.
 
 | ماژول | توابع | اندپوینت‌های بک‌اند |
 |--------|--------|---------------------|
 | `api/auth.ts` | `login`، `register` | `POST /api/auth/login`، `POST /api/auth/register` |
-| `api/users.ts` | `getMe`، `getUser`، `updateMe`، `searchUsers(query, pageable)`، `getUserPosts`، `getReactedPosts(filter)`، `getUserStats` | `GET /api/users/me`، `GET /api/users/{id}`، `PUT /api/users/me`، `GET /api/users?query=`، `GET /api/users/{id}/posts`، `GET /api/users/{id}/reacted-posts?filter=`، `GET /api/users/{id}/stats` |
+| `api/users.ts` | `getMe`، `getMeSummary`، `getUser`، `updateMe`، `searchUsers(query, pageable)`، `getUserPosts`، `getReactedPosts(filter)`، `getUserStats` | `GET /api/users/me`، `GET /api/users/me/summary`، `GET /api/users/{id}`، `PUT /api/users/me`، `GET /api/users?query=`، `GET /api/users/{id}/posts`، `GET /api/users/{id}/reacted-posts?filter=`، `GET /api/users/{id}/stats` |
 | `api/feed.ts` | `getChronologicalFeed`، `getRecommendedFeed` | `GET /api/feed/chronological`، `GET /api/feed/recommended` |
-| `api/posts.ts` | `getPost`، `createPost`، `updatePost`، `deletePost`، `searchPosts`، `getComments`، `repostPost`، `quotePost` | `GET/POST /api/posts`، `PUT/DELETE /api/posts/{id}`، `GET /api/posts/search?query=`، `GET /api/posts/{id}/comments?sortBy=`، بازنشر/نقل‌قول با `POST /api/posts` |
+| `api/posts.ts` | `getPost`، `getPostAuthor`، `createPost`، `updatePost`، `deletePost`، `searchPosts`، `getComments`، `repostPost`، `quotePost`، `reportPostDwell(durationMs, source?)` | `GET/POST /api/posts`، `PUT/DELETE /api/posts/{id}`، `GET /api/posts/{id}/author`، `GET /api/posts/search?query=`، `GET /api/posts/{id}/comments?sortBy=`، بازنشر/نقل‌قول با `POST /api/posts`، گزارش dwell با `POST /api/posts/{id}/dwell` |
 | `api/reactions.ts` | `addReaction(1\|-1)`، `getReaction`، `removeReaction` | `POST/GET/DELETE /api/posts/{id}/reactions` |
 | `api/follows.ts` | `getFollowers`، `getFollowing`، `follow`، `unfollow` | `GET/POST/DELETE /api/users/{id}/followers`، `GET /api/users/{id}/following` |
 | `api/media.ts` | `uploadMedia(file, onProgress?)`، `getMediaBlob`، `getMediaMetadata` | `POST /api/media` (multipart با فیلد `file`)، `GET /api/media/{id}`، `GET /api/media/{id}/metadata` |
 
-تایپ‌های `types/api.ts:4` فیلدبه‌فیلد با بک‌اند مطابق‌اند (`Gender`، `UserStatus`، `PostCategory`، `CommentSort`، `ReactionFilter`، `UserResponse`، `UserSummaryResponse`، `UserStatsResponse`، `PostResponse` شامل `commentCount`، `ReactionResponse`، `MediaResponse` و `Page<T>` با `page { size, number, totalElements, totalPages }`).
+تایپ‌های `types/api.ts:4` فیلدبه‌فیلد با بک‌اند مطابق‌اند (`Gender`، `UserStatus`، `PostCategory`، `CommentSort`، `ReactionFilter`، `ReactionType`، `UserReaction`، `UserResponse`، `UserSummaryResponse`، `UserRegisterResponse`، `UserLoginResponse {token}`، `UserStatsResponse`، `PostResponse` شامل `commentCount`، `ReactionResponse`، `MediaResponse`، `MediaMetadataResponse`، `Pageable {page?، size?}`، `Page<T>` با `page { size, number, totalElements, totalPages }` و `ProblemDetail`).
 
 ### رفتار فید
 
@@ -138,6 +139,14 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 - **Latest** ← مستقیم `GET /api/feed/chronological`.
 - **For You** ← `GET /api/feed/recommended`؛ اگر صفحه اول خالی باشد یا درخواست خطا بدهد، خود نما **به زمانی برمی‌گردد** (`FeedView.vue:50`) — علاوه بر تخریب مهربانانه سمت بک‌اند (به [5-Backend.md](./5-Backend.md) مراجعه کنید). تعویض سریع زبانه با شمارنده توالی محافظت می‌شود تا پاسخ‌های قدیمی نادیده گرفته شوند.
+
+### ردیابی dwell
+
+زمان مشاهده پست‌ها با `composables/usePostDwell.ts` به‌صورت بهترین‌تلاش گزارش می‌شود (تک بیکن هنگام unmount/`pagehide`، توقف در زبانه‌های مخفی، سقف حداکثر `1800000` میلی‌ثانیه بک‌اند):
+
+- **صفحه جزئیات** (`PostDetailView.vue`) با `source: DETAIL` ردیابی می‌کند؛ کارت‌های آن بدون ردیابی dwell رندر می‌شوند پس در هر بازدید دقیقاً یک بیکن می‌رود. ناوبری درجا (`/post/5` ← `/post/6`) زمان انباشته را به پست قبلی نسبت می‌دهد و برای پست جدید از نو شروع می‌کند.
+- **کارت‌های فید** (`PostCard.vue` با `dwell-source="FEED"` از `FeedView.vue`) فقط وقتی حداقل ۵۰٪ قابل‌مشاهده باشند (`IntersectionObserver`) انباشته می‌کنند و فقط بعد از ۱ ثانیه مشاهده گزارش می‌دهند.
+- `reportPostDwell` (`api/posts.ts`) هیچ‌وقت reject نمی‌شود؛ مسیر `pagehide` از `fetch` با `keepalive: true` استفاده می‌کند (درخواست‌های عادی هنگام بسته شدن زبانه ممکن است لغو شوند؛ `sendBeacon` نمی‌تواند هدر `Authorization` لازم را بگذارد).
 
 ### ایجاد پست (اول رسانه)
 
@@ -163,7 +172,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 ### واکنش‌ها، دنبال‌کردن‌ها، پروفایل‌ها، نمایش رسانه
 
-- `PostCard.vue:73` هنگام mount وضعیت واکنش هر پست (`likeCount/dislikeCount/userReaction`)، پروفایل نویسنده، باینری آواتار و باینری رسانه پست را لود می‌کند؛ لایک یعنی شست بالا (سبز در حالت فعال)، دیسلایک یعنی شست پایین (قرمز در حالت فعال) با بازخورد پیکسلی شاد/غمگین GSAP پس از موفقیت (مطابق `Design.md §7.3`). سربرگ نویسنده به `profile/:userId` می‌رود؛ بدنه کارت و دکمه نظر به `post-detail` می‌روند.
+- `PostCard.vue:73` هنگام mount وضعیت واکنش هر پست (`likeCount/dislikeCount/userReaction`)، خلاصه نویسنده (`UserSummaryResponse` از `GET /api/posts/{id}/author` که `VIEW_PROFILE` ثبت نمی‌کند)، باینری آواتار و باینری رسانه پست را لود می‌کند؛ لایک یعنی شست بالا (سبز در حالت فعال)، دیسلایک یعنی شست پایین (قرمز در حالت فعال) با بازخورد پیکسلی شاد/غمگین GSAP پس از موفقیت (مطابق `Design.md §7.3`). سربرگ نویسنده به `profile/:userId` می‌رود؛ بدنه کارت و دکمه نظر به `post-detail` می‌روند.
 - هویت دسته‌بندی: پست‌های `COMMENT`/`REPOST`/`QUOTE` نواری آبی ترمینالی (`--sarv-blue`) در بالای کارت دارند که به پست والد/ارجاع‌شده لینک می‌شود؛ کارت‌های بازنشر/نقل‌قول پیش‌نمایش تک‌سطحی از پست اصلی دارند (نویسنده، قطعه متن، شمارنده‌ها) با پیام جایگزین «پست اصلی در دسترس نیست» و کلید «نمایش رسانه پیوست» که تصویر/ویدیوی اصلی را در همان‌جا باز می‌کند، وقتی رسانه دارد.
 - `ProfileView.vue:42`: حذف `:id?` یعنی پروفایل خود کاربر؛ وضعیت دنبال‌کردن از صفحه اول فهرست دنبال‌شوندگان خود بیننده مشتق می‌شود (API فیلد `isFollowing` ندارد). سربرگ آمار دنبال‌کردن (`GET /api/users/{id}/stats`) را نشان می‌دهد که به فهرست‌های دنبال‌کنندگان/دنبال‌شوندگان همان کاربر لینک‌اند و بعد از آن فهرست صفحه‌بندی‌شده پست‌های خود کاربر (`GET /api/users/{id}/posts` با استفاده مجدد از `PostCard`) می‌آید. پروفایل خودی فرم ویرایش دارد (`displayName`، `bio`، `location`، `gender`، آواتار با انتخاب‌گر استایل‌شده و پیش‌نمایش زنده ← `updateMe`)؛ فقط همین فیلدها قابل ویرایش‌اند.
 - `LikedPostsView.vue` تاریخچه پست‌های واکنش‌نشان‌داده‌شده است (`GET /api/users/{id}/reacted-posts`) با زبانه‌های **لایک‌شده** (پیش‌فرض) / **دیسلایک‌شده** / **همه**؛ برچسب آیتم ناوبری «recent reactions» است.
@@ -184,7 +193,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 | کامپوننت | نقش (ارجاع Design.md) |
 |-----------|------------------------|
-| `LeftSidebar.vue` + `SearchSection.vue`، `SearchModal.vue`، `UserSummary.vue`، `NavigationMenu.vue` | محرک‌های جست‌وجو + مودال نتایج وسط‌چین، خلاصه کاربر، اکشن ایجاد پست، ناوبری خانه/پروفایل/واکنش‌ها/دنبال‌کردن‌ها (§4) |
+| `LeftSidebar.vue` + `SearchSection.vue`، `SearchModal.vue`، `UserSummary.vue`، `NavigationMenu.vue` | محرک‌های جست‌وجو + مودال نتایج وسط‌چین، خلاصه کاربر، ناوبری خانه/پروفایل/واکنش‌ها/دنبال‌کردن‌ها به‌علاوه لینک خارجی مخزن GitHub (در تب جدید) (§4)؛ دکمه ایجاد پست در `LeftSidebar.vue` قرار دارد |
 | `PostCard.vue`، `PostCreateModal.vue`، `RepostConfirm.vue` | پست‌های فید، بنرها، پیش‌نمایش‌ها، شمارنده‌ها، اکشن‌ها (§7)؛ پنجره‌های ایجاد/نظر/نقل‌قول و تأیید بازنشر در همان صفحه (§8) |
 | `RightSidebar.vue` + `SarvLogo.vue`، `HotTopicsPanel.vue`، `PlatformNewsPanel.vue` | نام متحرک Sarv، داغ‌ترین موضوعات، اخبار پلتفرم (§9) |
 | `UserSummaryList.vue` | ردیف‌های مشترک آواتار/نام‌کاربری/نام‌نمایشی با کلیک به پروفایل (§6) |
@@ -200,7 +209,7 @@ main.ts       راه‌اندازی (pinia، روتر، هوک انقضای نش
 
 ## مدیریت وضعیت
 
-فقط یک استور مشترک وجود دارد: `useAuthStore` (`stores/auth.ts:9` — شامل `token`، `user`، `isAuthenticated` و توابع `login/register/logout/fetchMe`). بقیه موارد (صفحه‌های فید، نتایج جست‌وجو، مودال‌ها، فرم‌ها، وضعیت دنبال‌کردن) وضعیت محلی `ref` داخل نماها/کامپوننت‌ها هستند و با props/emits یا تزریق `feedRefreshKey` منتقل می‌شوند. ماندگاری JWT یک لفاف نازک `localStorage` است (`utils/token.ts:1` با کلید `sarv.jwt`) — توکن تازه‌سازی یا ردیابی انقضا سمت کلاینت وجود ندارد.
+فقط یک استور مشترک وجود دارد: `useAuthStore` (`stores/auth.ts:9` — شامل `token`، `user: UserSummaryResponse | null`، `isAuthenticated` و توابع `login/register/logout/fetchMe`). بقیه موارد (صفحه‌های فید، نتایج جست‌وجو، مودال‌ها، فرم‌ها، وضعیت دنبال‌کردن) وضعیت محلی `ref` داخل نماها/کامپوننت‌ها هستند و با props/emits یا تزریق `feedRefreshKey` منتقل می‌شوند. ماندگاری JWT یک لفاف نازک `localStorage` است (`utils/token.ts:1` با کلید `sarv.jwt`) — توکن تازه‌سازی یا ردیابی انقضا سمت کلاینت وجود ندارد.
 
 ---
 

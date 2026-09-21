@@ -2,6 +2,7 @@ package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.request.UserLoginRequest;
 import com.github.ferigeek.sarv.dto.request.UserRegisterRequest;
+import com.github.ferigeek.sarv.dto.response.UserLoginResponse;
 import com.github.ferigeek.sarv.dto.response.UserRegisterResponse;
 import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.entity.type.Gender;
@@ -44,6 +45,9 @@ class AuthServiceTest {
     @Mock
     private JwtUtil jwtUtil;
 
+    @Mock
+    private EventLogService eventLogService;
+
     @InjectMocks
     private AuthService authService;
 
@@ -81,9 +85,9 @@ class AuthServiceTest {
             when(userDetails.getUsername()).thenReturn("ferigeek");
             when(jwtUtil.generateToken("ferigeek")).thenReturn("jwt-token-123");
 
-            String token = authService.login(req);
+            UserLoginResponse response = authService.login(req);
 
-            assertThat(token).isEqualTo("jwt-token-123");
+            assertThat(response.getToken()).isEqualTo("jwt-token-123");
 
             ArgumentCaptor<UsernamePasswordAuthenticationToken> captor =
                     ArgumentCaptor.forClass(UsernamePasswordAuthenticationToken.class);
@@ -91,6 +95,27 @@ class AuthServiceTest {
             UsernamePasswordAuthenticationToken captured = captor.getValue();
             assertThat(captured.getPrincipal()).isEqualTo("ferigeek");
             assertThat(captured.getCredentials()).isEqualTo("strongPass123");
+            verify(jwtUtil).generateToken("ferigeek");
+            verify(eventLogService).logLogin("ferigeek");
+        }
+
+        @Test
+        @DisplayName("should still return token when login event logging fails")
+        void shouldReturnTokenWhenLoggingFails() {
+            UserLoginRequest req = new UserLoginRequest("ferigeek", "strongPass123");
+            Authentication authentication = mock(Authentication.class);
+            UserDetails userDetails = mock(UserDetails.class);
+
+            when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                    .thenReturn(authentication);
+            when(authentication.getPrincipal()).thenReturn(userDetails);
+            when(userDetails.getUsername()).thenReturn("ferigeek");
+            doThrow(new RuntimeException("log fail")).when(eventLogService).logLogin("ferigeek");
+            when(jwtUtil.generateToken("ferigeek")).thenReturn("jwt-token-123");
+
+            UserLoginResponse response = authService.login(req);
+
+            assertThat(response.getToken()).isEqualTo("jwt-token-123");
             verify(jwtUtil).generateToken("ferigeek");
         }
 
@@ -104,6 +129,7 @@ class AuthServiceTest {
             assertThrows(BadCredentialsException.class, () -> authService.login(req));
 
             verify(jwtUtil, never()).generateToken(anyString());
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
@@ -132,9 +158,9 @@ class AuthServiceTest {
             when(userDetails.getUsername()).thenReturn("ferigeek");
             when(jwtUtil.generateToken("ferigeek")).thenReturn("token");
 
-            String result = authService.login(req);
+            UserLoginResponse result = authService.login(req);
 
-            assertThat(result).isEqualTo("token");
+            assertThat(result.getToken()).isEqualTo("token");
             verify(jwtUtil).generateToken("ferigeek");
             verify(jwtUtil, never()).generateToken("FeriGeek");
         }
@@ -202,6 +228,32 @@ class AuthServiceTest {
             assertThat(saved.getPasswordHash()).isEqualTo("hashedPass");
             assertThat(saved.getCreatedAt()).isNotNull();
             verify(passwordEncoder).encode("strongPass123");
+            verify(eventLogService).logLogin("ferigeek");
+            verify(eventLogService).logRegister("ferigeek");
+        }
+
+        @Test
+        @DisplayName("should still return response when register event logging fails")
+        void shouldReturnWhenRegisterLoggingFails() {
+            when(userRepository.existsByUsername("ferigeek")).thenReturn(false);
+            when(passwordEncoder.encode("strongPass123")).thenReturn("hashedPass");
+            when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+                User u = inv.getArgument(0);
+                u.setId(1L);
+                return u;
+            });
+
+            Authentication authentication = mock(Authentication.class);
+            UserDetails userDetails = mock(UserDetails.class);
+            when(authenticationManager.authenticate(any())).thenReturn(authentication);
+            when(authentication.getPrincipal()).thenReturn(userDetails);
+            when(userDetails.getUsername()).thenReturn("ferigeek");
+            when(jwtUtil.generateToken("ferigeek")).thenReturn("jwt-token");
+            doThrow(new RuntimeException("log fail")).when(eventLogService).logRegister("ferigeek");
+
+            UserRegisterResponse response = authService.register(registerRequest);
+
+            assertThat(response.getToken()).isEqualTo("jwt-token");
         }
 
         @Test
@@ -239,10 +291,11 @@ class AuthServiceTest {
             verify(passwordEncoder, never()).encode(anyString());
             verify(authenticationManager, never()).authenticate(any());
             verify(jwtUtil, never()).generateToken(anyString());
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
-        @DisplayName("should throw RuntimeException with message when save fails")
+        @DisplayName("should propagate exception when save fails")
         void shouldThrowWhenSaveFails() {
             when(userRepository.existsByUsername("ferigeek")).thenReturn(false);
             when(passwordEncoder.encode(anyString())).thenReturn("hash");
@@ -250,25 +303,26 @@ class AuthServiceTest {
 
             RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.register(registerRequest));
 
-            assertThat(ex.getMessage()).isEqualTo("Error while registering user");
+            assertThat(ex.getMessage()).isEqualTo("db error");
             verify(authenticationManager, never()).authenticate(any());
             verify(jwtUtil, never()).generateToken(anyString());
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
-        @DisplayName("should throw RuntimeException when passwordEncoder fails")
+        @DisplayName("should propagate exception when passwordEncoder fails")
         void shouldThrowWhenEncodeFails() {
             when(userRepository.existsByUsername("ferigeek")).thenReturn(false);
             when(passwordEncoder.encode(anyString())).thenThrow(new RuntimeException("encoder fail"));
 
             RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.register(registerRequest));
 
-            assertThat(ex.getMessage()).isEqualTo("Error while registering user");
+            assertThat(ex.getMessage()).isEqualTo("encoder fail");
             verify(userRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("should throw RuntimeException when login/authentication fails during register")
+        @DisplayName("should propagate AuthenticationException when login fails during register")
         void shouldThrowWhenLoginFails() {
             when(userRepository.existsByUsername("ferigeek")).thenReturn(false);
             when(passwordEncoder.encode(anyString())).thenReturn("hash");
@@ -280,15 +334,15 @@ class AuthServiceTest {
             when(authenticationManager.authenticate(any()))
                     .thenThrow(new BadCredentialsException("bad creds"));
 
-            RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.register(registerRequest));
+            BadCredentialsException ex = assertThrows(BadCredentialsException.class, () -> authService.register(registerRequest));
 
-            assertThat(ex.getMessage()).isEqualTo("Error while generating token");
+            assertThat(ex.getMessage()).isEqualTo("bad creds");
             // user was still saved before login attempt
             verify(userRepository).save(any(User.class));
         }
 
         @Test
-        @DisplayName("should throw RuntimeException when jwt generation fails during register")
+        @DisplayName("should propagate exception when jwt generation fails during register")
         void shouldThrowWhenJwtFails() {
             when(userRepository.existsByUsername("ferigeek")).thenReturn(false);
             when(passwordEncoder.encode(anyString())).thenReturn("hash");
@@ -306,7 +360,7 @@ class AuthServiceTest {
 
             RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.register(registerRequest));
 
-            assertThat(ex.getMessage()).isEqualTo("Error while generating token");
+            assertThat(ex.getMessage()).isEqualTo("jwt fail");
         }
 
         @Test
@@ -417,7 +471,7 @@ class AuthServiceTest {
             // need to use request with same data but service will override saved values?
             // Actually service creates user from request then saves, so savedUser returned from save is used.
             // To test mapping, we mock save to return our savedUser with custom gender to see if response reflects saved user.
-            // However current mock returns savedUser ignoring request's gender MALE vs saved FEMALE.
+            // However, current mock returns savedUser ignoring request's gender MALE vs saved FEMALE.
             // This tests that response is built from returned saved user, not request.
             UserRegisterResponse resp = authService.register(registerRequest);
 

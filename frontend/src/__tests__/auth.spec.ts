@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 import type { LoginPayload, RegisterPayload } from '@/api/auth'
-import type { UserRegisterResponse, UserResponse } from '@/types/api'
+import type { UserRegisterResponse, UserSummaryResponse } from '@/types/api'
 
 vi.mock('@/api/auth', () => ({
   login: vi.fn<(payload: LoginPayload) => Promise<string>>(),
@@ -10,26 +10,22 @@ vi.mock('@/api/auth', () => ({
 }))
 
 vi.mock('@/api/users', () => ({
-  getMe: vi.fn<() => Promise<UserResponse>>(),
+  getMeSummary: vi.fn<() => Promise<UserSummaryResponse>>(),
 }))
 
 import { login as mockLogin, register as mockRegister } from '@/api/auth'
-import { getMe as mockGetMe } from '@/api/users'
+import { getMeSummary as mockGetMeSummary } from '@/api/users'
 import { useAuthStore } from '../stores/auth'
 
 const mockedLogin = vi.mocked(mockLogin)
 const mockedRegister = vi.mocked(mockRegister)
-const mockedGetMe = vi.mocked(mockGetMe)
+const mockedGetMeSummary = vi.mocked(mockGetMeSummary)
 
-const usr: UserResponse = {
+const usr: UserSummaryResponse = {
   id: 1,
   username: 'alice',
   displayName: 'Alice',
-  bio: null,
-  gender: 'FEMALE',
-  location: null,
   profilePictureId: null,
-  status: 'ACTIVE',
 }
 
 describe('auth store', () => {
@@ -48,13 +44,13 @@ describe('auth store', () => {
 
   it('login stores the token, persists it and loads the current user', async () => {
     mockedLogin.mockResolvedValue('jwt-token')
-    mockedGetMe.mockResolvedValue(usr)
+    mockedGetMeSummary.mockResolvedValue(usr)
     const auth = useAuthStore()
 
     await auth.login('alice', 'secret12')
 
     expect(mockLogin).toHaveBeenCalledWith({ username: 'alice', password: 'secret12' })
-    expect(mockGetMe).toHaveBeenCalledOnce()
+    expect(mockGetMeSummary).toHaveBeenCalledOnce()
     expect(auth.token).toBe('jwt-token')
     expect(auth.user?.username).toBe('alice')
     expect(localStorage.getItem('sarv.jwt')).toBe('jwt-token')
@@ -63,7 +59,7 @@ describe('auth store', () => {
 
   it('register stores the token and loads the current user', async () => {
     mockedRegister.mockResolvedValue({ id: 1, username: 'alice', displayName: 'Alice', email: 'alice@x.io', token: 'reg-token' })
-    mockedGetMe.mockResolvedValue(usr)
+    mockedGetMeSummary.mockResolvedValue(usr)
     const auth = useAuthStore()
 
     await auth.register({
@@ -82,7 +78,7 @@ describe('auth store', () => {
 
   it('logout clears the token, user and storage', async () => {
     mockedLogin.mockResolvedValue('jwt-token')
-    mockedGetMe.mockResolvedValue(usr)
+    mockedGetMeSummary.mockResolvedValue(usr)
     const auth = useAuthStore()
     await auth.login('alice', 'secret12')
 

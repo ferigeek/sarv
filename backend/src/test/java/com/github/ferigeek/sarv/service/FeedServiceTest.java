@@ -5,7 +5,9 @@ import com.github.ferigeek.sarv.entity.Media;
 import com.github.ferigeek.sarv.entity.Post;
 import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.entity.type.PostCategory;
+import com.github.ferigeek.sarv.client.RecommendationClient;
 import com.github.ferigeek.sarv.repository.PostRepository;
+import com.github.ferigeek.sarv.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -24,7 +26,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,6 +36,12 @@ class FeedServiceTest {
 
     @Mock
     private PostRepository postRepository;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private RecommendationClient recommendationClient;
+    @Mock
+    private EventLogService eventLogService;
 
     @InjectMocks
     private FeedService feedService;
@@ -113,7 +123,7 @@ class FeedServiceTest {
             when(postRepository.findChronologicalFeed(pageable))
                     .thenReturn(new PageImpl<>(List.of(p1, p2), pageable, 2));
 
-            Page<PostResponse> res = feedService.getChronological(pageable);
+            Page<PostResponse> res = feedService.getChronological(pageable, "alice");
 
             assertThat(res.getContent()).hasSize(2);
             assertThat(res.getTotalElements()).isEqualTo(2);
@@ -138,7 +148,7 @@ class FeedServiceTest {
             when(postRepository.findChronologicalFeed(pageable))
                     .thenReturn(new PageImpl<>(List.of(p)));
 
-            Page<PostResponse> res = feedService.getChronological(pageable);
+            Page<PostResponse> res = feedService.getChronological(pageable, "alice");
 
             assertThat(res.getContent().get(0).getMediaId()).isNull();
             assertThat(res.getContent().get(0).getRepostOfId()).isNull();
@@ -153,7 +163,7 @@ class FeedServiceTest {
             when(postRepository.findChronologicalFeed(pageable))
                     .thenReturn(new PageImpl<>(List.of(p)));
 
-            Page<PostResponse> res = feedService.getChronological(pageable);
+            Page<PostResponse> res = feedService.getChronological(pageable, "alice");
 
             assertThat(res.getContent().get(0).getMediaId()).isEqualTo(10L);
             assertThat(res.getContent().get(0).getRepostOfId()).isEqualTo(20L);
@@ -166,7 +176,7 @@ class FeedServiceTest {
             Pageable pageable = PageRequest.of(0, 20);
             when(postRepository.findChronologicalFeed(pageable)).thenReturn(Page.empty());
 
-            Page<PostResponse> res = feedService.getChronological(pageable);
+            Page<PostResponse> res = feedService.getChronological(pageable, "alice");
 
             assertThat(res).isEmpty();
             assertThat(res.getTotalElements()).isZero();
@@ -180,7 +190,7 @@ class FeedServiceTest {
             when(postRepository.findChronologicalFeed(pageable))
                     .thenReturn(new PageImpl<>(List.of(p), PageRequest.of(1, 10), 25));
 
-            Page<PostResponse> res = feedService.getChronological(pageable);
+            Page<PostResponse> res = feedService.getChronological(pageable, "alice");
 
             assertThat(res.getNumber()).isEqualTo(1);
             assertThat(res.getSize()).isEqualTo(10);
@@ -194,7 +204,7 @@ class FeedServiceTest {
             Pageable pageable = PageRequest.of(2, 5);
             when(postRepository.findChronologicalFeed(pageable)).thenReturn(Page.empty());
 
-            feedService.getChronological(pageable);
+            feedService.getChronological(pageable, "alice");
 
             verify(postRepository).findChronologicalFeed(pageable);
         }
@@ -210,7 +220,7 @@ class FeedServiceTest {
             when(postRepository.findChronologicalFeed(pageable))
                     .thenReturn(new PageImpl<>(List.of(p1, p3, p2)));
 
-            Page<PostResponse> res = feedService.getChronological(pageable);
+            Page<PostResponse> res = feedService.getChronological(pageable, "alice");
 
             assertThat(res.getContent()).extracting(PostResponse::getId).containsExactly(3L, 2L, 1L);
         }
@@ -223,8 +233,8 @@ class FeedServiceTest {
             when(postRepository.findChronologicalFeed(p0)).thenReturn(new PageImpl<>(List.of(post(1L, 1L, "a", null, null, null, OffsetDateTime.now())), p0, 15));
             when(postRepository.findChronologicalFeed(p1)).thenReturn(new PageImpl<>(List.of(post(2L, 1L, "b", null, null, null, OffsetDateTime.now())), p1, 15));
 
-            Page<PostResponse> r0 = feedService.getChronological(p0);
-            Page<PostResponse> r1 = feedService.getChronological(p1);
+            Page<PostResponse> r0 = feedService.getChronological(p0, "alice");
+            Page<PostResponse> r1 = feedService.getChronological(p1, "alice");
 
             assertThat(r0.getNumber()).isZero();
             assertThat(r1.getNumber()).isEqualTo(1);
@@ -241,7 +251,7 @@ class FeedServiceTest {
             when(postRepository.findChronologicalFeed(pageable))
                     .thenReturn(new PageImpl<>(List.of(p1, p2), pageable, 2));
 
-            Page<PostResponse> res = feedService.getChronological(pageable);
+            Page<PostResponse> res = feedService.getChronological(pageable, "alice");
 
             verify(postRepository).incrementViewCounts(List.of(1L, 2L));
             assertThat(res.getContent()).extracting(PostResponse::getViewCount)
@@ -254,10 +264,47 @@ class FeedServiceTest {
             Pageable pageable = PageRequest.of(0, 20);
             when(postRepository.findChronologicalFeed(pageable)).thenReturn(Page.empty(pageable));
 
-            Page<PostResponse> res = feedService.getChronological(pageable);
+            Page<PostResponse> res = feedService.getChronological(pageable, "alice");
 
             assertThat(res).isEmpty();
             verify(postRepository, org.mockito.Mockito.never()).incrementViewCounts(any());
+        }
+
+        @Test
+        @DisplayName("should log chronological feed request")
+        void shouldLogChronologicalRequest() {
+            Pageable pageable = PageRequest.of(0, 20);
+            when(postRepository.findChronologicalFeed(pageable)).thenReturn(Page.empty(pageable));
+
+            feedService.getChronological(pageable, "alice");
+
+            verify(eventLogService).logFeedRequest(eq("alice"), eq("chronological"));
+        }
+
+        @Test
+        @DisplayName("should still return feed when logging fails")
+        void shouldReturnWhenLoggingFails() {
+            Post p = post(1L, 10L, "hello", null, null, null, OffsetDateTime.now());
+            Pageable pageable = PageRequest.of(0, 20);
+            when(postRepository.findChronologicalFeed(pageable))
+                    .thenReturn(new PageImpl<>(List.of(p), pageable, 1));
+            org.mockito.Mockito.doThrow(new RuntimeException("log fail"))
+                    .when(eventLogService).logFeedRequest(eq("alice"), eq("chronological"));
+
+            Page<PostResponse> res = feedService.getChronological(pageable, "alice");
+
+            assertThat(res.getContent()).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("should skip logging when username is null")
+        void shouldSkipLoggingWhenAnonymous() {
+            Pageable pageable = PageRequest.of(0, 20);
+            when(postRepository.findChronologicalFeed(pageable)).thenReturn(Page.empty(pageable));
+
+            feedService.getChronological(pageable, null);
+
+            verifyNoInteractions(eventLogService);
         }
     }
 }

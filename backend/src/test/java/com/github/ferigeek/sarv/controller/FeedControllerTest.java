@@ -134,7 +134,7 @@ class FeedControllerTest {
             PostResponse r1 = postResponse(1L, 10L, PostCategory.NORMAL, "content1", 5L, null, null);
             PostResponse r2 = postResponse(2L, 11L, PostCategory.NORMAL, "content2", null, null, null);
             Page<PostResponse> page = new PageImpl<>(List.of(r1, r2), PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt")), 2);
-            when(feedService.getChronological(any(Pageable.class))).thenReturn(page);
+            when(feedService.getChronological(any(Pageable.class), eq("alice"))).thenReturn(page);
 
             mockMvc.perform(get("/api/feed/chronological")
                             .with(user(testUser("alice"))))
@@ -158,7 +158,7 @@ class FeedControllerTest {
         @Test
         @DisplayName("should return 200 with empty page")
         void shouldReturnEmpty() throws Exception {
-            when(feedService.getChronological(any(Pageable.class))).thenReturn(Page.empty());
+            when(feedService.getChronological(any(Pageable.class), eq("alice"))).thenReturn(Page.empty());
 
             mockMvc.perform(get("/api/feed/chronological")
                             .with(user(testUser("alice"))))
@@ -173,7 +173,7 @@ class FeedControllerTest {
         void shouldHandleNulls() throws Exception {
             PostResponse resp = postResponse(2L, 10L, PostCategory.NORMAL, "content", null, null, null);
             Page<PostResponse> page = new PageImpl<>(List.of(resp));
-            when(feedService.getChronological(any(Pageable.class))).thenReturn(page);
+            when(feedService.getChronological(any(Pageable.class), eq("alice"))).thenReturn(page);
 
             mockMvc.perform(get("/api/feed/chronological")
                             .with(user(testUser("alice"))))
@@ -193,7 +193,7 @@ class FeedControllerTest {
         @Test
         @DisplayName("should return 500 when service throws unexpected")
         void shouldReturn500() throws Exception {
-            when(feedService.getChronological(any(Pageable.class))).thenThrow(new RuntimeException("fail"));
+            when(feedService.getChronological(any(Pageable.class), eq("alice"))).thenThrow(new RuntimeException("fail"));
 
             mockMvc.perform(get("/api/feed/chronological")
                             .with(user(testUser("alice"))))
@@ -204,14 +204,14 @@ class FeedControllerTest {
         @Test
         @DisplayName("should use default page=0 size=20 sort createdAt DESC when no paging params")
         void shouldUseDefaultPageable() throws Exception {
-            when(feedService.getChronological(any(Pageable.class))).thenReturn(Page.empty());
+            when(feedService.getChronological(any(Pageable.class), eq("alice"))).thenReturn(Page.empty());
 
             mockMvc.perform(get("/api/feed/chronological")
                             .with(user(testUser("alice"))))
                     .andExpect(status().isOk());
 
             org.mockito.ArgumentCaptor<Pageable> captor = org.mockito.ArgumentCaptor.forClass(Pageable.class);
-            verify(feedService).getChronological(captor.capture());
+            verify(feedService).getChronological(captor.capture(), eq("alice"));
             Pageable pageable = captor.getValue();
             assertThat(pageable.getPageNumber()).isZero();
             assertThat(pageable.getPageSize()).isEqualTo(20);
@@ -221,7 +221,7 @@ class FeedControllerTest {
         @Test
         @DisplayName("should pass requested page and size to the service preserving default sort when sort not specified")
         void shouldPassRequestedPageAndSize() throws Exception {
-            when(feedService.getChronological(any(Pageable.class))).thenReturn(Page.empty());
+            when(feedService.getChronological(any(Pageable.class), eq("alice"))).thenReturn(Page.empty());
 
             mockMvc.perform(get("/api/feed/chronological")
                             .param("page", "2")
@@ -230,7 +230,7 @@ class FeedControllerTest {
                     .andExpect(status().isOk());
 
             org.mockito.ArgumentCaptor<Pageable> captor = org.mockito.ArgumentCaptor.forClass(Pageable.class);
-            verify(feedService).getChronological(captor.capture());
+            verify(feedService).getChronological(captor.capture(), eq("alice"));
             Pageable pageable = captor.getValue();
             assertThat(pageable.getPageNumber()).isEqualTo(2);
             assertThat(pageable.getPageSize()).isEqualTo(5);
@@ -241,7 +241,7 @@ class FeedControllerTest {
         @Test
         @DisplayName("should allow client sort override")
         void shouldAllowSortOverride() throws Exception {
-            when(feedService.getChronological(any(Pageable.class))).thenReturn(Page.empty());
+            when(feedService.getChronological(any(Pageable.class), eq("alice"))).thenReturn(Page.empty());
 
             mockMvc.perform(get("/api/feed/chronological")
                             .param("sort", "createdAt,asc")
@@ -249,7 +249,7 @@ class FeedControllerTest {
                     .andExpect(status().isOk());
 
             org.mockito.ArgumentCaptor<Pageable> captor = org.mockito.ArgumentCaptor.forClass(Pageable.class);
-            verify(feedService).getChronological(captor.capture());
+            verify(feedService).getChronological(captor.capture(), eq("alice"));
             assertThat(captor.getValue().getSort()).isEqualTo(Sort.by(Sort.Direction.ASC, "createdAt"));
         }
 
@@ -258,7 +258,7 @@ class FeedControllerTest {
         void shouldPreservePaginationMetadata() throws Exception {
             PostResponse r = postResponse(1L, 1L, PostCategory.NORMAL, "c", null, null, null);
             Page<PostResponse> servicePage = new PageImpl<>(List.of(r), PageRequest.of(1, 10, Sort.by(Sort.Direction.DESC, "createdAt")), 25);
-            when(feedService.getChronological(any(Pageable.class))).thenReturn(servicePage);
+            when(feedService.getChronological(any(Pageable.class), eq("alice"))).thenReturn(servicePage);
 
             mockMvc.perform(get("/api/feed/chronological")
                             .param("page", "1")
@@ -316,7 +316,7 @@ class FeedControllerTest {
                     postResponse(3L, 1L, PostCategory.NORMAL, "c", null, null, null)
             );
             Page<PostResponse> page = new PageImpl<>(many, PageRequest.of(0, 20), 100);
-            when(feedService.getChronological(any(Pageable.class))).thenReturn(page);
+            when(feedService.getChronological(any(Pageable.class), eq("alice"))).thenReturn(page);
 
             mockMvc.perform(get("/api/feed/chronological")
                             .with(user(testUser("alice"))))

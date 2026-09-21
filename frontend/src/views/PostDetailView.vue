@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import type { ApiError } from '@/api/client'
 import { getComments, getPost } from '@/api/posts'
 import type { CommentSort, PostResponse } from '@/types/api'
+import { usePostDwell } from '@/composables/usePostDwell'
 import PostCard from '@/components/PostCard.vue'
 import PostCreateModal from '@/components/PostCreateModal.vue'
 
@@ -12,6 +13,8 @@ const route = useRoute()
 const router = useRouter()
 
 const postId = computed(() => Number(route.params.id))
+
+usePostDwell(postId, { source: 'DETAIL' })
 
 const post = ref<PostResponse | null>(null)
 const postLoading = ref(true)

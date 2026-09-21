@@ -1,11 +1,9 @@
 package com.github.ferigeek.sarv.controller;
 
-import com.github.ferigeek.sarv.aspect.LogEvent;
 import com.github.ferigeek.sarv.dto.request.UserUpdateRequest;
 import com.github.ferigeek.sarv.dto.response.UserResponse;
 import com.github.ferigeek.sarv.dto.response.UserStatsResponse;
 import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
-import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.UserService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -31,15 +29,19 @@ public class UserController {
     }
 
     @GetMapping("/{userId}")
-    @LogEvent(EventType.VIEW_PROFILE)
-    public UserResponse getUser(@Positive @PathVariable Long userId) {
-        return userService.getUser(userId);
+    public UserResponse getUser(@Positive @PathVariable Long userId, @AuthenticationPrincipal UserDetails userDetails) {
+        String username = userDetails != null ? userDetails.getUsername() : null;
+        return userService.getUser(userId, username);
     }
 
     @GetMapping("/me")
-    @LogEvent(EventType.VIEW_PROFILE)
     public UserResponse getCurrentUserProfile(@AuthenticationPrincipal UserDetails userDetails) {
         return userService.getUserByUsername(userDetails.getUsername());
+    }
+
+    @GetMapping("/me/summary")
+    public UserSummaryResponse getCurrentUserSummary(@AuthenticationPrincipal UserDetails userDetails) {
+        return userService.getUserSummaryByUsername(userDetails.getUsername());
     }
 
     /*

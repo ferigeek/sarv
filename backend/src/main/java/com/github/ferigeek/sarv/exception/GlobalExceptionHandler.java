@@ -1,6 +1,8 @@
 package com.github.ferigeek.sarv.exception;
 
+import com.github.ferigeek.sarv.client.RecommendationException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import jakarta.validation.ConstraintViolationException;
@@ -64,6 +66,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(StorageException.class)
     public ProblemDetail handleStorage(StorageException ex, HttpServletRequest request) {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Media storage error occurred", request);
+    }
+
+    @ExceptionHandler(RecommendationException.class)
+    public ProblemDetail handleRecommendation(RecommendationException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_GATEWAY, "Recommendation service unavailable", request);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleConflict(DataIntegrityViolationException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, "Resource already exists", request);
     }
 
     @ExceptionHandler(BadCredentialsException.class)

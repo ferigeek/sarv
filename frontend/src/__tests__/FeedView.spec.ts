@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory } from 'vue-router'
 
-import type { Page, PostResponse, UserResponse } from '@/types/api'
+import type { Page, PostResponse, UserResponse, UserSummaryResponse } from '@/types/api'
 
 vi.mock('@/api/feed', () => ({
   getRecommendedFeed: vi.fn<(pageable?: unknown) => Promise<Page<PostResponse>>>(),
@@ -11,10 +11,16 @@ vi.mock('@/api/feed', () => ({
 }))
 
 vi.mock('@/api/users', () => ({
-  getMe: vi.fn<() => Promise<UserResponse>>(),
+  getMeSummary: vi.fn<() => Promise<UserSummaryResponse>>(),
   getUser: vi.fn<(id: number) => Promise<UserResponse>>(),
   updateMe: vi.fn<(payload: unknown) => Promise<UserResponse>>(),
   searchUsers: vi.fn<(query: string, pageable?: unknown) => Promise<Page<UserResponse>>>(),
+}))
+
+vi.mock('@/api/posts', () => ({
+  getPost: vi.fn<(id: number) => Promise<PostResponse>>(),
+  getPostAuthor: vi.fn<(id: number) => Promise<import('@/types/api').UserSummaryResponse>>(),
+  reportPostDwell: vi.fn<(id: number, payload: unknown) => Promise<void>>(),
 }))
 
 vi.mock('@/api/reactions', () => ({
@@ -30,11 +36,13 @@ vi.mock('@/api/media', () => ({
 }))
 
 import { getChronologicalFeed as mockGetChronologicalFeed, getRecommendedFeed as mockGetRecommendedFeed } from '@/api/feed'
+import { getPostAuthor as mockGetPostAuthor } from '@/api/posts'
 import { getReaction as mockGetReaction } from '@/api/reactions'
 import { getUser as mockGetUser } from '@/api/users'
 import { getMediaBlob as mockGetMediaBlob } from '@/api/media'
-import { getMe as mockGetMe } from '@/api/users'
+import { getMeSummary as mockGetMeSummary } from '@/api/users'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
+import PostCard from '@/components/PostCard.vue'
 import { createAppRouter } from '@/router'
 import FeedView from '@/views/FeedView.vue'
 
@@ -43,8 +51,9 @@ registerPixelicons()
 const mockedGetRecommendedFeed = vi.mocked(mockGetRecommendedFeed)
 const mockedGetChronologicalFeed = vi.mocked(mockGetChronologicalFeed)
 const mockedGetUser = vi.mocked(mockGetUser)
+const mockedGetPostAuthor = vi.mocked(mockGetPostAuthor)
 const mockedGetReaction = vi.mocked(mockGetReaction)
-const mockedGetMeFn = vi.mocked(mockGetMe)
+const mockedGetMeFn = vi.mocked(mockGetMeSummary)
 const mockedGetMediaBlob = vi.mocked(mockGetMediaBlob)
 
 function makePost(id: number, content = `post ${id}`): PostResponse {
@@ -81,11 +90,7 @@ describe('FeedView', () => {
       id: 1,
       username: 'alice',
       displayName: 'Alice',
-      bio: null,
-      gender: 'FEMALE',
-      location: null,
       profilePictureId: null,
-      status: 'ACTIVE',
     })
     mockedGetUser.mockResolvedValue({
       id: 10,
@@ -96,6 +101,12 @@ describe('FeedView', () => {
       location: null,
       profilePictureId: null,
       status: 'ACTIVE',
+    })
+    mockedGetPostAuthor.mockResolvedValue({
+      id: 10,
+      username: 'bob',
+      displayName: 'Bob',
+      profilePictureId: null,
     })
     mockedGetReaction.mockResolvedValue({ likeCount: 0, dislikeCount: 0, userReaction: 0 })
     mockedGetMediaBlob.mockResolvedValue(new Blob(['x'], { type: 'image/png' }))
@@ -231,5 +242,20 @@ describe('FeedView', () => {
     expect(card.find('[data-testid="post-like-count"]').exists()).toBe(true)
     expect(card.find('[data-testid="post-dislike-count"]').exists()).toBe(true)
     expect(card.find('[data-testid="post-content"]').text()).toBe('hello')
+  })
+
+  it('passes FEED dwell tracking to post cards', async () => {
+    mockedGetRecommendedFeed.mockResolvedValue(makePage([makePost(1), makePost(2)]))
+
+    const { wrapper } = await mountFeed()
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 0))
+    await flushPromises()
+
+    const cards = wrapper.findAllComponents(PostCard)
+    expect(cards.length).toBe(2)
+    for (const card of cards) {
+      expect(card.props('dwellSource')).toBe('FEED')
+    }
   })
 })

@@ -36,6 +36,10 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
+    networks:
+      default:
+        aliases:
+          - core-backend
     restart: unless-stopped
 
 
@@ -91,7 +95,54 @@ services:
     restart: unless-stopped
 
 
+  prometheus:
+    build:
+      context: ./monitoring
+      dockerfile: Dockerfile
+    volumes:
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+
+  grafana:
+    image: grafana/grafana:13.0
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: postgresql://${DB_USERNAME}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable
+    ports:
+      - "9187:9187"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+
+  redis_exporter:
+    image: oliver006/redis_exporter:v1.91.1
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+
 volumes:
   postgres_data:
   redis_data:
   uploads:
+  prometheus_data:
+  grafana_data:

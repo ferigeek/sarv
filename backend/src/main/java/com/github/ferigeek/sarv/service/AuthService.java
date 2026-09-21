@@ -2,6 +2,7 @@ package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.request.UserLoginRequest;
 import com.github.ferigeek.sarv.dto.request.UserRegisterRequest;
+import com.github.ferigeek.sarv.dto.response.UserLoginResponse;
 import com.github.ferigeek.sarv.dto.response.UserRegisterResponse;
 import com.github.ferigeek.sarv.entity.User;
 import com.github.ferigeek.sarv.exception.UsernameAlreadyExistsException;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -26,65 +28,98 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final EventLogService eventLogService;
 
     @Autowired
     public AuthService(
             AuthenticationManager authenticationManager,
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            JwtUtil jwtUtil) {
+            JwtUtil jwtUtil,
+            EventLogService eventLogService) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.eventLogService = eventLogService;
     }
 
-    public String login(UserLoginRequest userLoginRequest) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        userLoginRequest.getUsername(),
-                        userLoginRequest.getPassword()
-                )
-        );
+    public UserLoginResponse login(UserLoginRequest userLoginRequest) {
+        return new UserLoginResponse(authenticateAndGenerateToken(
+                userLoginRequest.getUsername(),
+                userLoginRequest.getPassword()
+        ));
+    }
 
-        final UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        return jwtUtil.generateToken(userDetails.getUsername());
+    private String authenticateAndGenerateToken(String username, String password) {
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(username, password)
+            );
+            final UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            log.info("User logged in with username={}", username);
+            logLoginSafely(userDetails.getUsername());
+            return jwtUtil.generateToken(userDetails.getUsername());
+        } catch (AuthenticationException e) {
+            log.warn("Failed login attempt username={}", username);
+            throw e;
+        } catch (RuntimeException e) {
+            log.error("Failed to generate token for username={}", username, e);
+            throw e;
+        }
     }
 
     public UserRegisterResponse register(UserRegisterRequest userRegisterRequest) {
         if (!userRegisterRequest.getPassword().equals(userRegisterRequest.getConfirmPassword())) {
+            log.warn("Rejected registration with mismatched passwords username={}", userRegisterRequest.getUsername());
             throw new IllegalArgumentException("Passwords do not match");
         }
 
         if (userRepository.existsByUsername(userRegisterRequest.getUsername())) {
+            log.warn("Rejected registration with existing username={}", userRegisterRequest.getUsername());
             throw new UsernameAlreadyExistsException();
         }
 
         User user = new User();
-        try {
-            user.setUsername(userRegisterRequest.getUsername());
-            user.setEmail(userRegisterRequest.getEmail());
-            user.setPasswordHash(passwordEncoder.encode(userRegisterRequest.getPassword()));
-            user.setGender(userRegisterRequest.getGender());
-            user.setDisplayName(userRegisterRequest.getDisplayName());
-            user.setCreatedAt(OffsetDateTime.now());
+        user.setUsername(userRegisterRequest.getUsername());
+        user.setEmail(userRegisterRequest.getEmail());
+        user.setPasswordHash(passwordEncoder.encode(userRegisterRequest.getPassword()));
+        user.setGender(userRegisterRequest.getGender());
+        user.setDisplayName(userRegisterRequest.getDisplayName());
+        user.setCreatedAt(OffsetDateTime.now());
 
-            user = userRepository.save(user);
-        } catch (Exception e) {
-            log.error("Error while registering user: {}", e.getMessage());
-            throw new RuntimeException("Error while registering user");
-        }
-
+        user = userRepository.save(user);
 
         try {
-            String token = login(new UserLoginRequest(
+            String token = authenticateAndGenerateToken(
                     userRegisterRequest.getUsername(),
-                    userRegisterRequest.getPassword())
+                    userRegisterRequest.getPassword()
             );
+            log.info("User registered username={}", userRegisterRequest.getUsername());
+            logRegisterSafely(userRegisterRequest.getUsername());
             return new UserRegisterResponse(user, token);
+        } catch (AuthenticationException e) {
+            log.error("Failed to generate token for user username={}", userRegisterRequest.getUsername(), e);
+            throw e;
+        } catch (RuntimeException e) {
+            log.error("Failed to complete registration for username={}", userRegisterRequest.getUsername(), e);
+            throw e;
+        }
+    }
+
+    private void logLoginSafely(String username) {
+        try {
+            eventLogService.logLogin(username);
         } catch (Exception e) {
-            log.error("Error while generating token: {}", e.getMessage());
-            throw new RuntimeException("Error while generating token");
+            log.warn("Failed to log login event username={}", username, e);
+        }
+    }
+
+    private void logRegisterSafely(String username) {
+        try {
+            eventLogService.logRegister(username);
+        } catch (Exception e) {
+            log.warn("Failed to log register event username={}", username, e);
         }
     }
 }

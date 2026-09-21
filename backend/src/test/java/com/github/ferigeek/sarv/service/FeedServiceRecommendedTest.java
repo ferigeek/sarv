@@ -42,6 +42,8 @@ class FeedServiceRecommendedTest {
     private UserRepository userRepository;
     @Mock
     private RecommendationClient recommendationClient;
+    @Mock
+    private EventLogService eventLogService;
 
     @InjectMocks
     private FeedService feedService;
@@ -113,6 +115,24 @@ class FeedServiceRecommendedTest {
             assertThat(res.getContent().get(0).getContent()).isEqualTo("content3");
             verify(recommendationClient).getRecommendations(42L, 0, 20);
             verify(postRepository).findAllByIdsFiltered(List.of(3L, 1L, 2L));
+            verify(eventLogService).logFeedRequest(eq("alice"), eq("recommended"));
+        }
+
+        @Test
+        @DisplayName("should still return feed when recommended logging fails")
+        void shouldReturnWhenLoggingFails() {
+            Pageable pageable = PageRequest.of(0, 20);
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+            when(recommendationClient.getRecommendations(42L, 0, 20))
+                    .thenReturn(recResponse(List.of("1"), 0, 20, 1));
+            when(postRepository.findAllByIdsFiltered(List.of(1L)))
+                    .thenReturn(List.of(post(1L, 1L)));
+            doThrow(new RuntimeException("log fail"))
+                    .when(eventLogService).logFeedRequest(eq("alice"), eq("recommended"));
+
+            Page<PostResponse> res = feedService.getRecommended("alice", pageable);
+
+            assertThat(res.getContent()).hasSize(1);
         }
 
         @Test
@@ -189,12 +209,12 @@ class FeedServiceRecommendedTest {
         }
 
         @Test
-        @DisplayName("should fallback to chronological on exception (timeout)")
+        @DisplayName("should fallback to chronological on RecommendationException (timeout)")
         void shouldFallbackOnException() {
             Pageable pageable = PageRequest.of(1, 5);
             when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
             when(recommendationClient.getRecommendations(42L, 1, 5))
-                    .thenThrow(new RuntimeException("timeout"));
+                    .thenThrow(new com.github.ferigeek.sarv.client.RecommendationException("timeout"));
             Post p = post(1L, 1L);
             Page<Post> chrono = new PageImpl<>(List.of(p), pageable, 1);
             when(postRepository.findChronologicalFeed(pageable)).thenReturn(chrono);
@@ -203,6 +223,19 @@ class FeedServiceRecommendedTest {
 
             assertThat(res.getContent().get(0).getId()).isEqualTo(1L);
             verify(postRepository).findChronologicalFeed(pageable);
+        }
+
+        @Test
+        @DisplayName("should not swallow unexpected runtime exceptions")
+        void shouldPropagateUnexpectedException() {
+            Pageable pageable = PageRequest.of(1, 5);
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+            when(recommendationClient.getRecommendations(42L, 1, 5))
+                    .thenThrow(new IllegalStateException("bug"));
+
+            assertThrows(IllegalStateException.class, () -> feedService.getRecommended("alice", pageable));
+
+            verify(postRepository, never()).findChronologicalFeed(any());
         }
 
         @Test

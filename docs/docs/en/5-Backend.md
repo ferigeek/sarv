@@ -32,7 +32,7 @@ All requests are served through a REST API and secured with JWT-based authentica
 | API Documentation | springdoc-openapi (Swagger UI) |
 | Media Storage | Local filesystem (`LocalStorageService`) |
 | Utility | Lombok |
-| Tests | JUnit 5, MockMvc, H2 (runtime scope) |
+| Tests | JUnit 5, MockMvc, Testcontainers Postgres |
 
 ---
 
@@ -49,7 +49,6 @@ entity/       JPA entities (User, Post, Media, Follow, Reaction, EventLog)
 entity/type/  Enums (PostCategory, EventType, Gender, UserStatus)
 dto/          request/ and response/ data transfer objects
 security/     SecurityConfig, JwtUtil, JwtAuthFilter, OpenApiConfig
-aspect/       LogEvent annotation + EventLoggingAspect
 exception/    Custom exceptions + GlobalExceptionHandler
 client/       RecommendationClient + RecommendationResponse (feed ranking)
 config/       RestClientConfig (recommendation HTTP client)
@@ -68,9 +67,9 @@ All endpoints are prefixed with `/api`. Except where marked **public**, every en
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/auth/register` | public | Registers a new user and returns the created profile together with a JWT token |
-| POST | `/api/auth/login` | public | Authenticates the user and returns a JWT token string |
+| POST | `/api/auth/login` | public | Authenticates the user and returns `{"token": "<jwt>"}` |
 
-Registration request fields: `username` (≥2 chars), `password` (8–50 chars), `confirmPassword` (must match `password`), `email`, `displayName` (≥2 chars), `gender` (`MALE`, `FEMALE`, `RATHER_NOT_TO_SAY`). Duplicate usernames are rejected with `409 Conflict`. A `LOGIN` event is logged on every successful login; registration performs an automatic login and therefore also produces a `LOGIN` event.
+Registration request fields: `username` (≥2 chars), `password` (8–50 chars), `confirmPassword` (must match `password`), `email`, `displayName` (≥2 chars), `gender` (`MALE`, `FEMALE`, `RATHER_NOT_TO_SAY`). Duplicate usernames are rejected with `409 Conflict`. A `LOGIN` event is logged on every successful login; registration performs an automatic login and therefore produces a `LOGIN` event, plus a `REGISTER` event of its own.
 
 ### Users & Profiles (`/api/users`)
 
@@ -78,6 +77,7 @@ Registration request fields: `username` (≥2 chars), `password` (8–50 chars),
 |--------|------|------|-------------|
 | GET | `/api/users/{userId}` | bearer | Returns the profile of a user; logs `VIEW_PROFILE` |
 | GET | `/api/users/me` | bearer | Returns the profile of the authenticated user; logs `VIEW_PROFILE` |
+| GET | `/api/users/me/summary` | bearer | Returns the id, username, display name and avatar id of the authenticated user (`UserSummaryResponse`); does not log `VIEW_PROFILE`, so the session user can be fetched without polluting profile-view analytics |
 | PUT | `/api/users/me` | bearer | Updates the authenticated user's profile |
 | GET | `/api/users?query=` | bearer | Searches users by username or display name (case-insensitive, partial match), paginated |
 | GET | `/api/users/{userId}/posts` | bearer | Paginated posts of a user, newest first (`size=10, sort=createdAt,DESC`); empty page for unknown users |
@@ -101,7 +101,9 @@ Self-following is prevented by a database check constraint.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/posts/{postId}` | bearer | Returns the post and increments its `view_count`; logs `VIEW_POST` |
+| GET | `/api/posts/{postId}` | bearer | Returns the post and increments its `view_count`; logs `VIEW_POST` (accepts optional `X-Session-Id`, stored on the event row; malformed UUID is rejected with `400`) |
+| POST | `/api/posts/{postId}/dwell` | bearer | Reports visible time on the post; `204 No Content`, never increments `view_count`; logs `VIEW_POST` with `metadata {duration_ms, source}` |
+| GET | `/api/posts/{postId}/author` | bearer | Returns the author's id, username, display name and avatar id (`UserSummaryResponse`); does not log `VIEW_PROFILE`, so feed card headers don't pollute profile-view analytics |
 | GET | `/api/posts/search?query=` | bearer | Searches post text (case-insensitive, partial match), paginated; blank `query` is rejected with `400`; default `size=10, sort=createdAt,DESC` |
 | POST | `/api/posts` | bearer | Creates a post; `201 Created` with a `Location` header; logs `CREATE_POST` |
 | GET | `/api/posts/{postId}/comments?sortBy=` | bearer | Paginated comments of a post; `sortBy` is `NEWEST` (default, `createdAt DESC`) or `MOST_LIKED` (`likeCount DESC`); client `sort` is ignored |
@@ -123,11 +125,11 @@ Invalid combinations are rejected with `400 Bad Request` (`PostNotValidException
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/posts/{postId}/reactions` | bearer | Adds or changes the caller's reaction (`reactionType`: `1` = like, `-1` = dislike); logs `LIKE_POST` |
+| POST | `/api/posts/{postId}/reactions` | bearer | Adds or changes the caller's reaction (`reactionType`: `1` = like, `-1` = dislike); logs `LIKE_POST` for likes and `DISLIKE_POST` for dislikes |
 | GET | `/api/posts/{postId}/reactions` | bearer | Returns like/dislike counts and the caller's current reaction (`0` = none) |
 | DELETE | `/api/posts/{postId}/reactions` | bearer | Removes the caller's reaction; `204 No Content` |
 
-A user can have at most one reaction per post (unique constraint on `post_id + user_id`). Adding a reaction of the opposite type switches it, and the post's `like_count` / `dislike_count` counters are adjusted accordingly. The `LIKE_POST` event is recorded for both likes and dislikes in the current implementation; removing a reaction is not logged.
+A user can have at most one reaction per post (unique constraint on `post_id + user_id`). Adding a reaction of the opposite type switches it, and the post's `like_count` / `dislike_count` counters are adjusted accordingly. Likes record a `LIKE_POST` event and dislikes a `DISLIKE_POST` event; removing a reaction is not logged.
 
 ### Feed (`/api/feed`)
 
@@ -176,7 +178,7 @@ Both endpoints require `Authorization: Bearer <token>` and return `Page<PostResp
 **Dependencies:**
 `recommendation.base-url` (`RECOMMENDATION_URL` env, default `http://recommendation:8000` via `RestClientConfig`) and `recommendation.timeout-ms` (`RECOMMENDATION_TIMEOUT_MS`, default `1500`, `500` in tests) with `SimpleClientHttpRequestFactory` connect/read timeout and `GET /health` polling (docker-compose `interval 10s`).
 
-Both endpoints log `REQUEST_FEED` with `metadata {feed_type: chronological|recommended, page,size,total_elements,returned,requested_page,requested_size}` for analytics; see [Event Logging](#event-logging).
+Both endpoints log `REQUEST_FEED` with `metadata {feed_type: chronological|recommended}` for analytics; see [Event Logging](#event-logging).
 
 ### Media (`/api/media`)
 
@@ -195,7 +197,7 @@ Uploads are content-addressed by SHA-256, so identical content is stored only on
 1. `POST /api/auth/register` creates the user (password hashed with BCrypt) and immediately returns a JWT. `POST /api/auth/login` verifies credentials through Spring Security's `AuthenticationManager` and returns a fresh token.
 2. The JWT is signed with HS256 and contains `sub` (username), `iat`, and `exp`. The signing secret comes from the `JWT_SECRET` environment variable and must be at least 32 bytes; `JWT_EXPIRATION` controls the token lifetime in milliseconds.
 3. Every request passes through `JwtAuthFilter`, which extracts the `Authorization: Bearer <token>` header, validates the token, loads the user, and sets the security context. Sessions are stateless and CSRF is disabled.
-4. The following paths are public: `/api/auth/login`, `/api/auth/register`, `/swagger-ui.html`, `/swagger-ui/**`, `/v3/api-docs/**`. Everything else requires authentication.
+4. The following paths are public: `/api/auth/login`, `/api/auth/register`, `/actuator/**`, `/swagger-ui.html`, `/swagger-ui/**`, `/v3/api-docs/**`. Everything else requires authentication.
 5. `CustomUserDetailsService` maps user status to account state: only `ACTIVE` users are enabled, and `SUSPENDED` users have their account locked.
 
 The OpenAPI specification with a global `bearerAuth` security scheme is available at `/swagger-ui.html`.
@@ -215,13 +217,14 @@ Media binaries are stored on the **local filesystem** — object storage is not 
 
 ## Event Logging
 
-User behavior is recorded through an AOP-based mechanism:
+User behavior is recorded by explicit, best-effort calls to `EventLogService` from the service layer:
 
-- Controller methods annotated with `@LogEvent(EventType.XXX)` produce a row in `event_logs` after successful execution (`@AfterReturning`).
-- The `EventLoggingAspect` stores the acting user, event type, timestamp, and — depending on the event type — the affected post or target user.
-- The `event_logs` schema also includes `session_id` (groups actions of one usage session; unrelated to JWT) and `metadata` (JSONB, for event-specific information). For `REQUEST_FEED` the aspect now populates `metadata` with `{feed_type: chronological|recommended, page, size, total_elements, returned, requested_page, requested_size}`.
+- Service methods call `eventLogService.logX(...)` (e.g. `logLogin`, `logProfileView`, `logFeedRequest`) wrapped in `logXSafely` helpers that swallow failures, so analytics never breaks the request.
+- The `EventLogService` methods are `@Async`: events are persisted out of band in a separate thread.
+- The `event_logs` schema also includes `session_id` (groups actions of one usage session; unrelated to JWT) and `metadata` (JSONB, for event-specific information). The session id is frontend-owned (one UUID per tab visit) and arrives via the `X-Session-Id` header, with the dwell body as fallback. Per-type `metadata` conventions: `REQUEST_FEED` holds `{feed_type: chronological|recommended}`; dwell reports hold `{duration_ms, source: DETAIL|FEED}`.
+- `VIEW_POST` therefore has two shapes: bare impression rows (written by `GET /api/posts/{postId}`) and dwell rows (written by `POST /api/posts/{postId}/dwell`, `durationMs` validated `1..1800000`). View counts must exclude dwell rows (`metadata ? 'duration_ms'`); engagement is `AVG((metadata->>'duration_ms')::bigint)` over dwell rows. Rows of one visit pair up via `(user_id, post_id, session_id)` ordered by `created_at`.
 
-Event types: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`. `REQUEST_FEED` is produced by both feed endpoints (`GET /api/feed/chronological` and `GET /api/feed/recommended`).
+Event types: `VIEW_POST`, `LIKE_POST`, `DISLIKE_POST`, `CREATE_COMMENT`, `REPOST_POST`, `QUOTE_POST`, `FOLLOW_USER`, `UNFOLLOW_USER`, `VIEW_PROFILE`, `CREATE_POST`, `REQUEST_FEED`, `LOGIN`, `REGISTER`. `REQUEST_FEED` is produced by both feed endpoints (`GET /api/feed/chronological` and `GET /api/feed/recommended`). Quote posts map to `QUOTE_POST`; registration logs both `LOGIN` (automatic login) and `REGISTER`.
 
 ---
 
@@ -235,10 +238,13 @@ All errors are converted to RFC 9457 `ProblemDetail` responses by `GlobalExcepti
 | Validation failures, malformed JSON, bad requests | `400 Bad Request` |
 | Unauthorized modification (not the owner) | `403 Forbidden` |
 | Duplicate username | `409 Conflict` |
+| Duplicate resource races (data-integrity violations) | `409 Conflict` |
 | Bad credentials / authentication failure | `401 Unauthorized` |
+| Wrong HTTP method on an existing path | `405 Method Not Allowed` |
+| Escaped downstream recommendation failure | `502 Bad Gateway` |
 | Storage failures and unexpected exceptions | `500 Internal Server Error` |
 
-Each `ProblemDetail` includes `status`, `title`, `detail`, and `instance` (the request URI).
+Each `ProblemDetail` includes `status`, `title`, `detail`, and `instance` (the request URI). Notes: unsupported media types map to `400` (not the usual `415`); the `502` path is currently unreachable from the feed endpoints because `FeedService` catches downstream failures and falls back to the chronological feed.
 
 ---
 
@@ -250,7 +256,7 @@ List endpoints return Spring Data `Page` objects with `page`, `size`, `totalElem
 
 ## Database & Migrations
 
-- Schema is managed exclusively by Flyway migrations in `backend/src/main/resources/db/migration/` (`V1` initial schema through `V6` comment count).
+- Schema is managed exclusively by Flyway migrations in `backend/src/main/resources/db/migration/` (`V1` initial schema through `V7` register and quote-post event types).
 - Hibernate is configured with `ddl-auto=validate`, so entity mappings are checked against the migrated schema at startup.
 - The full schema is described in [4-Database.md](./4-Database.md).
 
@@ -282,7 +288,7 @@ The test suite covers:
 - **Controller tests** with MockMvc for all controllers including `FeedController` (chronological and recommended: pagination, auth, 404, 405, identical `Page<PostResponse>` shape, sort-ignored) and `PostController` (user posts, post comments with `sortBy`, reacted posts with `filter`, post search, validation, auth, pagination metadata).
 - **Service unit tests** for Auth, User, Follow, Post, Reaction, Media, and `Feed` (chronological: rank-independent mapping, view-count recording; recommended: rank-order hydration, empty/exception fallback to chronological, invalid `post_id` skip, deleted filtering, visible-only view increments, `UserNotFound` propagation, total metadata), plus `CustomUserDetailsService`.
 - **Repository tests** for post listings (user posts, comments with ordering, reacted posts with reaction-type filtering, content search), view/comment counter increments, and pagination.
-- H2 is used as the test database (runtime scope); Flyway migrations are disabled and `recommendation.base-url=http://localhost:8000` is stubbed in `src/test/resources/application.properties`.
+- H2 is gone from the test classpath. JPA tests run against real PostgreSQL via Testcontainers: the shared `PostgresContainerBase` (`support/`, `postgres:18-alpine`, `@ServiceConnection`) spins up a container per test class, Flyway runs the real `V1`–`V7` migrations, and Hibernate uses `ddl-auto=validate`. Docker is required to run the backend tests. `recommendation.base-url=http://localhost:8000` is stubbed in `src/test/resources/application.properties`.
 
 Run the tests from the `backend/` directory:
 
@@ -300,7 +306,7 @@ The service is containerized. From the repository root:
 docker compose up --build
 ```
 
-This starts PostgreSQL, the Core Backend (port `8080`), the Recommendation Service (port `8000`), and the Frontend web client (port `3000`; see [7-Frontend.md](./7-Frontend.md)). A named volume (`uploads`) persists media files across container restarts. Alternatively, run locally with `./mvnw spring-boot:run` after exporting the environment variables above.
+This starts PostgreSQL, the Core Backend (port `8080`), the Recommendation Service (port `8000`), and the Frontend web client (port `3000`; see [7-Frontend.md](./7-Frontend.md)), plus the monitoring stack: Prometheus (port `9090`, scrapes `core-backend:8080/actuator/prometheus` among others per `monitoring/prometheus.yml`), Grafana (port `3001`, provisioned dashboards in `monitoring/grafana/`), and the Postgres/Redis exporters. A named volume (`uploads`) persists media files across container restarts. Alternatively, run locally with `./mvnw spring-boot:run` after exporting the environment variables above.
 
 ---
 
@@ -310,5 +316,5 @@ The following components remain **designed but not yet implemented** in the Core
 
 - **Feed generation:** ✅ Implemented — `GET /api/feed/chronological` (`deletedAt IS NULL ORDER BY createdAt DESC`) and `GET /api/feed/recommended` (`RecommendationClient` → `GET /feed?user_id=&page=&size=` → hydration via `findAllByIdsFiltered` preserving rank order, graceful fallback to chronological on empty/timeout, identical `Page<PostResponse>` shape) with `REQUEST_FEED` logging and `PageableDefault(size=20)`.
 - **Recommendation integration:** ✅ Implemented — `RestClientConfig` (`recommendation.base-url` / `RECOMMENDATION_URL`, 1500 ms timeout), `RecommendationClient`/`RecommendationResponse`/`RankedPost`, `docker-compose.yaml` healthcheck on `GET /health`; see [Recommendation Service](./6-Recommendation.md).
-- **Monitoring:** Spring Boot Actuator is included as a dependency, but no Prometheus/Grafana stack or metric export is wired up.
-- **Redis:** present in `docker-compose.yaml` but unused by the application so far.
+- **Monitoring:** ✅ Implemented — Actuator exposes `health,metrics,prometheus` (tagged `application=sarv`, percentile histograms on); Prometheus scrapes the backend plus Postgres/Redis/recommendation jobs (`monitoring/prometheus.yml`), Grafana ships provisioned dashboards (`monitoring/grafana/`).
+- **Redis:** declared as a dependency (`spring-boot-starter-data-redis`) and running in compose (with exporter), but no application code uses it yet — caching/rate limiting remain unimplemented.

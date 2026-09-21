@@ -2,6 +2,7 @@ package com.github.ferigeek.sarv.service;
 
 import com.github.ferigeek.sarv.dto.response.StoredObject;
 import com.github.ferigeek.sarv.exception.StorageException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -17,6 +18,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 @Service
+@Slf4j
 public class LocalStorageService implements ObjectStorageService {
 
     private final Path storageDir;
@@ -26,6 +28,7 @@ public class LocalStorageService implements ObjectStorageService {
         try {
             Files.createDirectories(this.storageDir);
         } catch (IOException e) {
+            log.error("Could not create storage directory: {}", this.storageDir, e);
             throw new StorageException("Could not create storage directory: " + this.storageDir, e);
         }
     }
@@ -38,8 +41,9 @@ public class LocalStorageService implements ObjectStorageService {
         try {
             Files.write(filePath, bytes, StandardOpenOption.CREATE_NEW);
         } catch (FileAlreadyExistsException e) {
-            // same content already stored — dedup
+            log.debug("Storage deduplicated sha256={}", sha256);
         } catch (IOException e) {
+            log.error("Failed to store file sha256={}", sha256, e);
             throw new StorageException("Failed to store file", e);
         }
 
@@ -52,15 +56,18 @@ public class LocalStorageService implements ObjectStorageService {
             Path filePath = storageDir.resolve(objectKey).normalize();
 
             if (!filePath.startsWith(storageDir)) {
+                log.warn("Rejected download with invalid object key");
                 throw new StorageException("Invalid object key: " + objectKey);
             }
 
             Resource resource = new UrlResource(filePath.toUri());
             if (!resource.exists() || !resource.isReadable()) {
+                log.warn("Storage file not found for download");
                 throw new StorageException("File not found: " + objectKey);
             }
             return resource;
         } catch (IOException e) {
+            log.error("Failed to read file from storage", e);
             throw new StorageException("Failed to read file: " + objectKey, e);
         }
     }
@@ -71,11 +78,13 @@ public class LocalStorageService implements ObjectStorageService {
             Path filePath = storageDir.resolve(objectKey).normalize();
 
             if (!filePath.startsWith(storageDir)) {
+                log.warn("Rejected delete with invalid object key");
                 throw new StorageException("Invalid object key: " + objectKey);
             }
 
             Files.deleteIfExists(filePath);
         } catch (IOException e) {
+            log.error("Failed to delete file from storage", e);
             throw new StorageException("Failed to delete file: " + objectKey, e);
         }
     }

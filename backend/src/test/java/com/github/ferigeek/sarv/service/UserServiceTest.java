@@ -28,13 +28,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.time.OffsetDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,6 +48,9 @@ class UserServiceTest {
 
     @Mock
     private FollowRepository followRepository;
+
+    @Mock
+    private EventLogService eventLogService;
 
     @InjectMocks
     private UserService userService;
@@ -104,7 +107,7 @@ class UserServiceTest {
         void shouldReturnUserWhenExists() {
             when(userRepository.findById(1L)).thenReturn(Optional.of(baseUser));
 
-            UserResponse response = userService.getUser(1L);
+            UserResponse response = userService.getUser(1L, baseUser.getUsername());
 
             assertThat(response.getId()).isEqualTo(1L);
             assertThat(response.getUsername()).isEqualTo("ferigeek");
@@ -114,6 +117,29 @@ class UserServiceTest {
             assertThat(response.getLocation()).isEqualTo("Tehran");
             assertThat(response.getProfilePictureId()).isEqualTo(100L);
             assertThat(response.getStatus()).isEqualTo(UserStatus.ACTIVE);
+            verify(eventLogService).logProfileView(eq(baseUser.getUsername()), eq(baseUser));
+        }
+
+        @Test
+        @DisplayName("should still return user when profile logging fails")
+        void shouldReturnWhenLoggingFails() {
+            when(userRepository.findById(1L)).thenReturn(Optional.of(baseUser));
+            doThrow(new RuntimeException("log fail"))
+                    .when(eventLogService).logProfileView(eq(baseUser.getUsername()), eq(baseUser));
+
+            UserResponse response = userService.getUser(1L, baseUser.getUsername());
+
+            assertThat(response.getId()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("should skip logging when username is null")
+        void shouldSkipLoggingWhenAnonymous() {
+            when(userRepository.findById(1L)).thenReturn(Optional.of(baseUser));
+
+            userService.getUser(1L, null);
+
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
@@ -122,7 +148,7 @@ class UserServiceTest {
             baseUser.setProfilePicture(null);
             when(userRepository.findById(1L)).thenReturn(Optional.of(baseUser));
 
-            UserResponse response = userService.getUser(1L);
+            UserResponse response = userService.getUser(1L, baseUser.getUsername());
 
             assertThat(response.getProfilePictureId()).isNull();
         }
@@ -134,7 +160,7 @@ class UserServiceTest {
             baseUser.setLocation(null);
             when(userRepository.findById(1L)).thenReturn(Optional.of(baseUser));
 
-            UserResponse response = userService.getUser(1L);
+            UserResponse response = userService.getUser(1L, baseUser.getUsername());
 
             assertThat(response.getBio()).isNull();
             assertThat(response.getLocation()).isNull();
@@ -146,9 +172,10 @@ class UserServiceTest {
             when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
             UserNotFoundException ex = assertThrows(UserNotFoundException.class,
-                    () -> userService.getUser(99L));
+                    () -> userService.getUser(99L, baseUser.getUsername()));
 
             assertThat(ex.getMessage()).contains("99");
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
@@ -157,9 +184,9 @@ class UserServiceTest {
             when(userRepository.findById(42L)).thenReturn(Optional.empty());
 
             UserNotFoundException ex = assertThrows(UserNotFoundException.class,
-                    () -> userService.getUser(42L));
+                    () -> userService.getUser(42L, baseUser.getUsername()));
 
-            assertThat(ex.getMessage()).isEqualTo("User not found with ID: <42>");
+            assertThat(ex.getMessage()).isEqualTo("User not found with ID: 42");
         }
 
         @Test
@@ -167,7 +194,7 @@ class UserServiceTest {
         void shouldDelegateWithCorrectId() {
             when(userRepository.findById(5L)).thenReturn(Optional.of(baseUser));
 
-            userService.getUser(5L);
+            userService.getUser(5L, baseUser.getUsername());
 
             verify(userRepository).findById(5L);
             verifyNoInteractions(mediaRepository);
@@ -190,6 +217,19 @@ class UserServiceTest {
 
             assertThat(response.getUsername()).isEqualTo("ferigeek");
             assertThat(response.getId()).isEqualTo(1L);
+            verify(eventLogService).logProfileView(eq("ferigeek"), eq(baseUser));
+        }
+
+        @Test
+        @DisplayName("should still return user when profile logging fails")
+        void shouldReturnWhenLoggingFails() {
+            when(userRepository.findByUsername("ferigeek")).thenReturn(Optional.of(baseUser));
+            doThrow(new RuntimeException("log fail"))
+                    .when(eventLogService).logProfileView(eq("ferigeek"), eq(baseUser));
+
+            UserResponse response = userService.getUserByUsername("ferigeek");
+
+            assertThat(response.getUsername()).isEqualTo("ferigeek");
         }
 
         @Test
@@ -201,6 +241,7 @@ class UserServiceTest {
                     () -> userService.getUserByUsername("unknown"));
 
             assertThat(ex.getMessage()).contains("unknown");
+            verifyNoInteractions(eventLogService);
         }
 
         @Test
@@ -211,7 +252,7 @@ class UserServiceTest {
             UserNotFoundException ex = assertThrows(UserNotFoundException.class,
                     () -> userService.getUserByUsername("ghost"));
 
-            assertThat(ex.getMessage()).isEqualTo("User not found with username: <ghost>");
+            assertThat(ex.getMessage()).isEqualTo("User not found with username: ghost");
         }
 
         @Test

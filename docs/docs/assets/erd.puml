@@ -1,9 +1,9 @@
 @startuml
 ' Sarv database ERD — source of truth in PlantUML.
-' Reflects backend/src/main/resources/db/migration/V1..V6.
+' Reflects backend/src/main/resources/db/migration/V1..V7.
 ' (`*` = NOT NULL, `o` = nullable.)
 
-title Sarv — Database ERD (migrations V1..V6)
+title Sarv — Database ERD (migrations V1..V7)
 
 entity users {
   * id : bigint <<PK>> <<identity>>
@@ -110,12 +110,14 @@ enum event_type {
   DISLIKE_POST
   CREATE_COMMENT
   REPOST_POST
+  QUOTE_POST
   FOLLOW_USER
   UNFOLLOW_USER
   VIEW_PROFILE
   CREATE_POST
   REQUEST_FEED
   LOGIN
+  REGISTER
 }
 
 users ||--o{ posts : authors

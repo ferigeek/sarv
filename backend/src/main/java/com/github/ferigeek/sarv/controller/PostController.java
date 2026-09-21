@@ -1,12 +1,12 @@
 package com.github.ferigeek.sarv.controller;
 
-import com.github.ferigeek.sarv.aspect.LogEvent;
 import com.github.ferigeek.sarv.dto.request.CommentSort;
+import com.github.ferigeek.sarv.dto.request.PostDwellRequest;
 import com.github.ferigeek.sarv.dto.request.PostRequest;
 import com.github.ferigeek.sarv.dto.request.PostUpdateRequest;
 import com.github.ferigeek.sarv.dto.request.ReactionFilter;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
-import com.github.ferigeek.sarv.entity.type.EventType;
+import com.github.ferigeek.sarv.dto.response.UserSummaryResponse;
 import com.github.ferigeek.sarv.service.PostService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -24,6 +24,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.UUID;
 
 @Validated
 @RestController
@@ -38,13 +39,15 @@ public class PostController {
     }
 
     @GetMapping("/posts/{postId}")
-    @LogEvent(EventType.VIEW_POST)
-    public PostResponse getPost(@Positive @PathVariable Long postId) {
-        return postService.getPost(postId);
+    public PostResponse getPost(
+            @Positive @PathVariable Long postId,
+            @RequestHeader(value = "X-Session-Id", required = false) UUID sessionId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        String username = userDetails != null ? userDetails.getUsername() : null;
+        return postService.getPost(postId, username, sessionId);
     }
 
     @PostMapping("/posts")
-    @LogEvent(EventType.CREATE_POST)
     public ResponseEntity<?> createPost(
             @Valid @RequestBody PostRequest postRequest,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -76,6 +79,22 @@ public class PostController {
             @Valid @RequestBody PostUpdateRequest postUpdateRequest,
             @AuthenticationPrincipal UserDetails userDetails) {
         return postService.updatePost(postId, postUpdateRequest, userDetails.getUsername());
+    }
+
+    @PostMapping("/posts/{postId}/dwell")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reportPostDwell(
+            @Positive @PathVariable Long postId,
+            @Valid @RequestBody PostDwellRequest dwellRequest,
+            @RequestHeader(value = "X-Session-Id", required = false) UUID headerSessionId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID sessionId = headerSessionId != null ? headerSessionId : dwellRequest.getSessionId();
+        postService.reportPostDwell(
+                postId,
+                userDetails.getUsername(),
+                dwellRequest.getDurationMs(),
+                sessionId,
+                dwellRequest.getSource());
     }
 
     @GetMapping("/users/{userId}/posts")
@@ -110,5 +129,10 @@ public class PostController {
         // Sorting is driven by sortBy; ignore any client sort to keep ordering well-defined
         Pageable sanitized = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sortBy.toSort());
         return postService.getPostComments(postId, sanitized);
+    }
+
+    @GetMapping("/posts/{postId}/author")
+    public UserSummaryResponse getPostAuthor(@Positive @PathVariable Long postId) {
+        return postService.getPostAuthor(postId);
     }
 }

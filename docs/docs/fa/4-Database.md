@@ -77,7 +77,7 @@
 - تحلیل رفتار کاربران
 - سیستم پیشنهاددهی
 
-نمونه رویدادها:
+نمونه رویدادها (غیر جامع؛ فهرست کامل در [5-Backend.md](./5-Backend.md)):
 - LOGIN
 - VIEW_POST
 - LIKE_POST
@@ -89,8 +89,8 @@
 
 فیلدهای اضافه‌شده (در مهاجرت V4):
 
-- session_id (UUID) — کنش‌های یک نشست کاربری را گروه‌بندی می‌کند؛ بی‌رابطه با احراز هویت JWT
-- metadata (JSONB) — اطلاعات اضافی خاص هر رویداد که ستون جداگانه نمی‌خواهد
+- session_id (UUID) — کنش‌های یک نشست کاربری را گروه‌بندی می‌کند؛ بی‌رابطه با احراز هویت JWT. از هدر درخواست `X-Session-Id` پر می‌شود (بازدیدها و گزارش‌های dwell)؛ مقدار آن برای هر زبانه مرورگر توسط فرانت‌اند تولید می‌شود
+- metadata (JSONB) — اطلاعات اضافی خاص هر رویداد که ستون جداگانه نمی‌خواهد. قرارداد هر نوع رویداد: `REQUEST_FEED` ← `{feed_type}` و ردیف‌های dwell از نوع `VIEW_POST` ← `{duration_ms, source: DETAIL|FEED}` (ردیف‌های خام `VIEW_POST` بازدید هستند و متادیتا ندارند)
 
 ---
 ## Enum ها
@@ -118,12 +118,14 @@
 - DISLIKE_POST
 - CREATE_COMMENT
 - REPOST_POST
+- QUOTE_POST
 - FOLLOW_USER
 - UNFOLLOW_USER
 - VIEW_PROFILE
 - CREATE_POST
 - REQUEST_FEED
 - LOGIN
+- REGISTER
 
 ---
 
@@ -161,6 +163,10 @@ PostgreSQL به صورت خودکار ستون‌های کلید خارجی را
 - event_logs (user_id, created_at) — خط زمانی فعالیت هر کاربر برای تحلیل
 - event_logs (type, created_at) — تجمیع‌های موضوعات داغ / زمان اوج استفاده
 - event_logs (post_id), event_logs (target_user_id) — پرس‌وجوهای تحلیلی مبتنی بر موجودیت
+
+ایندکس زیر توسط مهاجرت `V8` اضافه شده است:
+
+- event_logs (session_id, created_at) — گروه‌بندی خط زمانی نشست‌ها (جفت‌کردن ردیف‌های بازدید با dwell و تجمیع‌های هر نشست)
 
 ---
 

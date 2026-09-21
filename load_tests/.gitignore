@@ -1,0 +1,6 @@
+# Seeded credentials (usernames share the seed password) and Locust outputs.
+data/users.csv
+*.html
+*.csv
+!data/.gitkeep
+locust.log

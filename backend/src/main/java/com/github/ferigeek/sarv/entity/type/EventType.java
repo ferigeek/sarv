@@ -11,5 +11,7 @@ public enum EventType {
     VIEW_PROFILE,
     CREATE_POST,
     REQUEST_FEED,
-    LOGIN
+    LOGIN,
+    REGISTER,
+    QUOTE_POST
 }

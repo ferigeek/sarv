@@ -1,17 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
-import type { PostResponse, ReactionResponse, UserResponse } from '@/types/api'
+import type { PostResponse, ReactionResponse, UserSummaryResponse } from '@/types/api'
 
 vi.mock('@/api/users', () => ({
-  getMe: vi.fn<() => Promise<UserResponse>>(),
-  getUser: vi.fn<(id: number) => Promise<UserResponse>>(),
-  updateMe: vi.fn<(payload: unknown) => Promise<UserResponse>>(),
-  searchUsers: vi.fn<(query: string, pageable?: unknown) => Promise<import('@/types/api').Page<import('@/types/api').UserResponse>>>(),
+  getMe: vi.fn<() => Promise<unknown>>(),
+  getUser: vi.fn<(id: number) => Promise<unknown>>(),
+  updateMe: vi.fn<(payload: unknown) => Promise<unknown>>(),
+  searchUsers: vi.fn<(query: string, pageable?: unknown) => Promise<unknown>>(),
 }))
 
 vi.mock('@/api/posts', () => ({
   getPost: vi.fn<(id: number) => Promise<PostResponse>>(),
+  getPostAuthor: vi.fn<(id: number) => Promise<UserSummaryResponse>>(),
   createPost: vi.fn<(payload: unknown) => Promise<PostResponse>>(),
   updatePost: vi.fn<() => Promise<PostResponse>>(),
   deletePost: vi.fn<() => Promise<void>>(),
@@ -19,6 +20,7 @@ vi.mock('@/api/posts', () => ({
   getComments: vi.fn<() => Promise<unknown>>(),
   repostPost: vi.fn<(id: number) => Promise<PostResponse>>(),
   quotePost: vi.fn<() => Promise<PostResponse>>(),
+  reportPostDwell: vi.fn<(id: number, payload: unknown) => Promise<void>>(),
 }))
 
 vi.mock('@/api/reactions', () => ({
@@ -41,15 +43,14 @@ vi.mock('vue-router', async (importOriginal) => {
 })
 
 import { getMediaBlob as mockGetMediaBlob, getMediaMetadata as mockGetMediaMetadata } from '@/api/media'
-import { getPost as mockGetPost, repostPost as mockRepostPost } from '@/api/posts'
+import { getPost as mockGetPost, getPostAuthor as mockGetPostAuthor, repostPost as mockRepostPost } from '@/api/posts'
 import { addReaction as mockAddReaction, getReaction as mockGetReaction, removeReaction as mockRemoveReaction } from '@/api/reactions'
-import { getUser as mockGetUser } from '@/api/users'
 import { registerPixelicons } from '@/assets/icons/pixelarticons'
 import PostCard from '../PostCard.vue'
 
 registerPixelicons()
 
-const mockedGetUser = vi.mocked(mockGetUser)
+const mockedGetPostAuthor = vi.mocked(mockGetPostAuthor)
 const mockedGetReaction = vi.mocked(mockGetReaction)
 const mockedGetPost = vi.mocked(mockGetPost)
 const mockedRepostPost = vi.mocked(mockRepostPost)
@@ -80,15 +81,11 @@ function makePost(overrides: Partial<PostResponse> = {}): PostResponse {
 describe('PostCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedGetUser.mockResolvedValue({
+    mockedGetPostAuthor.mockResolvedValue({
       id: 10,
       username: 'bob',
       displayName: 'Bob',
-      bio: null,
-      gender: 'MALE',
-      location: null,
       profilePictureId: null,
-      status: 'ACTIVE',
     })
     mockedGetReaction.mockResolvedValue({ likeCount: 2, dislikeCount: 1, userReaction: 0 })
     mockedGetMediaBlob.mockResolvedValue(new Blob(['x'], { type: 'image/png' }))

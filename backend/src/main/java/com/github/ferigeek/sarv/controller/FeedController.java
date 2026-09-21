@@ -1,8 +1,6 @@
 package com.github.ferigeek.sarv.controller;
 
-import com.github.ferigeek.sarv.aspect.LogEvent;
 import com.github.ferigeek.sarv.dto.response.PostResponse;
-import com.github.ferigeek.sarv.entity.type.EventType;
 import com.github.ferigeek.sarv.service.FeedService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -28,14 +26,14 @@ public class FeedController {
     }
 
     @GetMapping("/chronological")
-    @LogEvent(EventType.REQUEST_FEED)
     public Page<PostResponse> getChronological(
+            @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return feedService.getChronological(pageable);
+        String username = userDetails != null ? userDetails.getUsername() : null;
+        return feedService.getChronological(pageable, username);
     }
 
     @GetMapping("/recommended")
-    @LogEvent(EventType.REQUEST_FEED)
     public Page<PostResponse> getRecommended(
             @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 20) Pageable pageable) {
