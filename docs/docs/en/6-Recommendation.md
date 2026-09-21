@@ -245,24 +245,29 @@ No auth on `GET /feed` (relies on internal docker network and backend trust).
 
 ## Testing
 
-No Python unit tests yet (`no test*` under `intelligence/recommendation`). Backend contract tests are the source of truth:
+Python tests live under `intelligence/recommendation/tests/` (`uv run pytest`):
+
+- `test_scoring.py` — `score_post` edges (zero/negative clamp, dislike penalty, future-date clamp, 48h half-life, `1.5×` follow boost, ordering).
+- `test_candidate_dedup.py` — trending/following overlap keeps the flagged copy, follower posts unflagged, order preserved (mocked cursor, no live DB).
+- `test_feed_contract.py` — `TestClient` with mocked `CandidateGenerator` (keys, `score desc`, `page/size/total`, empty out-of-range page, `422`).
+
+Backend contract tests remain the source of truth for integration:
 
 - `FeedServiceRecommendedTest.java:10` cases (rank-order hydration, empty/exception fallback, invalid `post_id` skip, deleted/missing filtering, `UserNotFound` propagation, pagination, `total`).
 - `FeedControllerRecommendedTest.java:13` cases (200 Page shape, empty, 403, 404, 500, default `Pageable` unsorted, sort-ignored, principal, pagination metadata, 405).
 - `src/test/resources/application.properties:18` stubs `recommendation.base-url=http://localhost:8000`.
 
-Recommended additions: `pytest` for `score_post` edge cases, candidate dedup, and mock DB.
-
 ---
 
 ## Implementation Status
 
-- **Candidate generation:** Implemented (trending 100, following 50, follower 50, dedup, 7d window)
-- **Scoring:** Implemented (`2*like + view -2*dislike`, `48h` half-life, `1.5×` follow boost)
-- **API:** Implemented (`GET /feed` with `page/size/total`, `GET /health`)
+- **Candidate generation:** Implemented (trending 100, following 50, follower 50, dedup preferring the flagged copy, 7d window; follower posts get no follow boost)
+- **Scoring:** Implemented as `heuristic-v0` (`2*like + view -2*dislike`, `48h` half-life, `1.5×` follow boost only for followed authors)
+- **API:** Implemented (`GET /feed` with `page/size/total`, `GET /health` with `status` + `model`)
 - **Pagination:** Implemented server-side `score desc`
 - **Docker & healthcheck:** Implemented
 - **Integration:** Implemented (backend `RestClient` + fallback)
-- **Outstanding:** IDs-only contract, `from_followed` bug (follower vs following), `redis` caching (declared but unused), Python unit tests, metrics/Prometheus
+- **Testing:** Implemented (`tests/test_scoring|dedup|contract`, 14 cases)
+- **Outstanding:** IDs-only contract, `redis` caching (declared but unused), metrics/Prometheus
 
 See also [5-Backend.md](./5-Backend.md) and [3-Architecture.md](./3-Architecture.md).
