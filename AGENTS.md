@@ -45,7 +45,7 @@ Design of the frontend can be found at `frontend/Design.md`.
     2. Explanation of what has changes, why, and what is different now
     3. Things to consider or noticable if any exists
 - Do not create Git commits unless explicitly instructed by the developer.
-- Code should be simple, readable, and easily understandable
+- Code should be simple, readable, and easily understandable.
 - Do not write comments for everything. Comments and docs in the code are only required when there is something important to notice, a piece of code that might be hard to understand, or something unexpected.
 - Do not chage anything related to depenencies(e.g. pom.xml, requirements.txt, pyproject.toml, uv.lock, ...). 
 - Dependencies should be only managed by the developer.
@@ -53,6 +53,7 @@ Design of the frontend can be found at `frontend/Design.md`.
 - Do not remove or weaken existing tests merely to make them pass.
 - New or modified behavior should include appropriate tests, covering as much cases as possible.
 - Tests should examine behavior and expected outcomes, not implementation details. They should verify what the code is supposed to do from the user's or caller's perspective.
+- Avoid writing useless and unimportant tests. Only test behavior and important functionalities.
 
 # Run
 
