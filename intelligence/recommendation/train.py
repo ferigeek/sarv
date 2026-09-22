@@ -23,14 +23,24 @@ Usage:
 """
 
 import argparse
+import json
 import logging
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
+import joblib
 import pandas as pd
 import psycopg
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 from database import DatabaseSettings
 from scoring import FEATURE_NAMES, PostFeatures, engagement_boost, to_vector
+
+MODEL_VERSION = "lr-v1"
 
 log = logging.getLogger(__name__)
 
@@ -223,26 +233,96 @@ def build_dataset(conn, cutoff: datetime, limit: int, neg_ratio: int) -> pd.Data
     return df
 
 
+def precision_at_k(y_true, y_score, k: int = 10) -> float:
+    """Fraction of positives in the top-k ranked rows."""
+    order = sorted(range(len(y_true)), key=lambda i: y_score[i], reverse=True)[:k]
+    if not order:
+        return 0.0
+    return sum(y_true[i] for i in order) / len(order)
+
+
+def train_model(df: pd.DataFrame, seed: int = 42, test_size: float = 0.2) -> tuple:
+    """
+    Stratified shuffle split (temporal split is future work: sampled
+    negatives carry now() timestamps, so a time split would skew). Returns
+    (pipeline, metrics dict with a prevalence baseline).
+    """
+    X = df[FEATURE_NAMES].to_numpy(dtype=float)
+    y = df["label"].to_numpy(dtype=int)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=seed, stratify=y,
+    )
+    pipe = Pipeline([
+        ("scaler", StandardScaler()),
+        ("clf", LogisticRegression(
+            class_weight="balanced", max_iter=1000, random_state=seed,
+        )),
+    ])
+    pipe.fit(X_train, y_train)
+    proba = pipe.predict_proba(X_test)[:, 1]
+    pred = (proba >= 0.5).astype(int)
+    prevalence = float(y_test.mean())
+    metrics = {
+        "accuracy": float(accuracy_score(y_test, pred)),
+        "log_loss": float(log_loss(y_test, proba, labels=[0, 1])),
+        "roc_auc": float(roc_auc_score(y_test, proba)),
+        "precision_at_10": float(precision_at_k(y_test.tolist(), proba.tolist(), 10)),
+        "baseline_prevalence": prevalence,
+        "n_train": int(len(y_train)),
+        "n_test": int(len(y_test)),
+    }
+    return pipe, metrics
+
+
+def save_model(pipe, metrics: dict, model_out: str, seed: int) -> None:
+    path = Path(model_out)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(pipe, path)
+    path.with_suffix(".json").write_text(json.dumps({
+        "model_version": MODEL_VERSION,
+        "trained_at": datetime.now(timezone.utc).isoformat(),
+        "feature_names": FEATURE_NAMES,
+        "seed": seed,
+        "metrics": metrics,
+    }, indent=2))
+
+
+def load_model(model_path: str):
+    return joblib.load(model_path)
+
+
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="Build (and train on) the ranking dataset.")
+    parser = argparse.ArgumentParser(description="Build and train the ranking dataset.")
     parser.add_argument("--build-only", action="store_true")
+    parser.add_argument("--train", action="store_true")
+    parser.add_argument("--in", dest="data_in", default="data/train.csv")
     parser.add_argument("--out", default="data/train.csv")
+    parser.add_argument("--model-out", default="models/model.pkl")
     parser.add_argument("--limit", type=int, default=20000)
     parser.add_argument("--window-days", type=int, default=90)
     parser.add_argument("--neg-ratio", type=int, default=4)
+    parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args(argv)
 
-    if not args.build_only:
-        parser.error("--train lands in P3-2; use --build-only for now")
+    if args.build_only:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=args.window_days)
+        with get_sync_connection() as conn:
+            df = build_dataset(conn, cutoff, args.limit, args.neg_ratio)
+        if df.empty:
+            log.warning("Empty dataset, writing header only")
+        df.to_csv(args.out, index=False)
+        log.info("Wrote %d rows (%d positive) to %s", len(df), int(df["label"].sum()), args.out)
+        return 0
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=args.window_days)
-    with get_sync_connection() as conn:
-        df = build_dataset(conn, cutoff, args.limit, args.neg_ratio)
-    if df.empty:
-        log.warning("Empty dataset, writing header only")
-    df.to_csv(args.out, index=False)
-    log.info("Wrote %d rows (%d positive) to %s", len(df), int(df["label"].sum()), args.out)
-    return 0
+    if args.train:
+        df = pd.read_csv(args.data_in)
+        pipe, metrics = train_model(df, seed=args.seed)
+        save_model(pipe, metrics, args.model_out, args.seed)
+        log.info("Saved %s %s", args.model_out, json.dumps(metrics))
+        return 0
+
+    parser.error("need --build-only or --train")
+    return 2
 
 
 if __name__ == "__main__":

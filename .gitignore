@@ -382,5 +382,10 @@ http-client.private.env.json
 # Github Copilot persisted session migrations, see: https://github.com/microsoft/copilot-intellij-feedback/issues/712#issuecomment-3322062215
 .idea/**/copilot.data.migration.*.xml
 
+# Recommendation training artifacts (retrain locally; see 6-Recommendation)
+intelligence/recommendation/models/*.pkl
+intelligence/recommendation/models/*.joblib
+intelligence/recommendation/data/
+
 .idea
 .vscode

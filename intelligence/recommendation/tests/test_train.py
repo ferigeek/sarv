@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
+import numpy as np
 import pandas as pd
 
 import train
 from scoring import FEATURE_NAMES
-from train import build_dataset
+from train import build_dataset, load_model, save_model, train_model
 
 NOW = datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc)
 CREATED = NOW - timedelta(hours=10)
@@ -77,3 +78,51 @@ def test_fetch_helpers_empty_safe():
     assert train.fetch_follow_sets(conn, set()) == set()
     assert train.fetch_affinity_map(conn, [], NOW) == {}
     assert train.fetch_user_boosts(conn, [], NOW) == {}
+
+
+def make_separable_frame(n: int = 60, seed: int = 7) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    pos = pd.DataFrame({
+        "log_like": rng.normal(4.0, 0.5, n),
+        "log_dislike": rng.normal(0.0, 0.2, n),
+        "log_view": rng.normal(5.0, 0.5, n),
+        "log_comment": rng.normal(1.5, 0.5, n),
+        "age_hours": rng.normal(5.0, 2.0, n),
+        "from_followed": np.ones(n),
+        "affinity_capped": rng.normal(6.0, 1.0, n),
+        "user_boost": np.ones(n),
+        "label": np.ones(n, dtype=int),
+    })
+    neg = pd.DataFrame({
+        "log_like": rng.normal(0.5, 0.5, n),
+        "log_dislike": rng.normal(0.5, 0.5, n),
+        "log_view": rng.normal(1.0, 0.5, n),
+        "log_comment": np.zeros(n),
+        "age_hours": rng.normal(100.0, 20.0, n),
+        "from_followed": np.zeros(n),
+        "affinity_capped": np.zeros(n),
+        "user_boost": np.ones(n),
+        "label": np.zeros(n, dtype=int),
+    })
+    return pd.concat([pos, neg], ignore_index=True)
+
+
+def test_train_model_reports_metrics_above_baseline():
+    df = make_separable_frame()
+    pipe, metrics = train_model(df, seed=42)
+    for key in ("accuracy", "log_loss", "roc_auc", "precision_at_10",
+                "baseline_prevalence", "n_train", "n_test"):
+        assert key in metrics
+    assert metrics["accuracy"] > metrics["baseline_prevalence"]
+    assert metrics["roc_auc"] > 0.9
+    assert pipe.predict_proba(df[FEATURE_NAMES].to_numpy()[:2]).shape == (2, 2)
+
+
+def test_save_load_model_roundtrip(tmp_path):
+    df = make_separable_frame()
+    pipe, metrics = train_model(df, seed=42)
+    out = str(tmp_path / "model.pkl")
+    save_model(pipe, metrics, out, seed=42)
+    restored = load_model(out)
+    X = df[FEATURE_NAMES].to_numpy(dtype=float)
+    assert (restored.predict(X) == pipe.predict(X)).all()
