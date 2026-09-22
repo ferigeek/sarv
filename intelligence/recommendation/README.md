@@ -8,7 +8,9 @@ FastAPI service for personalized feed ranking (`heuristic-v1`: engagement + rece
 
 Modules: `candidate.py` (async `_fetch` + dedup), `scoring.py` (formula + `MODEL_VERSION`), `database.py` (`AsyncConnectionPool` lifespan), `cache.py` (Redis, optional), `metrics.py`.
 
-Env: `DB_*` (incl. `DB_POOL_MIN/MAX/TIMEOUT`), `REDIS_URL` (default `redis://localhost:6379`), `FEED_CACHE_TTL_SECONDS` (default `45`).
+Env: `DB_*` (incl. `DB_POOL_MIN/MAX/TIMEOUT`), `REDIS_URL` (default `redis://localhost:6379`), `FEED_CACHE_TTL_SECONDS` (default `45`), `MODEL_PATH` (default `models/model.pkl`; absent → heuristic).
+
+Training: `uv run python train.py --build-only --out data/train.csv` then `uv run python train.py --train --in data/train.csv` (artifacts gitignored, retrain locally).
 
 Candidate generation (`candidate.py`) and scoring (`scoring.py`) details are documented in `docs/docs/en/6-Recommendation.md`.
 

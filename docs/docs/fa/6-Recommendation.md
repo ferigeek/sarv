@@ -60,6 +60,7 @@ Swagger UI در `http://localhost:8000/docs` (خودکار FastAPI) در دست�
 | `DB_POOL_TIMEOUT` | تایم‌اوت اتصال (ثانیه) | `5` | `5` |
 | `REDIS_URL` | ردیس کش فید | `redis://localhost:6379` | `redis://redis:6379` (در `docker-compose.yaml`) |
 | `FEED_CACHE_TTL_SECONDS` | ماندگاری صفحه کش | `45` | `45` |
+| `MODEL_PATH` | آرتیفکت رتبه‌بند یادگرفته | `models/model.pkl` | — (نبود → هیوریستیک) |
 
 `docker-compose.yaml` مقادیر `DB_HOST=postgres`، `DB_PORT=5432`، اندازه استخر و `REDIS_URL=redis://redis:6379` را تنظیم می‌کند. استخر در `lifespan` برنامه باز می‌شود؛ ردیس اختیاری است — خرابی آن با `WARN` به DB مستقیم برمی‌گردد.
 
@@ -216,6 +217,15 @@ return engagement * recency_boost * follow_boost * affinity_boost * user_boost
 
 ---
 
+## رتبه‌بند یادگرفته (lr-v1)
+
+`LogisticRegression` با وزن متعادل روی بردار ۸بعدی مشترک (`scoring.to_vector`) با پایپ‌لاین `StandardScaler` و اسپلیت تصادفی سیددار.
+
+- **برچسب‌ها:** LIKE/COMMENT/REPOST/QUOTE مثبت، DISLIKE منفی، نمونه منفی تصادفی ۱:۴ (نمایشِ بدون تعامل لاگ نمی‌شود؛ dwell در P3 کنار است).
+- **احتیاط‌ها:** ویژگی‌ها شمارنده‌های فعلی‌اند نه اسنپ‌شات لحظه نمایش (نشت مستند)؛ لاگ رویداد best-effort است. مقایسه هیوریستیک در برابر یادگرفته در PDF فید هوشمند (P5) می‌آید.
+- **اجرا:** `uv run python train.py --build-only --out data/train.csv` سپس `uv run python train.py --train --in data/train.csv` ← `models/model.pkl` و `metadata.json` (دقت، log-loss، AUC، P@10 در برابر بیزلاین). آرتیفکت‌ها gitignore‌ا‌ند — محلی بازآموزی کنید.
+- **سرو** (`model.py`): بارگذاری `MODEL_PATH` در شروع، رتبه با `P(positive)`؛ نبود/خرابی آرتیفکت یا خطای درخواست → fallback هیوریستیک. `/health` و `feed_model_info` رتبه‌بند فعال را گزارش می‌دهند.
+
 ## کش
 
 کش read-through ردیس (`cache.py`): کلید `feed:{MODEL_VERSION}:user:{id}:page:{p}:size:{s}`، مقدار `{posts, total}`، ماندگاری `FEED_CACHE_TTL_SECONDS` (۴۵ ثانیه). کلید از `MODEL_VERSION` مشتق می‌شود، پس تغییر فرمول صفحات قدیمی را خودکار بازنشسته می‌کند. هیت DB را دور می‌زند؛ هر خطا با `WARN` به DB مستقیم برمی‌گردد. با `feed_cache_events_total{outcome}` ثبت می‌شود.
@@ -281,6 +291,8 @@ healthcheck:
 - `test_feed_contract.py` — قرارداد `/feed` با `CandidateGenerator` ساختگی (کلیدها، `score desc`، `page/size/total`، صفحه خالی، `422`).
 - `test_feed_cache.py` — هیت کش DB را دور می‌زند، میس ذخیره می‌کند، خطا به DB برمی‌گردد (کش ساختگی).
 - `test_metrics.py` — `/metrics` همه سری‌های جدید و نسخه مدل را نشان می‌دهد.
+- `test_train.py` — ساخت دیتاست با اتصال ساختگی، آموزش بالای بیزلاین، round-trip آرتیفکت.
+- `test_model.py` — ترتیب احتمالی، fallback هیوریستیک، حالت‌های نبود/خرابی آرتیفکت.
 
 تست‌های قرارداد بک‌اند همچنان منبع حقیقت یکپارچه‌سازی هستند:
 
@@ -298,7 +310,8 @@ healthcheck:
 - **صفحه‌بندی:** پیاده‌سازی‌شده سمت سرور `score desc`
 - **Docker و سلامت:** پیاده‌سازی‌شده
 - **یکپارچه‌سازی:** پیاده‌سازی‌شده (بک‌اند `RestClient` + fallback)
-- **تست:** پیاده‌سازی‌شده (`tests/test_scoring|dedup|contract|cache|metrics`، ۳۲ مورد)
+- **تست:** پیاده‌سازی‌شده (`tests/test_scoring|dedup|contract|cache|metrics|train|model`، ۴۴ مورد)
+- **رتبه‌بند یادگرفته (P3):** پیاده‌سازی‌شده (بردار مشترک، دیتاست و پایپ‌لاین LR در `train.py`، سرو با fallback در `model.py`، آرتیفکت gitignore)
 - **سیگنال‌های رفتاری (P2):** پیاده‌سازی‌شده (تعامل ۳۰ روزه با نویسنده + سطح تعامل کاربر، کلید کش نسخه‌دار؛ ایندکس `V10` موکول شد)
 - **لایه داده (P1):** پیاده‌سازی‌شده (`AsyncConnectionPool` + lifespan، `_fetch` یکپارچه، کش read-through ردیس با ۴۵ ثانیه ماندگاری و bypass، ایندکس‌های جزئی `V9`)
 - **مشاهده‌پذیری (P1):** پیاده‌سازی‌شده (متریک‌های کش/کوئری/کاندید/امتیاز/درخواست/نتیجه/امتیازها + `feed_model_info`)

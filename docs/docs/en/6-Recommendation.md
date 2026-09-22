@@ -60,6 +60,7 @@ The service uses `pydantic-settings` (`database.py:7` `BaseSettings` with `env_p
 | `DB_POOL_TIMEOUT` | Pool checkout timeout (s) | `5` | `5` |
 | `REDIS_URL` | Redis for the feed cache | `redis://localhost:6379` | `redis://redis:6379` (in `docker-compose.yaml`) |
 | `FEED_CACHE_TTL_SECONDS` | Ranked-page TTL | `45` | `45` |
+| `MODEL_PATH` | Learned ranker artifact | `models/model.pkl` | — (absent → heuristic) |
 
 `docker-compose.yaml` sets `DB_HOST=postgres`, `DB_PORT=5432`, pool sizes, and `REDIS_URL=redis://redis:6379`; locally the defaults resolve to `localhost`. The pool opens in the app `lifespan` (`database.py` `open_pool`/`close_pool`); Redis is optional — startup and every request degrade to direct DB on failure with a `WARN` log.
 
@@ -216,6 +217,15 @@ The `ranked = sorted(candidates, key=score_post, reverse=True)` determines final
 
 ---
 
+## Learned ranker (lr-v1)
+
+`LogisticRegression(class_weight=balanced)` over the shared 8-dim vector (`scoring.to_vector`: log counts, raw age, follow flag, capped affinity, user boost), `StandardScaler` pipeline, seeded shuffle split.
+
+- **Labels:** LIKE/COMMENT/REPOST/QUOTE positive, DISLIKE negative, 1:4 random un-touched negatives (feed impressions are not logged, so shown-but-ignored is unsamplable; dwell excluded for P3).
+- **Caveats:** features are current counters, not as-of-impression snapshots (documented leakage); event logging is best-effort. Heuristic-vs-learned engagement comparison lands in the Intelligent-Feed PDF (P5).
+- **Runbook:** `uv run python train.py --build-only --out data/train.csv` then `uv run python train.py --train --in data/train.csv` → `models/model.pkl` + `metadata.json` (metrics: accuracy, log-loss, AUC, P@10 vs prevalence). Artifacts are gitignored — retrain locally.
+- **Serving** (`model.py`): loads `MODEL_PATH` at startup, ranks by `P(positive)`; missing/corrupt artifact or per-request error falls back to heuristic. `/health` and `feed_model_info` report the active ranker (`lr-v1` vs `heuristic-v1`); the versioned cache key retires stale pages.
+
 ## Caching
 
 Read-through Redis (`cache.py`): key `feed:{MODEL_VERSION}:user:{id}:page:{p}:size:{s}`, value `{posts, total}`, TTL `FEED_CACHE_TTL_SECONDS` (45s). The key derives from `MODEL_VERSION`, so formula bumps retire stale pages automatically. Hits skip the DB; any failure logs `WARN` and bypasses. Observed as `feed_cache_events_total{outcome}`.
@@ -281,6 +291,8 @@ Python tests live under `intelligence/recommendation/tests/` (`uv run pytest`):
 - `test_feed_contract.py` — `TestClient` with mocked `CandidateGenerator` (keys, `score desc`, `page/size/total`, empty out-of-range page, `422`).
 - `test_feed_cache.py` — cache hit skips DB, miss stores, error falls back (mocked cache).
 - `test_metrics.py` — `/metrics` exposes every new series plus the model version.
+- `test_train.py` — dataset assembly on mocked connections, synthetic training above baseline, artifact round-trip.
+- `test_model.py` — probability ordering, heuristic fallback on model error, loader missing/corrupt cases.
 
 Backend contract tests remain the source of truth for integration:
 
@@ -298,7 +310,8 @@ Backend contract tests remain the source of truth for integration:
 - **Pagination:** Implemented server-side `score desc`
 - **Docker & healthcheck:** Implemented
 - **Integration:** Implemented (backend `RestClient` + fallback)
-- **Testing:** Implemented (`tests/test_scoring|dedup|contract|cache|metrics`, 32 cases)
+- **Testing:** Implemented (`tests/test_scoring|dedup|contract|cache|metrics|train|model`, 44 cases)
+- **Learned ranker (P3):** Implemented (shared vector, `train.py` dataset + LR pipeline, `model.py` serving with fallback, gitignored artifacts)
 - **Behavior signals (P2):** Implemented (30d author affinity + user engagement aggregates, versioned cache key; `V10` index deferred pending EXPLAIN)
 - **Data layer (P1):** Implemented (`AsyncConnectionPool` + lifespan, unified `_fetch`, Redis read-through 45s TTL with bypass, `V9` partial indexes)
 - **Observability (P1):** Implemented (cache/query/candidate/scoring/request/result/score metrics + `feed_model_info`)
