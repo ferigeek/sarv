@@ -7,6 +7,11 @@ from scoring import PostFeatures
 
 
 class CandidateGenerator:
+    # Past interaction counts for longer than the candidate window so
+    # older relationships still personalize the feed. Plain views only;
+    # dwell-time weighting is deferred. Weights mirror intent strength.
+    AFFINITY_WINDOW_DAYS = 30
+
     def __init__(self, user_id: str):
         self.user_id = user_id
         self.search_span_days = 7  # How many days back to look for trending posts
@@ -16,21 +21,30 @@ class CandidateGenerator:
         Returns candidate posts for the user as a list of PostFeatures.
         Trending posts come first, then posts from followings and followers.
         Only authors the user follows get the follow boost; duplicates keep
-        the flagged copy so the boost is not silently dropped.
+        the copy with the stronger (followed, affinity) signal.
+        Each post also carries its author's affinity for scoring.
         """
         async with get_connection() as conn:
             trending = await self._get_trending_posts(conn)
             following_posts = await self._get_following_posts(conn)
             follower_posts = await self._get_follower_posts(conn)
+            affinity = await self._get_author_affinity(conn)
+
+        all_posts = trending + following_posts + follower_posts
+        for post in all_posts:
+            post.author_affinity = affinity.get(post.author_id, 0.0)
 
         # Combine and deduplicate by post id, preserving first-seen order
-        # but preferring the flagged (from_followed) copy on duplicates.
+        # but preferring the copy with the stronger personal signal.
         by_id = {}
-        for post in trending + following_posts + follower_posts:
+        for post in all_posts:
             existing = by_id.get(post.post_id)
             if existing is None:
                 by_id[post.post_id] = post
-            elif post.from_followed and not existing.from_followed:
+            elif (post.from_followed, post.author_affinity) > (
+                existing.from_followed,
+                existing.author_affinity,
+            ):
                 by_id[post.post_id] = post
 
         candidates = list(by_id.values())
@@ -39,6 +53,42 @@ class CandidateGenerator:
         observe_candidates("follower", len(follower_posts))
         observe_candidates("deduped", len(candidates))
         return candidates
+
+    async def _get_author_affinity(self, conn) -> dict:
+        """
+        Returns {author_id: affinity} for authors the user interacted with
+        in the affinity window. One batched query (no N+1), riding the
+        event_logs user and post indexes.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=self.AFFINITY_WINDOW_DAYS)
+
+        query = """
+            SELECT p.user_id AS author_id,
+                   SUM(CASE e.type
+                         WHEN 'VIEW_POST' THEN 1
+                         WHEN 'LIKE_POST' THEN 3
+                         WHEN 'CREATE_COMMENT' THEN 4
+                         WHEN 'REPOST_POST' THEN 5
+                         WHEN 'QUOTE_POST' THEN 5
+                         WHEN 'DISLIKE_POST' THEN -2
+                         ELSE 0 END) AS affinity
+            FROM event_logs e
+            JOIN posts p ON p.id = e.post_id
+            WHERE e.user_id = %s
+              AND e.post_id IS NOT NULL
+              AND e.type IN ('VIEW_POST', 'LIKE_POST', 'DISLIKE_POST',
+                             'CREATE_COMMENT', 'REPOST_POST', 'QUOTE_POST')
+              AND e.created_at >= %s
+            GROUP BY p.user_id
+        """
+
+        start = perf_counter()
+        async with conn.cursor() as cur:
+            await cur.execute(query, (self.user_id, cutoff))
+            rows = await cur.fetchall()
+        observe_db_query("affinity", perf_counter() - start)
+
+        return {str(author_id): float(score) for author_id, score in rows}
 
     async def _fetch(self, conn, query: str, params: tuple, *, source: str, from_followed: bool = False) -> List[PostFeatures]:
         """Runs one candidate query and maps rows to PostFeatures."""

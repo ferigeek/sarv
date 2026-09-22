@@ -5,7 +5,8 @@ from scoring import PostFeatures, score_post
 NOW = datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc)
 
 
-def make_post(post_id="1", likes=10, dislikes=0, views=100, age_hours=0, followed=False):
+def make_post(post_id="1", likes=10, dislikes=0, views=100, age_hours=0, followed=False,
+              affinity=0.0, user_boost=1.0):
     return PostFeatures(
         post_id=post_id,
         like_count=likes,
@@ -13,6 +14,8 @@ def make_post(post_id="1", likes=10, dislikes=0, views=100, age_hours=0, followe
         view_count=views,
         created_at=NOW - timedelta(hours=age_hours),
         from_followed=followed,
+        author_affinity=affinity,
+        user_boost=user_boost,
     )
 
 
@@ -58,3 +61,20 @@ def test_higher_engagement_ranks_first():
     low = make_post(post_id="low", likes=1, views=1)
     high = make_post(post_id="high", likes=50, views=200)
     assert score_post(high, now=NOW) > score_post(low, now=NOW)
+
+
+def test_zero_affinity_is_neutral():
+    assert score_post(make_post(affinity=0.0), now=NOW) == score_post(make_post(), now=NOW)
+
+
+def test_affinity_adds_ten_percent_per_point():
+    base = score_post(make_post(affinity=0.0), now=NOW)
+    assert score_post(make_post(affinity=5.0), now=NOW) == base * 1.5
+
+
+def test_affinity_capped_at_ten_points():
+    assert score_post(make_post(affinity=10.0), now=NOW) == score_post(make_post(affinity=99.0), now=NOW)
+
+
+def test_negative_affinity_treated_as_zero():
+    assert score_post(make_post(affinity=-4.0), now=NOW) == score_post(make_post(), now=NOW)

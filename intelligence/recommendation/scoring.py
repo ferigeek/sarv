@@ -1,7 +1,10 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-MODEL_VERSION = "heuristic-v0"
+MODEL_VERSION = "heuristic-v1"
+
+AFFINITY_CAP = 10.0  # Affinity above this earns no extra boost
+AFFINITY_RATE = 0.1  # Each affinity point adds 10% (max 2x at cap)
 
 
 @dataclass
@@ -23,9 +26,10 @@ def score_post(features: PostFeatures, now: datetime | None = None) -> float:
     """
     Computes a recommendation score for a post.
 
-    The score rewards engagement (likes and views, penalising dislikes) while
-    decaying it over time so that newer posts are preferred. Posts from users
-    that the requesting user follows get a small boost.
+    The score rewards engagement (likes, comments, and views, penalising
+    dislikes) while decaying it over time so that newer posts are preferred.
+    Posts from followed authors get a boost, as do posts from authors the
+    requesting user has interacted with before (affinity).
     """
     now = now or datetime.now(timezone.utc)
 
@@ -37,4 +41,7 @@ def score_post(features: PostFeatures, now: datetime | None = None) -> float:
 
     follow_boost = 1.5 if features.from_followed else 1.0
 
-    return engagement * recency_boost * follow_boost
+    affinity = min(max(features.author_affinity, 0), AFFINITY_CAP)
+    affinity_boost = 1 + affinity * AFFINITY_RATE  # 1.0 (cold) to 2.0 (capped)
+
+    return engagement * recency_boost * follow_boost * affinity_boost * features.user_boost

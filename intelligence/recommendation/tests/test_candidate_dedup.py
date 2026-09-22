@@ -73,3 +73,35 @@ def test_dedup_preserves_first_seen_order():
     )
     assert [c.post_id for c in cands] == ["1", "2", "3"]
     assert cands[1].from_followed is True
+
+
+def test_affinity_applied_to_candidates():
+    cands = run_with_rows(
+        trending=[(1, 10, 0, 100, NOW, "11", 0)],
+        following=[],
+        follower=[],
+        affinity=[("11", 7.0)],
+    )
+    assert cands[0].author_affinity == 7.0
+
+
+def test_missing_affinity_defaults_to_zero():
+    cands = run_with_rows(
+        trending=[(1, 10, 0, 100, NOW, "11", 0)],
+        following=[],
+        follower=[],
+        affinity=[("99", 7.0)],
+    )
+    assert cands[0].author_affinity == 0.0
+
+
+def test_dedup_winner_keeps_flag_and_affinity():
+    cands = run_with_rows(
+        trending=[(1, 10, 0, 100, NOW, "11", 0)],
+        following=[(1, 10, 0, 100, NOW, "11", 0)],
+        follower=[],
+        affinity=[("11", 4.0)],
+    )
+    assert len(cands) == 1
+    assert cands[0].from_followed is True
+    assert cands[0].author_affinity == 4.0
