@@ -29,6 +29,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
 import psycopg
 from sklearn.linear_model import LogisticRegression
@@ -38,7 +39,10 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from database import DatabaseSettings
-from scoring import FEATURE_NAMES, PostFeatures, engagement_boost, to_vector
+from scoring import (
+    AFFINITY_CAP, AFFINITY_RATE, COMMENT_WEIGHT, FEATURE_NAMES,
+    PostFeatures, engagement_boost, to_vector,
+)
 
 MODEL_VERSION = "lr-v1"
 
@@ -191,6 +195,13 @@ def fetch_user_boosts(conn, viewer_ids: list, cutoff: datetime) -> dict:
     return {str(v): engagement_boost(views, likes, comments) for v, views, likes, comments in rows}
 
 
+RAW_COLUMNS = [
+    "raw_like", "raw_dislike", "raw_view", "raw_comment", "raw_age_hours",
+    "raw_followed", "raw_affinity", "raw_user_boost", "label_at",
+]
+"""Raw (unscaled) feature columns kept for exact heuristic recomputation."""
+
+
 def build_dataset(conn, cutoff: datetime, limit: int, neg_ratio: int) -> pd.DataFrame:
     pos = fetch_positives(conn, cutoff, limit)
     if pos.empty:
@@ -212,23 +223,36 @@ def build_dataset(conn, cutoff: datetime, limit: int, neg_ratio: int) -> pd.Data
     affinity = fetch_affinity_map(conn, viewer_ids, aff_cutoff)
     boosts = fetch_user_boosts(conn, viewer_ids, aff_cutoff)
 
-    vectors, labels = [], []
+    vectors, raws, labels = [], [], []
     for row in pairs.itertuples():
         info = post_map[str(row.post_id)]
         ref_time = row.label_at if row.label == 1 else datetime.now(timezone.utc)
+        followed = (str(row.viewer_id), info["author"]) in follows
+        aff = affinity.get((str(row.viewer_id), info["author"]), 0.0)
+        boost = boosts.get(str(row.viewer_id), 1.0)
         feats = PostFeatures(
             post_id=str(row.post_id),
             like_count=info["like"], dislike_count=info["dislike"],
             view_count=info["view"], comment_count=info["comment"],
             created_at=info["created_at"],
-            from_followed=(str(row.viewer_id), info["author"]) in follows,
+            from_followed=followed,
             author_id=info["author"],
-            author_affinity=affinity.get((str(row.viewer_id), info["author"]), 0.0),
-            user_boost=boosts.get(str(row.viewer_id), 1.0),
+            author_affinity=aff,
+            user_boost=boost,
         )
         vectors.append(to_vector(feats, now=ref_time))
+        raws.append({
+            "raw_like": info["like"], "raw_dislike": info["dislike"],
+            "raw_view": info["view"], "raw_comment": info["comment"],
+            "raw_age_hours": max((ref_time - info["created_at"]).total_seconds() / 3600, 0),
+            "raw_followed": 1 if followed else 0,
+            "raw_affinity": aff, "raw_user_boost": boost,
+            "label_at": ref_time.isoformat(),
+        })
         labels.append(row.label)
     df = pd.DataFrame(vectors, columns=FEATURE_NAMES)
+    for col in RAW_COLUMNS:
+        df[col] = [r[col] for r in raws]
     df["label"] = labels
     return df
 
@@ -241,17 +265,37 @@ def precision_at_k(y_true, y_score, k: int = 10) -> float:
     return sum(y_true[i] for i in order) / len(order)
 
 
+def heuristic_scores(df: pd.DataFrame) -> np.ndarray:
+    """Exact heuristic-v1 scores from raw columns. NaN-safe for old CSVs
+    without raw columns (returns NaNs; caller skips the baseline)."""
+    for col in RAW_COLUMNS:
+        if col not in df.columns:
+            return np.full(len(df), np.nan)
+    raw = df[RAW_COLUMNS].copy()
+    eng = np.maximum(
+        2 * raw["raw_like"] + raw["raw_view"]
+        + COMMENT_WEIGHT * raw["raw_comment"] - 2 * raw["raw_dislike"], 0,
+    )
+    rec = 1 / (1 + raw["raw_age_hours"] / 48)
+    fol = np.where(raw["raw_followed"] == 1, 1.5, 1.0)
+    aff = 1 + np.minimum(np.maximum(raw["raw_affinity"], 0), AFFINITY_CAP) * AFFINITY_RATE
+    return np.asarray(eng * rec * fol * aff * raw["raw_user_boost"], dtype=float)
+
+
 def train_model(df: pd.DataFrame, seed: int = 42, test_size: float = 0.2) -> tuple:
     """
     Stratified shuffle split (temporal split is future work: sampled
     negatives carry now() timestamps, so a time split would skew). Returns
-    (pipeline, metrics dict with a prevalence baseline).
+    (pipeline, metrics dict with prevalence and heuristic baselines).
     """
     X = df[FEATURE_NAMES].to_numpy(dtype=float)
     y = df["label"].to_numpy(dtype=int)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=seed, stratify=y,
+    idx = np.arange(len(df))
+    train_idx, test_idx = train_test_split(
+        idx, test_size=test_size, random_state=seed, stratify=y,
     )
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
     pipe = Pipeline([
         ("scaler", StandardScaler()),
         ("clf", LogisticRegression(
@@ -262,6 +306,7 @@ def train_model(df: pd.DataFrame, seed: int = 42, test_size: float = 0.2) -> tup
     proba = pipe.predict_proba(X_test)[:, 1]
     pred = (proba >= 0.5).astype(int)
     prevalence = float(y_test.mean())
+    h_scores = heuristic_scores(df.iloc[test_idx])
     metrics = {
         "accuracy": float(accuracy_score(y_test, pred)),
         "log_loss": float(log_loss(y_test, proba, labels=[0, 1])),
@@ -271,6 +316,13 @@ def train_model(df: pd.DataFrame, seed: int = 42, test_size: float = 0.2) -> tup
         "n_train": int(len(y_train)),
         "n_test": int(len(y_test)),
     }
+    if np.isnan(h_scores).any():
+        metrics["heuristic_roc_auc"] = None
+        metrics["heuristic_precision_at_10"] = None
+    else:
+        metrics["heuristic_roc_auc"] = float(roc_auc_score(y_test, h_scores))
+        metrics["heuristic_precision_at_10"] = float(
+            precision_at_k(y_test.tolist(), h_scores.tolist(), 10))
     return pipe, metrics
 
 

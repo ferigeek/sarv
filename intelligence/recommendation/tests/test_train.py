@@ -5,7 +5,7 @@ import pandas as pd
 
 import train
 from scoring import FEATURE_NAMES
-from train import build_dataset, load_model, save_model, train_model
+from train import RAW_COLUMNS, build_dataset, heuristic_scores, load_model, save_model, train_model
 
 NOW = datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc)
 CREATED = NOW - timedelta(hours=10)
@@ -55,7 +55,7 @@ def make_script():
 
 def test_build_dataset_assembles_vectors_and_labels():
     df = build_dataset(FakeConn(make_script()), NOW - timedelta(days=90), 1000, 4)
-    assert list(df.columns) == FEATURE_NAMES + ["label"]
+    assert list(df.columns) == FEATURE_NAMES + RAW_COLUMNS + ["label"]
     assert sorted(df["label"].tolist()) == [0, 1]
     pos = df[df["label"] == 1].iloc[0]
     neg = df[df["label"] == 0].iloc[0]
@@ -126,3 +126,49 @@ def test_save_load_model_roundtrip(tmp_path):
     restored = load_model(out)
     X = df[FEATURE_NAMES].to_numpy(dtype=float)
     assert (restored.predict(X) == pipe.predict(X)).all()
+
+
+def test_heuristic_baseline_matches_score_post():
+    from scoring import PostFeatures, score_post
+
+    df = make_separable_frame(20)
+    df["raw_like"] = 5
+    df["raw_dislike"] = 0
+    df["raw_view"] = 50
+    df["raw_comment"] = 1
+    df["raw_age_hours"] = 12.0
+    df["raw_followed"] = 1
+    df["raw_affinity"] = 5.0
+    df["raw_user_boost"] = 1.0
+    df["label_at"] = NOW.isoformat()
+    scores = heuristic_scores(df)
+    expected = score_post(PostFeatures(
+        post_id="x", like_count=5, dislike_count=0, view_count=50,
+        created_at=NOW - timedelta(hours=12), from_followed=True,
+        author_affinity=5.0, comment_count=1,
+    ), now=NOW)
+    assert scores[0] == expected
+
+
+def test_train_reports_heuristic_baseline():
+    df = make_separable_frame()
+    n = len(df)
+    df["raw_like"] = df["log_like"]
+    df["raw_dislike"] = 0
+    df["raw_view"] = df["log_view"]
+    df["raw_comment"] = df["log_comment"]
+    df["raw_age_hours"] = df["age_hours"]
+    df["raw_followed"] = df["from_followed"]
+    df["raw_affinity"] = df["affinity_capped"]
+    df["raw_user_boost"] = 1.0
+    df["label_at"] = NOW.isoformat()
+    _, metrics = train_model(df, seed=42)
+    assert metrics["heuristic_roc_auc"] is not None
+    assert metrics["heuristic_roc_auc"] > 0.9
+    assert metrics["heuristic_precision_at_10"] is not None
+
+
+def test_train_skips_baseline_without_raw_columns():
+    _, metrics = train_model(make_separable_frame(), seed=42)
+    assert metrics["heuristic_roc_auc"] is None
+    assert metrics["heuristic_precision_at_10"] is None
