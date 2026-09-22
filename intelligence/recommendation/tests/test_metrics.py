@@ -27,3 +27,4 @@ def test_metrics_expose_model_and_cache_counters():
         assert "feed_request_seconds" in body
         assert "feed_scores" in body
         assert MODEL_VERSION in body
+        assert 'ranker="heuristic-v1"' in body

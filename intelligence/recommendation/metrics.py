@@ -21,11 +21,12 @@ CANDIDATES_COUNT = Histogram(
 SCORING_SECONDS = Histogram(
     "feed_scoring_seconds",
     "Time to score and sort candidates.",
+    ["ranker"],
 )
 REQUEST_SECONDS = Histogram(
     "feed_request_seconds",
     "Total feed request time including cache lookup.",
-    ["outcome"],
+    ["outcome", "ranker"],
 )
 RESULT_TOTAL = Histogram(
     "feed_result_total",
@@ -52,12 +53,12 @@ def observe_candidates(source: str, count: int) -> None:
     CANDIDATES_COUNT.labels(source=source).observe(count)
 
 
-def observe_scoring(seconds: float) -> None:
-    SCORING_SECONDS.observe(seconds)
+def observe_scoring(ranker: str, seconds: float) -> None:
+    SCORING_SECONDS.labels(ranker=ranker).observe(seconds)
 
 
-def observe_request(outcome: str, seconds: float) -> None:
-    REQUEST_SECONDS.labels(outcome=outcome).observe(seconds)
+def observe_request(outcome: str, ranker: str, seconds: float) -> None:
+    REQUEST_SECONDS.labels(outcome=outcome, ranker=ranker).observe(seconds)
 
 
 def observe_result(total: int, scores: list[float]) -> None:

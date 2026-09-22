@@ -67,7 +67,7 @@ async def get_feed(
     if cached is not None:
         observe_cache("hit")
         observe_result(cached["total"], [p["score"] for p in cached["posts"]])
-        observe_request("hit", perf_counter() - started)
+        observe_request("hit", _active_version, perf_counter() - started)
         return {
             "user_id": user_id,
             "posts": cached["posts"],
@@ -79,15 +79,17 @@ async def get_feed(
     observe_cache("miss")
     candidates = await CandidateGenerator(user_id).generate_candidates()
     scoring_started = perf_counter()
+    ranker_used = HEURISTIC_VERSION
     if _pipe is not None:
         try:
             scored = rank_posts(candidates, _pipe)
+            ranker_used = LR_VERSION
         except Exception:
             log.warning("Learned ranking failed, falling back to heuristic", exc_info=True)
             scored = rank_heuristic(candidates)
     else:
         scored = rank_heuristic(candidates)
-    observe_scoring(perf_counter() - scoring_started)
+    observe_scoring(ranker_used, perf_counter() - scoring_started)
 
     total = len(scored)
     start = page * size
@@ -100,7 +102,7 @@ async def get_feed(
         await set_cached_page(key, {"posts": posts, "total": total})
     except Exception:
         pass
-    observe_request("miss", perf_counter() - started)
+    observe_request("miss", ranker_used, perf_counter() - started)
 
     return {
         "user_id": user_id,
