@@ -4,6 +4,7 @@ from typing import Any
 
 import redis.asyncio as redis
 from pydantic_settings import BaseSettings
+from scoring import MODEL_VERSION
 
 log = logging.getLogger(__name__)
 
@@ -21,7 +22,8 @@ _ttl = 45
 
 
 def cache_key(user_id: str, page: int, size: int) -> str:
-    return f"feed:v0:user:{user_id}:page:{page}:size:{size}"
+    # Versioned by the ranking model so a formula change retires stale pages.
+    return f"feed:{MODEL_VERSION}:user:{user_id}:page:{page}:size:{size}"
 
 
 async def open_cache(settings: CacheSettings | None = None) -> None:

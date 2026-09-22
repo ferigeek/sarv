@@ -49,7 +49,10 @@ class CandidateGenerator:
         observe_db_query(source, perf_counter() - start)
 
         return [
-            PostFeatures(str(row[0]), row[1], row[2], row[3], row[4], from_followed=from_followed)
+            PostFeatures(
+                str(row[0]), row[1], row[2], row[3], row[4],
+                from_followed=from_followed, author_id=str(row[5]), comment_count=row[6],
+            )
             for row in rows
         ]
 
@@ -61,7 +64,8 @@ class CandidateGenerator:
         cutoff = datetime.now(timezone.utc) - timedelta(days=self.search_span_days)
 
         query = """
-            SELECT id, like_count, dislike_count, view_count, created_at
+            SELECT id, like_count, dislike_count, view_count, created_at,
+                   user_id, comment_count
             FROM posts
             WHERE deleted_at IS NULL
               AND created_at >= %s
@@ -79,7 +83,8 @@ class CandidateGenerator:
         cutoff = datetime.now(timezone.utc) - timedelta(days=self.search_span_days)
 
         query = """
-            SELECT p.id, p.like_count, p.dislike_count, p.view_count, p.created_at
+            SELECT p.id, p.like_count, p.dislike_count, p.view_count, p.created_at,
+                   p.user_id, p.comment_count
             FROM posts p
             JOIN follows f ON p.user_id = f.followed_id
             WHERE f.follower_id = %s
@@ -101,7 +106,8 @@ class CandidateGenerator:
         cutoff = datetime.now(timezone.utc) - timedelta(days=self.search_span_days)
 
         query = """
-            SELECT p.id, p.like_count, p.dislike_count, p.view_count, p.created_at
+            SELECT p.id, p.like_count, p.dislike_count, p.view_count, p.created_at,
+                   p.user_id, p.comment_count
             FROM posts p
             JOIN follows f ON p.user_id = f.follower_id
             WHERE f.followed_id = %s

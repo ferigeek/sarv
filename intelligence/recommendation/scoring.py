@@ -13,6 +13,10 @@ class PostFeatures:
     view_count: int
     created_at: datetime
     from_followed: bool = False  # Author is followed by the requesting user
+    author_id: str = ""  # Post author (users.id); for affinity lookup
+    comment_count: int = 0
+    author_affinity: float = 0.0  # Weighted past interaction with the author
+    user_boost: float = 1.0  # Requesting user's engagement level multiplier
 
 
 def score_post(features: PostFeatures, now: datetime | None = None) -> float:

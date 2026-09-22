@@ -17,17 +17,16 @@ def fake_cursor(rows):
     return cur
 
 
-def run_with_rows(trending, following, follower):
+def run_with_rows(trending, following, follower, affinity=None, engagement=None):
     gen = CandidateGenerator("1")
     conn = MagicMock()
     conn.cursor.side_effect = [
         fake_cursor(trending),
         fake_cursor(following),
         fake_cursor(follower),
+        fake_cursor(affinity if affinity is not None else []),
+        fake_cursor(engagement if engagement is not None else []),
     ]
-
-    async def fake_connection():
-        yield conn
 
     from contextlib import asynccontextmanager
 
@@ -45,19 +44,21 @@ def run_with_rows(trending, following, follower):
 
 def test_trending_following_overlap_keeps_flagged_copy():
     cands = run_with_rows(
-        trending=[(1, 10, 0, 100, NOW)],
-        following=[(1, 10, 0, 100, NOW), (2, 5, 0, 10, NOW)],
-        follower=[(3, 1, 0, 1, NOW)],
+        trending=[(1, 10, 0, 100, NOW, "11", 2)],
+        following=[(1, 10, 0, 100, NOW, "11", 2), (2, 5, 0, 10, NOW, "12", 0)],
+        follower=[(3, 1, 0, 1, NOW, "13", 0)],
     )
     assert [c.post_id for c in cands] == ["1", "2", "3"]
     assert cands[0].from_followed is True
+    assert cands[0].author_id == "11"
+    assert cands[0].comment_count == 2
 
 
 def test_follower_posts_get_no_boost_flag():
     cands = run_with_rows(
         trending=[],
         following=[],
-        follower=[(9, 4, 0, 20, NOW)],
+        follower=[(9, 4, 0, 20, NOW, "19", 1)],
     )
     assert len(cands) == 1
     assert cands[0].post_id == "9"
@@ -66,8 +67,8 @@ def test_follower_posts_get_no_boost_flag():
 
 def test_dedup_preserves_first_seen_order():
     cands = run_with_rows(
-        trending=[(1, 1, 0, 1, NOW), (2, 1, 0, 1, NOW)],
-        following=[(2, 1, 0, 1, NOW), (3, 1, 0, 1, NOW)],
+        trending=[(1, 1, 0, 1, NOW, "11", 0), (2, 1, 0, 1, NOW, "12", 0)],
+        following=[(2, 1, 0, 1, NOW, "12", 0), (3, 1, 0, 1, NOW, "13", 0)],
         follower=[],
     )
     assert [c.post_id for c in cands] == ["1", "2", "3"]

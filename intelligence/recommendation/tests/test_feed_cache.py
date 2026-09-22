@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 import main
-from scoring import PostFeatures
+from scoring import MODEL_VERSION, PostFeatures
 
 NOW = datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc)
 
@@ -40,7 +40,7 @@ def test_cache_miss_stores_result():
         assert [p["post_id"] for p in body["posts"]] == ["1", "2"]
         assert setter.await_count == 1
         key, payload = setter.await_args.args
-        assert key == "feed:v0:user:42:page:0:size:20"
+        assert key == f"feed:{MODEL_VERSION}:user:42:page:0:size:20"
         assert payload["total"] == 2
 
 
