@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import math
 
 MODEL_VERSION = "heuristic-v1"
 
@@ -63,3 +64,35 @@ def engagement_boost(views: int, likes: int, comments: int) -> float:
         return 1.0
     rate = min((likes + comments) / views, 1.0)
     return 0.9 + 0.2 * rate
+
+
+FEATURE_NAMES = [
+    "log_like",
+    "log_dislike",
+    "log_view",
+    "log_comment",
+    "age_hours",
+    "from_followed",
+    "affinity_capped",
+    "user_boost",
+]
+
+
+def to_vector(features: PostFeatures, now: datetime | None = None) -> list[float]:
+    """
+    Shared model feature vector. Single definition used by serving (ranking)
+    and training (dataset building) so the two cannot diverge. Counts are
+    log-scaled; age and affinity enter raw (affinity capped as in scoring).
+    """
+    now = now or datetime.now(timezone.utc)
+    age_hours = max((now - features.created_at).total_seconds() / 3600, 0)
+    return [
+        math.log1p(max(features.like_count, 0)),
+        math.log1p(max(features.dislike_count, 0)),
+        math.log1p(max(features.view_count, 0)),
+        math.log1p(max(features.comment_count, 0)),
+        age_hours,
+        1.0 if features.from_followed else 0.0,
+        min(max(features.author_affinity, 0.0), AFFINITY_CAP),
+        features.user_boost,
+    ]

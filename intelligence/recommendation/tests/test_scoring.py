@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from scoring import PostFeatures, engagement_boost, score_post
+from scoring import FEATURE_NAMES, PostFeatures, engagement_boost, score_post, to_vector
 
 NOW = datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc)
 
@@ -103,3 +103,11 @@ def test_engagement_boost_clamped():
 
 def test_user_boost_scales_score():
     assert score_post(make_post(user_boost=1.1), now=NOW) == score_post(make_post(), now=NOW) * 1.1
+
+
+def test_to_vector_single_definition():
+    vec = to_vector(make_post(likes=10, followed=True, affinity=20.0), now=NOW)
+    assert len(vec) == len(FEATURE_NAMES) == 8
+    assert vec[5] == 1.0  # from_followed flag
+    assert vec[6] == 10.0  # affinity capped
+    assert vec[0] > vec[3]  # loglikes vs logcomments ordering sanity
