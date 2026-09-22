@@ -243,7 +243,27 @@ Read-through Redis (`cache.py`): key `feed:{MODEL_VERSION}:user:{id}:page:{p}:si
 
 ## Metrics
 
-Default `prometheus-fastapi-instrumentator` histograms plus (`metrics.py`): `feed_cache_events_total{outcome}`, `feed_db_query_seconds{query}`, `feed_candidates_count{source}`, `feed_scoring_seconds`, `feed_request_seconds{outcome}`, `feed_result_total`, `feed_scores`, `feed_model_info{version}`. Scraped as `sarv-recommendation` in `monitoring/prometheus.yml`.
+Default `prometheus-fastapi-instrumentator` histograms plus (`metrics.py`): `feed_cache_events_total{outcome}`, `feed_db_query_seconds{query}`, `feed_candidates_count{source}`, `feed_scoring_seconds{ranker}`, `feed_request_seconds{outcome,ranker}`, `feed_result_total`, `feed_scores`, `feed_model_info{version}`. Scraped as `sarv-recommendation` in `monitoring/prometheus.yml`.
+
+## Evaluation
+
+Needs real event history — vacuous on an empty dev DB. Offline quality comes from `train.py` (`metadata.json`: LR vs heuristic AUC/P@10 on the same split, plus prevalence). Speed compares two runs against the same seeded stack:
+
+```bash
+docker compose up --build -d postgres core_backend recommendation
+cd load_tests && uv run python seed.py --users 50
+# A: heuristic (no artifact)
+uv run locust -f locustfile.py -H http://localhost:8080 --headless -u 100 -r 5 -t 10m --csv heuristic
+# B: learned (train first, then restart recommendation with the artifact)
+cd ../intelligence/recommendation
+uv run python train.py --build-only --out data/train.csv
+uv run python train.py --train --in data/train.csv
+MODEL_PATH=models/model.pkl uv run uvicorn main:app --port 8000  # or compose with MODEL_PATH
+cd ../../load_tests
+uv run locust -f locustfile.py -H http://localhost:8080 --headless -u 100 -r 5 -t 10m --csv learned
+```
+
+Compare: Locust CSVs (`..._stats.csv`) on `/api/feed/recommended` p95/failures A vs B; Prometheus `histogram_quantile(0.95, sum by (le, ranker)(rate(feed_request_seconds_bucket[5m])))` and the same for `feed_scoring_seconds`; `feed_cache_events_total` and `feed_model_info` as sanity gauges. No Grafana dashboard is provisioned for `feed_*` (Step 11); snapshots + CSVs are the record.
 
 ## Integration with Core Backend
 

@@ -243,7 +243,24 @@ return engagement * recency_boost * follow_boost * affinity_boost * user_boost
 
 ## متریک‌ها
 
-علاوه بر هیستوگرام‌های پیش‌فرض instrumentator (`metrics.py`): `feed_cache_events_total{outcome}`، `feed_db_query_seconds{query}`، `feed_candidates_count{source}`، `feed_scoring_seconds`، `feed_request_seconds{outcome}`، `feed_result_total`، `feed_scores`، `feed_model_info{version}`. در `monitoring/prometheus.yml` به‌عنوان `sarv-recommendation` scrape می‌شود.
+علاوه بر هیستوگرام‌های پیش‌فرض instrumentator (`metrics.py`): `feed_cache_events_total{outcome}`، `feed_db_query_seconds{query}`، `feed_candidates_count{source}`، `feed_scoring_seconds{ranker}`، `feed_request_seconds{outcome,ranker}`، `feed_result_total`، `feed_scores`، `feed_model_info{version}`. در `monitoring/prometheus.yml` به‌عنوان `sarv-recommendation` scrape می‌شود.
+
+## ارزیابی
+
+به تاریخچه واقعی رویداد نیاز دارد — روی DB خالی توسعه بی‌معناست. کیفیت آفلاین از `train.py` می‌آید (`metadata.json`: مقایسه AUC/P@10 مدل و هیوریستیک روی اسپلیت یکسان). سرعت با دو اجرا روی استک سیدشده یکسان مقایسه می‌شود:
+
+```bash
+docker compose up --build -d postgres core_backend recommendation
+cd load_tests && uv run python seed.py --users 50
+# A: هیوریستیک (بدون آرتیفکت)
+uv run locust -f locustfile.py -H http://localhost:8080 --headless -u 100 -r 5 -t 10m --csv heuristic
+# B: یادگرفته (اول train، بعد recommendation با آرتیفکت)
+cd ../intelligence/recommendation
+uv run python train.py --build-only --out data/train.csv
+uv run python train.py --train --in data/train.csv
+```
+
+مقایسه: p95/خطای `/api/feed/recommended` در CSVهای Locust بین A و B؛ در Prometheus کوانتایل ۹۵ `feed_request_seconds` و `feed_scoring_seconds` به تفکیک `ranker`؛ `feed_cache_events_total` و `feed_model_info` برای سلامت. داشبورد Grafana برای `feed_*` نداریم (گام ۱۱)؛ اسنپ‌شات و CSV سند است.
 
 ## یکپارچه‌سازی با هسته مرکزی
 
