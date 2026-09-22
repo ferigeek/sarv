@@ -1,6 +1,6 @@
 # Recommendation Service
 
-FastAPI service for personalized feed ranking (`heuristic-v0`).
+FastAPI service for personalized feed ranking (`heuristic-v1`: engagement + recency + follow/affinity/user boosts; see `scoring.py`).
 
 - `GET /feed?user_id=&page=&size=` → ranked `post_id` + `score` with `total` (see `main.py`; read-through Redis cache `feed:v0:*`, bypass on failure)
 - `GET /health` → health probe with `status` + `model`

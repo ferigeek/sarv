@@ -76,7 +76,7 @@ Swagger UI در `http://localhost:8000/docs` (خودکار FastAPI) در دست�
 - **احراز هویت:** ندارد (شبکه داخلی)
 - **پاسخ `200`:**
 ```json
-{ "status": "ok", "model": "heuristic-v0" }
+{ "status": "ok", "model": "heuristic-v1" }
 ```
 
 ### `GET /feed`
@@ -167,7 +167,7 @@ ORDER BY p.created_at DESC LIMIT 50
 
 ## امتیازدهی
 
-کلاس `PostFeatures` (`scoring.py:6`):
+کلاس `PostFeatures` (`scoring.py`):
 
 ```python
 post_id: str
@@ -176,27 +176,41 @@ dislike_count: int
 view_count: int
 created_at: datetime
 from_followed: bool = False
+author_id: str = ""
+comment_count: int = 0
+author_affinity: float = 0.0
+user_boost: float = 1.0
 ```
 
-`score_post(features, now=None)` (`scoring.py:16`):
+`score_post(features, now=None)` (`heuristic-v1`):
 
 ```python
-engagement = 2 * like_count + view_count - 2 * dislike_count
+engagement = 2 * like_count + view_count + 3 * comment_count - 2 * dislike_count
 engagement = max(engagement, 0)
 
 age_hours = max((now - created_at).total_seconds() / 3600, 0)
 recency_boost = 1 / (1 + age_hours / 48)  # نیمه‌عمر حدود 48 ساعت
 
 follow_boost = 1.5 if from_followed else 1.0
+affinity_boost = 1 + min(max(author_affinity, 0), 10) * 0.1  # ۱ تا ۲
 
-return engagement * recency_boost * follow_boost
+return engagement * recency_boost * follow_boost * affinity_boost * user_boost
 ```
 
-- تعامل با وزن `2×` برای لایک/دیسلایک، `1×` برای بازدید، کف ۰.
+- تعامل با وزن `2×` لایک/دیسلایک، `3×` کامنت، `1×` بازدید، کف ۰.
 - پوسیدگی زمانی `1/(1+t/48h)` → ۵۰٪ در ۲ روز، ۳۳٪ در ۴ روز.
-- تقویت دنبال‌شدن `1.5×`.
+- تقویت دنبال‌شدن `1.5×`؛ تقویت تعامل با نویسنده `1.0` (سرد) تا `2.0` (سقف ۱۰ امتیاز).
+- `user_boost` در `0.9 تا 1.1` از نرخ لایک/کامنت کاربر، `1.0` برای کاربران جدید.
 
-*نمونه:* ۱۰ لایک، ۱۰۰ بازدید، ۱ دیسلایک، ۱۲ ساعت عمر، از دنبال‌شونده → `(20+100-2)*0.8*1.5 ≈ 141.6`.
+*نمونه:* ۱۰ لایک، ۱۰۰ بازدید، ۲ کامنت، ۱ دیسلایک، ۱۲ ساعت عمر، از دنبال‌شونده، تعامل ۵ → `(20+100+6-2)*0.8*1.5*1.5 ≈ 223.2`.
+
+## سیگنال‌های رفتاری
+
+دو کوئری اضافه در هر `/feed` (همان اتصال، با ایندکس‌های موجود، زمان‌سنجی `affinity`/`engagement`):
+
+- **تعامل با نویسنده** (`_get_author_affinity`، بازه ۳۰ روزه): `event_logs JOIN posts` گروه‌بندی‌شده بر نویسنده با وزن‌ها `VIEW=1, LIKE=3, COMMENT=4, REPOST/QUOTE=5, DISLIKE=-2` (فقط بازدید ساده؛ dwell موکول شد). نویسنده ناآشنا `0`.
+- **سطح تعامل کاربر** (`_get_user_boost`، بازه ۳۰ روزه): یک تجمیع `VIEW/LIKE/COMMENT` → ضریب نرخ `engagement_boost`.
+- ایندکس `V10 (user_id, type, created_at)` موکول شد — ابتدا `EXPLAIN` روی داده واقعی.
 
 `ranked = sorted(candidates, key=score_post, reverse=True)` ترتیب نهایی را تعیین می‌کند.
 
@@ -204,7 +218,7 @@ return engagement * recency_boost * follow_boost
 
 ## کش
 
-کش read-through ردیس (`cache.py`): کلید `feed:v0:user:{id}:page:{p}:size:{s}`، مقدار `{posts, total}`، ماندگاری `FEED_CACHE_TTL_SECONDS` (۴۵ ثانیه). هیت DB را دور می‌زند؛ هر خطا با `WARN` به DB مستقیم برمی‌گردد. با `feed_cache_events_total{outcome}` ثبت می‌شود.
+کش read-through ردیس (`cache.py`): کلید `feed:{MODEL_VERSION}:user:{id}:page:{p}:size:{s}`، مقدار `{posts, total}`، ماندگاری `FEED_CACHE_TTL_SECONDS` (۴۵ ثانیه). کلید از `MODEL_VERSION` مشتق می‌شود، پس تغییر فرمول صفحات قدیمی را خودکار بازنشسته می‌کند. هیت DB را دور می‌زند؛ هر خطا با `WARN` به DB مستقیم برمی‌گردد. با `feed_cache_events_total{outcome}` ثبت می‌شود.
 
 ## صفحه‌بندی و قرارداد
 
@@ -279,13 +293,14 @@ healthcheck:
 ## وضعیت پیاده‌سازی
 
 - **تولید کاندید:** پیاده‌سازی‌شده (داغ ۱۰۰، دنبال‌شونده ۵۰، دنبال‌کننده ۵۰، حذف تکراری با اولویت نسخه پرچم‌دار، بازه ۷ روز؛ پست‌های دنبال‌کننده بدون ضریب)
-- **امتیازدهی:** پیاده‌سازی‌شده به‌عنوان `heuristic-v0` (`2*like + view -2*dislike`، نیمه‌عمر `48h`، ضریب `1.5×` فقط برای دنبال‌شونده‌ها)
+- **امتیازدهی:** پیاده‌سازی‌شده به‌عنوان `heuristic-v1` (`2L + V + 3C - 2D`، نیمه‌عمر `48h`، ضریب `1.5×` دنبال‌شونده، `1.0 تا 2.0×` تعامل با نویسنده، `0.9 تا 1.1×` سطح تعامل کاربر)
 - **API:** پیاده‌سازی‌شده (`GET /feed` با `page/size/total`، `GET /health` با `status` و `model`)
 - **صفحه‌بندی:** پیاده‌سازی‌شده سمت سرور `score desc`
 - **Docker و سلامت:** پیاده‌سازی‌شده
 - **یکپارچه‌سازی:** پیاده‌سازی‌شده (بک‌اند `RestClient` + fallback)
-- **تست:** پیاده‌سازی‌شده (`tests/test_scoring|dedup|contract|cache|metrics`، ۱۸ مورد)
-- **لایه داده (P1):** پیاده‌سازی‌شده (`AsyncConnectionPool` + lifespan، `_fetch` یکپارچه، کش read-through ردیس `feed:v0:*` با ۴۵ ثانیه ماندگاری و bypass، ایندکس‌های جزئی `V9`)
+- **تست:** پیاده‌سازی‌شده (`tests/test_scoring|dedup|contract|cache|metrics`، ۳۲ مورد)
+- **سیگنال‌های رفتاری (P2):** پیاده‌سازی‌شده (تعامل ۳۰ روزه با نویسنده + سطح تعامل کاربر، کلید کش نسخه‌دار؛ ایندکس `V10` موکول شد)
+- **لایه داده (P1):** پیاده‌سازی‌شده (`AsyncConnectionPool` + lifespan، `_fetch` یکپارچه، کش read-through ردیس با ۴۵ ثانیه ماندگاری و bypass، ایندکس‌های جزئی `V9`)
 - **مشاهده‌پذیری (P1):** پیاده‌سازی‌شده (متریک‌های کش/کوئری/کاندید/امتیاز/درخواست/نتیجه/امتیازها + `feed_model_info`)
 - **موارد باقی‌مانده:** قرارداد فقط شناسه
 

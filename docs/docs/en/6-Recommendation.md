@@ -76,7 +76,7 @@ Health probe for `docker-compose.yaml` (`interval 10s, timeout 3s, retries 3, st
 - **Auth:** none (internal network)
 - **Response `200`:**
 ```json
-{ "status": "ok", "model": "heuristic-v0" }
+{ "status": "ok", "model": "heuristic-v1" }
 ```
 
 ### `GET /feed`
@@ -167,7 +167,7 @@ Backed by `V9__add_recommendation_indexes.sql`: partial `idx_posts_trending` for
 
 ## Scoring
 
-`PostFeatures` dataclass (`scoring.py:6`):
+`PostFeatures` dataclass (`scoring.py`):
 
 ```python
 post_id: str
@@ -176,27 +176,41 @@ dislike_count: int
 view_count: int
 created_at: datetime
 from_followed: bool = False
+author_id: str = ""
+comment_count: int = 0
+author_affinity: float = 0.0
+user_boost: float = 1.0
 ```
 
-`score_post(features, now=None)` (`scoring.py:16`):
+`score_post(features, now=None)` (`heuristic-v1`):
 
 ```python
-engagement = 2 * like_count + view_count - 2 * dislike_count
+engagement = 2 * like_count + view_count + 3 * comment_count - 2 * dislike_count
 engagement = max(engagement, 0)
 
 age_hours = max((now - created_at).total_seconds() / 3600, 0)
 recency_boost = 1 / (1 + age_hours / 48)  # half-life ~48h
 
 follow_boost = 1.5 if from_followed else 1.0
+affinity_boost = 1 + min(max(author_affinity, 0), 10) * 0.1  # 1.0-2.0
 
-return engagement * recency_boost * follow_boost
+return engagement * recency_boost * follow_boost * affinity_boost * user_boost
 ```
 
-- Engagement weighted `2×` for likes/dislikes, `1×` for views, clamped to 0.
+- Engagement weighted `2×` likes/dislikes, `3×` comments, `1×` views, clamped to 0.
 - Recency decay `1/(1+t/48h)` → 50% at 2 days, 33% at 4 days.
-- Follow boost `1.5×`.
+- Follow boost `1.5×`; affinity boost `1.0` (cold) to `2.0` (capped at 10 points).
+- `user_boost` in `0.9-1.1` from the user's like/comment rate (`engagement_boost`), `1.0` with no views.
 
-*Example:* 10 likes, 100 views, 1 dislike, 12h old, from followed → `(20+100-2)*0.8*1.5 ≈ 141.6`.
+*Example:* 10 likes, 100 views, 2 comments, 1 dislike, 12h old, from followed, affinity 5 → `(20+100+6-2)*0.8*1.5*1.5 ≈ 223.2`.
+
+## Behavior signals
+
+Two extra queries per `/feed` (same connection, ridden indexes, timed as `affinity`/`engagement`):
+
+- **Author affinity** (`_get_author_affinity`, 30d window): `event_logs JOIN posts` grouped by author with weights `VIEW=1, LIKE=3, COMMENT=4, REPOST/QUOTE=5, DISLIKE=-2` (plain views; dwell deferred). Cold authors score `0`.
+- **User engagement** (`_get_user_boost`, 30d window): one aggregate of `VIEW/LIKE/COMMENT` counts → `engagement_boost` rate multiplier.
+- A `V10 (user_id, type, created_at)` index is deferred — `EXPLAIN` first on staging-size data.
 
 The `ranked = sorted(candidates, key=score_post, reverse=True)` determines final order.
 
@@ -204,7 +218,7 @@ The `ranked = sorted(candidates, key=score_post, reverse=True)` determines final
 
 ## Caching
 
-Read-through Redis (`cache.py`): key `feed:v0:user:{id}:page:{p}:size:{s}`, value `{posts, total}`, TTL `FEED_CACHE_TTL_SECONDS` (45s). Hits skip the DB; any failure logs `WARN` and bypasses. Observed as `feed_cache_events_total{outcome}`.
+Read-through Redis (`cache.py`): key `feed:{MODEL_VERSION}:user:{id}:page:{p}:size:{s}`, value `{posts, total}`, TTL `FEED_CACHE_TTL_SECONDS` (45s). The key derives from `MODEL_VERSION`, so formula bumps retire stale pages automatically. Hits skip the DB; any failure logs `WARN` and bypasses. Observed as `feed_cache_events_total{outcome}`.
 
 ## Pagination & Contract
 
@@ -279,13 +293,14 @@ Backend contract tests remain the source of truth for integration:
 ## Implementation Status
 
 - **Candidate generation:** Implemented (trending 100, following 50, follower 50, dedup preferring the flagged copy, 7d window; follower posts get no follow boost)
-- **Scoring:** Implemented as `heuristic-v0` (`2*like + view -2*dislike`, `48h` half-life, `1.5×` follow boost only for followed authors)
+- **Scoring:** Implemented as `heuristic-v1` (`2L + V + 3C - 2D`, `48h` half-life, `1.5×` follow, `1.0-2.0×` affinity, `0.9-1.1×` user engagement)
 - **API:** Implemented (`GET /feed` with `page/size/total`, `GET /health` with `status` + `model`)
 - **Pagination:** Implemented server-side `score desc`
 - **Docker & healthcheck:** Implemented
 - **Integration:** Implemented (backend `RestClient` + fallback)
-- **Testing:** Implemented (`tests/test_scoring|dedup|contract|cache|metrics`, 18 cases)
-- **Data layer (P1):** Implemented (`AsyncConnectionPool` + lifespan, unified `_fetch`, Redis read-through `feed:v0:*` 45s TTL with bypass, `V9` partial indexes)
+- **Testing:** Implemented (`tests/test_scoring|dedup|contract|cache|metrics`, 32 cases)
+- **Behavior signals (P2):** Implemented (30d author affinity + user engagement aggregates, versioned cache key; `V10` index deferred pending EXPLAIN)
+- **Data layer (P1):** Implemented (`AsyncConnectionPool` + lifespan, unified `_fetch`, Redis read-through 45s TTL with bypass, `V9` partial indexes)
 - **Observability (P1):** Implemented (cache/query/candidate/scoring/request/result/score metrics + `feed_model_info`)
 - **Outstanding:** IDs-only contract
 
