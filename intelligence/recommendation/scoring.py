@@ -6,6 +6,8 @@ MODEL_VERSION = "heuristic-v1"
 AFFINITY_CAP = 10.0  # Affinity above this earns no extra boost
 AFFINITY_RATE = 0.1  # Each affinity point adds 10% (max 2x at cap)
 
+COMMENT_WEIGHT = 3  # Comments signal stronger intent than likes
+
 
 @dataclass
 class PostFeatures:
@@ -33,7 +35,12 @@ def score_post(features: PostFeatures, now: datetime | None = None) -> float:
     """
     now = now or datetime.now(timezone.utc)
 
-    engagement = 2 * features.like_count + features.view_count - 2 * features.dislike_count
+    engagement = (
+        2 * features.like_count
+        + features.view_count
+        + COMMENT_WEIGHT * features.comment_count
+        - 2 * features.dislike_count
+    )
     engagement = max(engagement, 0)
 
     age_hours = max((now - features.created_at).total_seconds() / 3600, 0)
@@ -45,3 +52,14 @@ def score_post(features: PostFeatures, now: datetime | None = None) -> float:
     affinity_boost = 1 + affinity * AFFINITY_RATE  # 1.0 (cold) to 2.0 (capped)
 
     return engagement * recency_boost * follow_boost * affinity_boost * features.user_boost
+
+
+def engagement_boost(views: int, likes: int, comments: int) -> float:
+    """
+    Maps a user's like/comment rate to a 0.9-1.1 multiplier centered near
+    average activity. New users with no views stay neutral at 1.0.
+    """
+    if views <= 0:
+        return 1.0
+    rate = min((likes + comments) / views, 1.0)
+    return 0.9 + 0.2 * rate

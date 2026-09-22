@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from scoring import PostFeatures, score_post
+from scoring import PostFeatures, engagement_boost, score_post
 
 NOW = datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc)
 
@@ -78,3 +78,28 @@ def test_affinity_capped_at_ten_points():
 
 def test_negative_affinity_treated_as_zero():
     assert score_post(make_post(affinity=-4.0), now=NOW) == score_post(make_post(), now=NOW)
+
+
+def test_comment_outweighs_like():
+    liked = make_post(likes=1, views=0)
+    commented = PostFeatures(
+        post_id="c", like_count=0, dislike_count=0, view_count=0,
+        created_at=NOW, comment_count=1,
+    )
+    assert score_post(commented, now=NOW) > score_post(liked, now=NOW)
+
+
+def test_engagement_boost_cold_start_neutral():
+    assert engagement_boost(0, 0, 0) == 1.0
+
+
+def test_engagement_boost_rate_math():
+    assert engagement_boost(10, 5, 1) == 0.9 + 0.2 * 0.6
+
+
+def test_engagement_boost_clamped():
+    assert engagement_boost(10, 50, 50) == 1.1
+
+
+def test_user_boost_scales_score():
+    assert score_post(make_post(user_boost=1.1), now=NOW) == score_post(make_post(), now=NOW) * 1.1

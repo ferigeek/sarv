@@ -105,3 +105,22 @@ def test_dedup_winner_keeps_flag_and_affinity():
     assert len(cands) == 1
     assert cands[0].from_followed is True
     assert cands[0].author_affinity == 4.0
+
+
+def test_user_boost_applied_to_candidates():
+    cands = run_with_rows(
+        trending=[(1, 10, 0, 100, NOW, "11", 0)],
+        following=[],
+        follower=[],
+        engagement=[(10, 5, 1)],
+    )
+    assert cands[0].user_boost == 0.9 + 0.2 * 0.6
+
+
+def test_user_boost_defaults_neutral_without_history():
+    cands = run_with_rows(
+        trending=[(1, 10, 0, 100, NOW, "11", 0)],
+        following=[],
+        follower=[],
+    )
+    assert cands[0].user_boost == 1.0

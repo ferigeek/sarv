@@ -3,7 +3,7 @@ from time import perf_counter
 from typing import List
 from database import get_connection
 from metrics import observe_candidates, observe_db_query
-from scoring import PostFeatures
+from scoring import PostFeatures, engagement_boost
 
 
 class CandidateGenerator:
@@ -29,10 +29,12 @@ class CandidateGenerator:
             following_posts = await self._get_following_posts(conn)
             follower_posts = await self._get_follower_posts(conn)
             affinity = await self._get_author_affinity(conn)
+            user_boost = await self._get_user_boost(conn)
 
         all_posts = trending + following_posts + follower_posts
         for post in all_posts:
             post.author_affinity = affinity.get(post.author_id, 0.0)
+            post.user_boost = user_boost
 
         # Combine and deduplicate by post id, preserving first-seen order
         # but preferring the copy with the stronger personal signal.
@@ -89,6 +91,33 @@ class CandidateGenerator:
         observe_db_query("affinity", perf_counter() - start)
 
         return {str(author_id): float(score) for author_id, score in rows}
+
+    async def _get_user_boost(self, conn) -> float:
+        """
+        Returns the requesting user's engagement multiplier from their
+        like/comment rate over the affinity window. One small aggregate,
+        riding the event_logs user index.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=self.AFFINITY_WINDOW_DAYS)
+
+        query = """
+            SELECT
+              COUNT(*) FILTER (WHERE e.type = 'VIEW_POST') AS views,
+              COUNT(*) FILTER (WHERE e.type = 'LIKE_POST') AS likes,
+              COUNT(*) FILTER (WHERE e.type = 'CREATE_COMMENT') AS comments
+            FROM event_logs e
+            WHERE e.user_id = %s
+              AND e.created_at >= %s
+        """
+
+        start = perf_counter()
+        async with conn.cursor() as cur:
+            await cur.execute(query, (self.user_id, cutoff))
+            rows = await cur.fetchall()
+        observe_db_query("engagement", perf_counter() - start)
+
+        views, likes, comments = rows[0] if rows else (0, 0, 0)
+        return engagement_boost(views, likes, comments)
 
     async def _fetch(self, conn, query: str, params: tuple, *, source: str, from_followed: bool = False) -> List[PostFeatures]:
         """Runs one candidate query and maps rows to PostFeatures."""
