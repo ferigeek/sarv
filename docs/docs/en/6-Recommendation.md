@@ -16,6 +16,8 @@ Key properties:
 - Synchronous — ranking is on the critical path of `GET /api/feed/recommended` but degrades gracefully to chronological on failure
 - Shared database — reads `posts` and `follows` tables (no writes)
 
+> **Contract note:** this service's `GET /feed` *is* the UC-12 "Get Smart Feed" ranker from the requirements — there is intentionally no separate `/smart_feed` path. Users call backend `GET /api/feed/recommended`, which delegates ranking here.
+
 ---
 
 ## Quickstart
