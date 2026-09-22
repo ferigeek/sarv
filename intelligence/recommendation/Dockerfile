@@ -12,7 +12,8 @@ COPY pyproject.toml uv.lock ./
 
 RUN uv sync --frozen --no-install-project
 
-COPY main.py candidate.py scoring.py database.py cache.py metrics.py ./
+COPY main.py candidate.py scoring.py database.py cache.py metrics.py model.py train.py ./
+COPY models ./models
 
 RUN uv sync --frozen
 
@@ -32,6 +33,8 @@ COPY --from=build --chown=appuser:appuser /app/scoring.py /app/scoring.py
 COPY --from=build --chown=appuser:appuser /app/database.py /app/database.py
 COPY --from=build --chown=appuser:appuser /app/cache.py /app/cache.py
 COPY --from=build --chown=appuser:appuser /app/metrics.py /app/metrics.py
+COPY --from=build --chown=appuser:appuser /app/model.py /app/model.py
+COPY --from=build --chown=appuser:appuser /app/models /app/models
 
 ENV PATH="/app/.venv/bin:$PATH"
 
