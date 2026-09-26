@@ -2,60 +2,16 @@ import os
 
 os.environ.setdefault("DB_URL", "postgresql://localhost:5432/sarv")
 
-import asyncio
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 from analytics.db.queries.peak_hours import peak_activity_hours
+from fakes import FakePool, run
 
 UTC = timezone.utc
 START = datetime(2026, 1, 1, tzinfo=UTC)
 END = datetime(2026, 1, 2, tzinfo=UTC)
-
-
-class FakeCur:
-    def __init__(self, rows):
-        self._rows = rows
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        return False
-
-    async def execute(self, query, params):
-        self.query = query
-        self.params = params
-
-    async def fetchall(self):
-        return self._rows
-
-
-class FakeConn:
-    def __init__(self, rows):
-        self._rows = rows
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        return False
-
-    def cursor(self):
-        return FakeCur(self._rows)
-
-
-class FakePool:
-    def __init__(self, rows):
-        self._rows = rows
-
-    def connection(self):
-        return FakeConn(self._rows)
-
-
-def run(coro):
-    return asyncio.run(coro)
 
 
 class PeakHoursQueryTest(unittest.TestCase):

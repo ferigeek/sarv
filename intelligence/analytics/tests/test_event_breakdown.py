@@ -2,7 +2,6 @@ import os
 
 os.environ.setdefault("DB_URL", "postgresql://localhost:5432/sarv")
 
-import asyncio
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
@@ -12,54 +11,11 @@ from analytics.db.queries.event_breakdown import (
     event_breakdown_over_time,
     event_totals,
 )
+from fakes import FakePool, run
 
 UTC = timezone.utc
 START = datetime(2026, 1, 1, tzinfo=UTC)
 END = datetime(2026, 1, 1, 2, tzinfo=UTC)
-
-
-class FakeCur:
-    def __init__(self, rows):
-        self._rows = rows
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        return False
-
-    async def execute(self, query, params):
-        self.query = query
-        self.params = params
-
-    async def fetchall(self):
-        return self._rows
-
-
-class FakeConn:
-    def __init__(self, rows):
-        self._rows = rows
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        return False
-
-    def cursor(self):
-        return FakeCur(self._rows)
-
-
-class FakePool:
-    def __init__(self, rows):
-        self._rows = rows
-
-    def connection(self):
-        return FakeConn(self._rows)
-
-
-def run(coro):
-    return asyncio.run(coro)
 
 
 class EventTotalsTest(unittest.TestCase):

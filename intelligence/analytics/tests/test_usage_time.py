@@ -12,50 +12,11 @@ from analytics.db.queries._common import (
     parse_interval,
 )
 from analytics.db.queries.usage_time import usage_activity_over_time
+from fakes import FakePool, run
 
 UTC = timezone.utc
 START = datetime(2026, 1, 1, tzinfo=UTC)
 END = datetime(2026, 1, 1, 3, tzinfo=UTC)
-
-
-class FakeCur:
-    def __init__(self, rows):
-        self._rows = rows
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        return False
-
-    async def execute(self, query, params):
-        self.query = query
-        self.params = params
-
-    async def fetchall(self):
-        return self._rows
-
-
-class FakeConn:
-    def __init__(self, rows):
-        self._rows = rows
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        return False
-
-    def cursor(self):
-        return FakeCur(self._rows)
-
-
-class FakePool:
-    def __init__(self, rows):
-        self._rows = rows
-
-    def connection(self):
-        return FakeConn(self._rows)
 
 
 class ParseIntervalTest(unittest.TestCase):
@@ -103,9 +64,7 @@ class BucketTest(unittest.TestCase):
 class UsageActivityTest(unittest.TestCase):
     def run_query(self, rows, *args):
         with patch("analytics.db.pool.pool", FakePool(rows)):
-            import asyncio
-
-            return asyncio.run(usage_activity_over_time(*args))
+            return run(usage_activity_over_time(*args))
 
     def test_empty_range_returns_zeros(self):
         buckets = self.run_query([], START, END, "1h")

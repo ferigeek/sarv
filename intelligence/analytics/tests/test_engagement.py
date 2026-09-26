@@ -2,7 +2,6 @@ import os
 
 os.environ.setdefault("DB_URL", "postgresql://localhost:5432/sarv")
 
-import asyncio
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
@@ -11,61 +10,12 @@ from analytics.db.queries.engagement import (
     engagement_over_time,
     engagement_totals,
 )
+from fakes import FakePool, run
 
 UTC = timezone.utc
 START = datetime(2026, 1, 1, tzinfo=UTC)
 MID = datetime(2026, 1, 1, 1, tzinfo=UTC)
 END = datetime(2026, 1, 1, 2, tzinfo=UTC)
-
-
-class QueuedCur:
-    """Fake cursor serving a queue of result sets, one per execute."""
-
-    def __init__(self, results):
-        self._results = list(results)
-        self.queries = []
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        return False
-
-    async def execute(self, query, params):
-        self.queries.append(query)
-        self.params = params
-
-    async def fetchall(self):
-        return self._results.pop(0)
-
-    async def fetchone(self):
-        return self._results.pop(0)
-
-
-class FakeConn:
-    def __init__(self, results):
-        self._cur = QueuedCur(results)
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        return False
-
-    def cursor(self):
-        return self._cur
-
-
-class FakePool:
-    def __init__(self, results):
-        self._results = results
-
-    def connection(self):
-        return FakeConn(self._results)
-
-
-def run(coro):
-    return asyncio.run(coro)
 
 
 class EngagementTotalsTest(unittest.TestCase):
@@ -74,7 +24,7 @@ class EngagementTotalsTest(unittest.TestCase):
             return run(engagement_totals(*args))
 
     def test_totals_mapping(self):
-        totals = self.query([(100, 60, 10, 50)], START, END)
+        totals = self.query((100, 60, 10, 50), START, END)
         self.assertEqual(
             totals,
             {
