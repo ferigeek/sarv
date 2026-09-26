@@ -1,27 +1,6 @@
 from datetime import datetime
 
-from analytics.db.queries.usage_time import (
-    MAX_BUCKETS,
-    build_bucket_starts,
-    parse_interval,
-)
-
-
-def _check_range(start_time: datetime, end_time: datetime) -> None:
-    if start_time >= end_time:
-        raise ValueError("start_time must be before end_time.")
-
-
-def _check_buckets(start_time: datetime, end_time: datetime, interval: str):
-    step, pg_interval = parse_interval(interval)
-    bucket_starts = build_bucket_starts(start_time, end_time, step)
-    if len(bucket_starts) > MAX_BUCKETS:
-        raise ValueError(
-            f"Too many buckets ({len(bucket_starts)}): "
-            f"choose a larger interval or a shorter range "
-            f"(max {MAX_BUCKETS})."
-        )
-    return step, pg_interval, bucket_starts
+from analytics.db.queries._common import resolve_buckets, validate_range
 
 
 async def engagement_totals(start_time: datetime, end_time: datetime) -> dict:
@@ -34,7 +13,7 @@ async def engagement_totals(start_time: datetime, end_time: datetime) -> dict:
     """
     from analytics.db.pool import pool
 
-    _check_range(start_time, end_time)
+    validate_range(start_time, end_time)
 
     async with pool.connection() as conn:
         async with conn.cursor() as cur:
@@ -95,8 +74,7 @@ async def engagement_over_time(
     """
     from analytics.db.pool import pool
 
-    _check_range(start_time, end_time)
-    _, pg_interval, bucket_starts = _check_buckets(start_time, end_time, interval)
+    _, pg_interval, bucket_starts = resolve_buckets(start_time, end_time, interval)
 
     async with pool.connection() as conn:
         async with conn.cursor() as cur:

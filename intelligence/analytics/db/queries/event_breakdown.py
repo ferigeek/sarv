@@ -1,9 +1,8 @@
 from datetime import datetime
 
-from analytics.db.queries.usage_time import (
-    MAX_BUCKETS,
-    build_bucket_starts,
-    parse_interval,
+from analytics.db.queries._common import (
+    resolve_buckets,
+    validate_range,
 )
 
 # Mirrors the event_type enum: V1 initial values plus REGISTER and
@@ -29,11 +28,6 @@ def zeroed_totals() -> dict[str, int]:
     return {event_type: 0 for event_type in KNOWN_EVENT_TYPES}
 
 
-def _check_range(start_time: datetime, end_time: datetime) -> None:
-    if start_time >= end_time:
-        raise ValueError("start_time must be before end_time.")
-
-
 async def event_totals(start_time: datetime, end_time: datetime) -> list[dict]:
     """Total event count per type in ``[start_time, end_time)``.
 
@@ -41,7 +35,7 @@ async def event_totals(start_time: datetime, end_time: datetime) -> list[dict]:
     """
     from analytics.db.pool import pool
 
-    _check_range(start_time, end_time)
+    validate_range(start_time, end_time)
 
     async with pool.connection() as conn:
         async with conn.cursor() as cur:
@@ -75,17 +69,7 @@ async def event_breakdown_over_time(
     """
     from analytics.db.pool import pool
 
-    _check_range(start_time, end_time)
-
-    step, pg_interval = parse_interval(interval)
-
-    bucket_starts = build_bucket_starts(start_time, end_time, step)
-    if len(bucket_starts) > MAX_BUCKETS:
-        raise ValueError(
-            f"Too many buckets ({len(bucket_starts)}): "
-            f"choose a larger interval or a shorter range "
-            f"(max {MAX_BUCKETS})."
-        )
+    _, pg_interval, bucket_starts = resolve_buckets(start_time, end_time, interval)
 
     async with pool.connection() as conn:
         async with conn.cursor() as cur:

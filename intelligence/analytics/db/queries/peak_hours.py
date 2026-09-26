@@ -1,11 +1,8 @@
 from datetime import datetime
 
+from analytics.db.queries._common import validate_range
+
 TIMEZONE = "UTC"
-
-
-def _check_range(start_time: datetime, end_time: datetime) -> None:
-    if start_time >= end_time:
-        raise ValueError("start_time must be before end_time.")
 
 
 def zeroed_buckets() -> list[dict]:
@@ -22,7 +19,7 @@ async def peak_activity_hours(start_time: datetime, end_time: datetime) -> dict:
     """
     from analytics.db.pool import pool
 
-    _check_range(start_time, end_time)
+    validate_range(start_time, end_time)
 
     async with pool.connection() as conn:
         async with conn.cursor() as cur:

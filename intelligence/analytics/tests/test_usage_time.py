@@ -6,12 +6,12 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
-from analytics.db.queries.usage_time import (
+from analytics.db.queries._common import (
     build_bucket_starts,
     gap_fill,
     parse_interval,
-    usage_activity_over_time,
 )
+from analytics.db.queries.usage_time import usage_activity_over_time
 
 UTC = timezone.utc
 START = datetime(2026, 1, 1, tzinfo=UTC)
