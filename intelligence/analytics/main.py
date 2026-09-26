@@ -7,6 +7,10 @@ from analytics.db.queries.usage_time import (
     active_user_count as hourly_active_users,
     usage_activity_over_time,
 )
+from analytics.db.queries.event_breakdown import (
+    event_breakdown_over_time,
+    event_totals,
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,6 +34,24 @@ class ActivityResponse(BaseModel):
     buckets: list[ActivityBucket]
 
 
+class EventTypeCount(BaseModel):
+    event_type: str
+    count: int
+
+
+class BreakdownBucket(BaseModel):
+    period_start: datetime
+    counts: dict[str, int]
+
+
+class BreakdownResponse(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    interval: str | None = None
+    totals: list[EventTypeCount]
+    buckets: list[BreakdownBucket] | None = None
+
+
 @app.get("/users/active", response_model=list[ActivityBucket])
 async def get_active_user_count(start_time: datetime, end_time: datetime):
     return await hourly_active_users(start_time, end_time)
@@ -49,5 +71,31 @@ async def get_usage_activity(
         "start_time": start_time,
         "end_time": end_time,
         "interval": interval,
+        "buckets": buckets,
+    }
+
+
+@app.get("/events/breakdown", response_model=BreakdownResponse)
+async def get_event_breakdown(
+    start_time: datetime,
+    end_time: datetime,
+    interval: str | None = Query(
+        None, description="Optional bucket size, e.g. '15m', '1h', '1d', '1w'"
+    ),
+):
+    try:
+        totals = await event_totals(start_time, end_time)
+        buckets = (
+            await event_breakdown_over_time(start_time, end_time, interval)
+            if interval is not None
+            else None
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {
+        "start_time": start_time,
+        "end_time": end_time,
+        "interval": interval,
+        "totals": totals,
         "buckets": buckets,
     }
