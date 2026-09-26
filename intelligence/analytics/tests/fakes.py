@@ -20,6 +20,7 @@ class FakeCur:
             self._queue = None
             self._single = results
         self.queries = []
+        self.params = None
 
     async def __aenter__(self):
         return self
@@ -59,13 +60,20 @@ class FakeConn:
     def queries(self):
         return self._cur.queries
 
+    @property
+    def params(self):
+        return self._cur.params
+
 
 class FakePool:
     def __init__(self, results):
         self._results = results
+        self.conns: list = []
 
     def connection(self):
-        return FakeConn(self._results)
+        conn = FakeConn(self._results)
+        self.conns.append(conn)
+        return conn
 
 
 def run(coro):
