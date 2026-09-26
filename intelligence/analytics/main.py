@@ -15,6 +15,7 @@ from analytics.db.queries.engagement import (
     engagement_over_time,
     engagement_totals,
 )
+from analytics.db.queries.peak_hours import peak_activity_hours
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -73,6 +74,20 @@ class EngagementResponse(BaseModel):
     interval: str | None = None
     totals: EngagementTotals
     buckets: list[EngagementBucket] | None = None
+
+
+class PeakHourBucket(BaseModel):
+    hour: int
+    event_count: int
+    active_users: int
+
+
+class PeakHoursResponse(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    timezone: str
+    peak_hour: PeakHourBucket
+    buckets: list[PeakHourBucket]
 
 
 @app.get("/users/active", response_model=list[ActivityBucket])
@@ -152,4 +167,17 @@ async def get_user_engagement(
         "interval": interval,
         "totals": totals,
         "buckets": buckets,
+    }
+
+
+@app.get("/usage/peak-hours", response_model=PeakHoursResponse)
+async def get_peak_hours(start_time: datetime, end_time: datetime):
+    try:
+        result = await peak_activity_hours(start_time, end_time)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {
+        "start_time": start_time,
+        "end_time": end_time,
+        **result,
     }
