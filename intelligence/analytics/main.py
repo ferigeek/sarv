@@ -11,6 +11,10 @@ from analytics.db.queries.event_breakdown import (
     event_breakdown_over_time,
     event_totals,
 )
+from analytics.db.queries.engagement import (
+    engagement_over_time,
+    engagement_totals,
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -52,6 +56,25 @@ class BreakdownResponse(BaseModel):
     buckets: list[BreakdownBucket] | None = None
 
 
+class EngagementTotals(BaseModel):
+    total_users: int
+    active_users: int
+    new_users: int
+    returning_users: int
+
+
+class EngagementBucket(EngagementTotals):
+    period_start: datetime
+
+
+class EngagementResponse(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    interval: str | None = None
+    totals: EngagementTotals
+    buckets: list[EngagementBucket] | None = None
+
+
 @app.get("/users/active", response_model=list[ActivityBucket])
 async def get_active_user_count(start_time: datetime, end_time: datetime):
     return await hourly_active_users(start_time, end_time)
@@ -87,6 +110,37 @@ async def get_event_breakdown(
         totals = await event_totals(start_time, end_time)
         buckets = (
             await event_breakdown_over_time(start_time, end_time, interval)
+            if interval is not None
+            else None
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {
+        "start_time": start_time,
+        "end_time": end_time,
+        "interval": interval,
+        "totals": totals,
+        "buckets": buckets,
+    }
+
+
+@app.get("/users/engagement", response_model=EngagementResponse)
+async def get_user_engagement(
+    start_time: datetime,
+    end_time: datetime,
+    interval: str | None = Query(
+        None, description="Optional bucket size, e.g. '15m', '1h', '1d', '1w'"
+    ),
+):
+    """Total, active, new and returning users.
+
+    New users signed up in a bucket count even if inactive there, so
+    per bucket new + returning does not necessarily equal active.
+    """
+    try:
+        totals = await engagement_totals(start_time, end_time)
+        buckets = (
+            await engagement_over_time(start_time, end_time, interval)
             if interval is not None
             else None
         )
