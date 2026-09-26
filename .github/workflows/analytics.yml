@@ -1,0 +1,38 @@
+name: Analytics Tests
+
+on:
+  push:
+    paths:
+      - 'intelligence/analytics/**'
+      - '.github/workflows/analytics.yml'
+  pull_request:
+    paths:
+      - 'intelligence/analytics/**'
+      - '.github/workflows/analytics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analytics-tests:
+    name: Analytics tests
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}/intelligence
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        working-directory: intelligence/analytics
+        run: uv sync --locked
+
+      - name: Run analytics tests
+        working-directory: intelligence/analytics
+        run: uv run --frozen python -m unittest discover -s tests
