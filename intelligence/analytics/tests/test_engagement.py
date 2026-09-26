@@ -92,6 +92,7 @@ class EngagementOverTimeTest(unittest.TestCase):
 class EngagementEndpointTest(unittest.TestCase):
     def test_without_interval_skips_bucket_queries(self):
         from fastapi.testclient import TestClient
+        import analytics.api.engagement as api_module
         import analytics.main as main
 
         totals = {
@@ -101,8 +102,8 @@ class EngagementEndpointTest(unittest.TestCase):
             "returning_users": 50,
         }
         with (
-            patch.object(main, "engagement_totals", new=AsyncMock(return_value=totals)),
-            patch.object(main, "engagement_over_time", new=AsyncMock()) as over_time,
+            patch.object(api_module, "engagement_totals", new=AsyncMock(return_value=totals)),
+            patch.object(api_module, "engagement_over_time", new=AsyncMock()) as over_time,
         ):
             resp = TestClient(main.app).get(
                 "/users/engagement",
@@ -118,6 +119,7 @@ class EngagementEndpointTest(unittest.TestCase):
 
     def test_with_interval_returns_buckets(self):
         from fastapi.testclient import TestClient
+        import analytics.api.engagement as api_module
         import analytics.main as main
 
         buckets = [
@@ -131,7 +133,7 @@ class EngagementEndpointTest(unittest.TestCase):
         ]
         with (
             patch.object(
-                main,
+                api_module,
                 "engagement_totals",
                 new=AsyncMock(
                     return_value={
@@ -143,7 +145,7 @@ class EngagementEndpointTest(unittest.TestCase):
                 ),
             ),
             patch.object(
-                main, "engagement_over_time", new=AsyncMock(return_value=buckets)
+                api_module, "engagement_over_time", new=AsyncMock(return_value=buckets)
             ),
         ):
             resp = TestClient(main.app).get(
@@ -161,10 +163,11 @@ class EngagementEndpointTest(unittest.TestCase):
 
     def test_invalid_maps_to_422(self):
         from fastapi.testclient import TestClient
+        import analytics.api.engagement as api_module
         import analytics.main as main
 
         with patch.object(
-            main,
+            api_module,
             "engagement_totals",
             new=AsyncMock(side_effect=ValueError("start_time must be before end_time.")),
         ):

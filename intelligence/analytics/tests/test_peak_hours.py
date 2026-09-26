@@ -49,6 +49,7 @@ class PeakHoursQueryTest(unittest.TestCase):
 class PeakHoursEndpointTest(unittest.TestCase):
     def test_ok(self):
         from fastapi.testclient import TestClient
+        import analytics.api.peak_hours as api_module
         import analytics.main as main
 
         result = {
@@ -59,7 +60,7 @@ class PeakHoursEndpointTest(unittest.TestCase):
             ],
         }
         with patch.object(
-            main, "peak_activity_hours", new=AsyncMock(return_value=result)
+            api_module, "peak_activity_hours", new=AsyncMock(return_value=result)
         ):
             resp = TestClient(main.app).get(
                 "/usage/peak-hours",
@@ -75,10 +76,11 @@ class PeakHoursEndpointTest(unittest.TestCase):
 
     def test_invalid_maps_to_422(self):
         from fastapi.testclient import TestClient
+        import analytics.api.peak_hours as api_module
         import analytics.main as main
 
         with patch.object(
-            main,
+            api_module,
             "peak_activity_hours",
             new=AsyncMock(side_effect=ValueError("start_time must be before end_time.")),
         ):

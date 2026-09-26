@@ -94,11 +94,12 @@ class UsageActivityTest(unittest.TestCase):
 class UsageActivityEndpointTest(unittest.TestCase):
     def test_ok(self):
         from fastapi.testclient import TestClient
+        import analytics.api.activity as api_module
         import analytics.main as main
 
         buckets = [{"period_start": START, "active_users": 5}]
         with patch.object(
-            main, "usage_activity_over_time", new=AsyncMock(return_value=buckets)
+            api_module, "usage_activity_over_time", new=AsyncMock(return_value=buckets)
         ):
             resp = TestClient(main.app).get(
                 "/usage/activity",
@@ -115,10 +116,11 @@ class UsageActivityEndpointTest(unittest.TestCase):
 
     def test_invalid_maps_to_422(self):
         from fastapi.testclient import TestClient
+        import analytics.api.activity as api_module
         import analytics.main as main
 
         with patch.object(
-            main,
+            api_module,
             "usage_activity_over_time",
             new=AsyncMock(side_effect=ValueError("start_time must be before end_time.")),
         ):

@@ -75,12 +75,13 @@ class EventBreakdownOverTimeTest(unittest.TestCase):
 class EventBreakdownEndpointTest(unittest.TestCase):
     def test_without_interval_returns_totals_only(self):
         from fastapi.testclient import TestClient
+        import analytics.api.breakdown as api_module
         import analytics.main as main
 
         totals = [{"event_type": "LOGIN", "count": 1240}]
         with (
-            patch.object(main, "event_totals", new=AsyncMock(return_value=totals)),
-            patch.object(main, "event_breakdown_over_time", new=AsyncMock()) as breakdown,
+            patch.object(api_module, "event_totals", new=AsyncMock(return_value=totals)),
+            patch.object(api_module, "event_breakdown_over_time", new=AsyncMock()) as breakdown,
         ):
             resp = TestClient(main.app).get(
                 "/events/breakdown",
@@ -96,15 +97,16 @@ class EventBreakdownEndpointTest(unittest.TestCase):
 
     def test_with_interval_returns_buckets(self):
         from fastapi.testclient import TestClient
+        import analytics.api.breakdown as api_module
         import analytics.main as main
 
         buckets = [{"period_start": START, "counts": {"LOGIN": 41}}]
         with (
             patch.object(
-                main, "event_totals", new=AsyncMock(return_value=[])
+                api_module, "event_totals", new=AsyncMock(return_value=[])
             ),
             patch.object(
-                main, "event_breakdown_over_time", new=AsyncMock(return_value=buckets)
+                api_module, "event_breakdown_over_time", new=AsyncMock(return_value=buckets)
             ),
         ):
             resp = TestClient(main.app).get(
@@ -122,10 +124,11 @@ class EventBreakdownEndpointTest(unittest.TestCase):
 
     def test_invalid_maps_to_422(self):
         from fastapi.testclient import TestClient
+        import analytics.api.breakdown as api_module
         import analytics.main as main
 
         with patch.object(
-            main,
+            api_module,
             "event_totals",
             new=AsyncMock(side_effect=ValueError("start_time must be before end_time.")),
         ):
