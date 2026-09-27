@@ -1,21 +1,15 @@
-// Section renderers land in the next task; this stub keeps the shell
-// buildable and shows per-panel status until real charts arrive.
-const SLOTS = {
-  activity: 'error-activity',
-  breakdown: 'error-breakdown',
-  engagement: 'error-engagement',
-  peak: 'error-peak',
-  viewing: 'error-viewing',
-  mostActive: 'error-most-active',
-};
+import { renderActivity } from './activity.js';
+import { renderEngagement } from './engagement.js';
+import { renderBreakdown } from './breakdown.js';
+import { renderPeak } from './peak.js';
+import { renderViewing } from './viewing.js';
+import { renderMostActive } from './rankings.js';
 
 export function renderAll(results) {
-  for (const [key, slotId] of Object.entries(SLOTS)) {
-    const slot = document.querySelector(`#${slotId}`);
-    const result = results[key];
-    slot.classList.toggle('d-none', result.ok);
-    slot.textContent = result.ok ? '' : `LOAD FAILED — ${result.error}`;
-  }
-  document.querySelector('#note-activity').textContent =
-    'Chart renderers land next — data fetch layer is live.';
+  renderActivity(results.activity, results.activeLegacy);
+  renderEngagement(results.engagement);
+  renderBreakdown(results.breakdown);
+  renderPeak(results.peak);
+  renderViewing(results.viewing);
+  renderMostActive(results.mostActive);
 }
