@@ -61,6 +61,7 @@ plugins:
             - Backend: 5-Backend.md
             - Recommendation: 6-Recommendation.md
             - Frontend: 7-Frontend.md
+            - Analytics: 8-Analytics.md
         - locale: fa
           name: فارسی
           build: true
@@ -76,6 +77,7 @@ plugins:
             - بک‌اند: 5-Backend.md
             - توصیه‌گر: 6-Recommendation.md
             - فرانت‌اند: 7-Frontend.md
+            - تحلیل‌ها: 8-Analytics.md
 
 
 extra:
