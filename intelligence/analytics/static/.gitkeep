@@ -1,0 +1,2 @@
+# Keeps static/ present for FastAPI StaticFiles before the first Vite build.
+# Build output (static/dist/) is gitignored, see ../.gitignore.
