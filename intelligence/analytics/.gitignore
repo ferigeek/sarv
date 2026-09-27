@@ -1,0 +1,2 @@
+# Vite build output served by FastAPI (see ui/vite.config.js)
+static/dist/
