@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Sarv Analytics — internal operations console." />
+    <title>Sarv Analytics</title>
+  </head>
+  <body>
+    <div class="scanlines" aria-hidden="true"></div>
+
+    <header class="console-bar">
+      <div class="container-fluid d-flex align-items-center gap-3">
+        <span class="console-mark" aria-hidden="true"></span>
+        <span class="console-title">SARV <span class="console-sep">//</span> ANALYTICS</span>
+        <span id="health-dot" class="health-dot health-unknown" role="status" aria-label="API status">
+          <span class="health-pulse" aria-hidden="true"></span><span id="health-text">CONNECTING</span>
+        </span>
+        <span class="ms-auto console-clock d-none d-md-inline" id="console-clock" aria-hidden="true"></span>
+      </div>
+    </header>
+
+    <main class="container-fluid py-3" id="top">
+      <section class="panel control-deck mb-3" aria-label="Time range controls">
+        <form id="controls" class="row g-2 align-items-end">
+          <div class="col-6 col-md-3">
+            <label class="form-label" for="start-time">Start (UTC)</label>
+            <input class="form-control" type="datetime-local" id="start-time" name="start_time" required />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label" for="end-time">End (UTC)</label>
+            <input class="form-control" type="datetime-local" id="end-time" name="end_time" required />
+          </div>
+          <div class="col-4 col-md-2">
+            <label class="form-label" for="interval">Bucket</label>
+            <select class="form-select" id="interval" name="interval">
+              <option value="15m">15m</option>
+              <option value="1h" selected>1h</option>
+              <option value="1d">1d</option>
+              <option value="1w">1w</option>
+            </select>
+          </div>
+          <div class="col-4 col-md-1">
+            <label class="form-label" for="limit">Top</label>
+            <input class="form-control" type="number" id="limit" name="limit" value="10" min="1" max="100" />
+          </div>
+          <div class="col-4 col-md-3 d-flex gap-2 justify-content-md-end">
+            <div class="btn-group" role="group" aria-label="Range presets">
+              <button type="button" class="btn btn-outline-secondary" data-preset="24h">24H</button>
+              <button type="button" class="btn btn-outline-secondary" data-preset="7d">7D</button>
+              <button type="button" class="btn btn-outline-secondary" data-preset="30d">30D</button>
+            </div>
+            <button type="submit" class="btn btn-primary" id="refresh">Refresh</button>
+          </div>
+        </form>
+      </section>
+
+      <div class="row g-3">
+        <section class="col-12 col-xl-8 panel-wrap" id="section-activity" aria-label="Activity">
+          <div class="panel">
+            <div class="panel-head"><h2>Activity <span class="panel-sub">distinct users / bucket</span></h2></div>
+            <div class="panel-body">
+              <div class="chart-box"><canvas id="chart-activity"></canvas></div>
+              <p class="section-note" id="note-activity"></p>
+              <p class="section-error d-none" id="error-activity" role="alert"></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="col-12 col-xl-4 panel-wrap" id="section-engagement" aria-label="Engagement">
+          <div class="panel">
+            <div class="panel-head"><h2>Engagement <span class="panel-sub">total / active / new / returning</span></h2></div>
+            <div class="panel-body">
+              <div class="kpi-grid" id="kpi-engagement"></div>
+              <div class="chart-box chart-sm"><canvas id="chart-engagement"></canvas></div>
+              <p class="section-error d-none" id="error-engagement" role="alert"></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="col-12 col-xl-7 panel-wrap" id="section-breakdown" aria-label="Event breakdown">
+          <div class="panel">
+            <div class="panel-head"><h2>Event breakdown <span class="panel-sub">counts per type</span></h2></div>
+            <div class="panel-body">
+              <div class="chart-box"><canvas id="chart-breakdown"></canvas></div>
+              <div class="table-responsive"><table class="table table-sm mb-0" id="table-breakdown"></table></div>
+              <p class="section-error d-none" id="error-breakdown" role="alert"></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="col-12 col-xl-5 panel-wrap" id="section-peak" aria-label="Peak hours">
+          <div class="panel">
+            <div class="panel-head"><h2>Peak hours <span class="panel-sub">UTC hour-of-day</span></h2></div>
+            <div class="panel-body">
+              <p class="peak-badge" id="peak-badge">—</p>
+              <div class="chart-box"><canvas id="chart-peak"></canvas></div>
+              <p class="section-error d-none" id="error-peak" role="alert"></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="col-12 col-xl-5 panel-wrap" id="section-viewing" aria-label="Viewing time">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Viewing time <span class="panel-sub">avg dwell ms</span></h2>
+              <select class="form-select form-select-sm source-select" id="source" aria-label="Dwell source filter">
+                <option value="">ALL SOURCES</option>
+                <option value="FEED">FEED</option>
+                <option value="DETAIL">DETAIL</option>
+              </select>
+            </div>
+            <div class="panel-body">
+              <div class="kpi-grid" id="kpi-viewing"></div>
+              <div class="chart-box chart-sm"><canvas id="chart-viewing"></canvas></div>
+              <p class="section-error d-none" id="error-viewing" role="alert"></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="col-12 col-xl-7 panel-wrap" id="section-most-active" aria-label="Most active users">
+          <div class="panel">
+            <div class="panel-head"><h2>Most active <span class="panel-sub">leaderboard by event count</span></h2></div>
+            <div class="panel-body">
+              <div class="table-responsive"><table class="table table-sm mb-0" id="table-most-active"></table></div>
+              <p class="section-error d-none" id="error-most-active" role="alert"></p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="console-foot">
+        <span>SARV ANALYTICS · INTERNAL · <span id="query-stamp"></span></span>
+        <a href="#top">TOP_</a>
+      </footer>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
