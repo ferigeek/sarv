@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 from analytics.db.queries.peak_hours import peak_activity_hours
-from fakes import FakePool, run
+from fakes import FakePool, authed_client, run
 
 UTC = timezone.utc
 START = datetime(2026, 1, 1, tzinfo=UTC)
@@ -48,7 +48,7 @@ class PeakHoursQueryTest(unittest.TestCase):
 
 class PeakHoursEndpointTest(unittest.TestCase):
     def test_ok(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.peak_hours as api_module
         import analytics.main as main
 
@@ -62,7 +62,7 @@ class PeakHoursEndpointTest(unittest.TestCase):
         with patch.object(
             api_module, "peak_activity_hours", new=AsyncMock(return_value=result)
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/usage/peak-hours",
                 params={
                     "start_time": "2026-01-01T00:00:00Z",
@@ -75,7 +75,7 @@ class PeakHoursEndpointTest(unittest.TestCase):
         self.assertEqual(len(body["buckets"]), 24)
 
     def test_invalid_maps_to_422(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.peak_hours as api_module
         import analytics.main as main
 
@@ -84,7 +84,7 @@ class PeakHoursEndpointTest(unittest.TestCase):
             "peak_activity_hours",
             new=AsyncMock(side_effect=ValueError("start_time must be before end_time.")),
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/usage/peak-hours",
                 params={
                     "start_time": "2026-01-02T00:00:00Z",

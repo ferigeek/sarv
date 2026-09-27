@@ -12,7 +12,7 @@ from analytics.db.queries._common import (
     parse_interval,
 )
 from analytics.db.queries.usage_time import usage_activity_over_time
-from fakes import FakePool, run
+from fakes import FakePool, authed_client, run
 
 UTC = timezone.utc
 START = datetime(2026, 1, 1, tzinfo=UTC)
@@ -93,7 +93,7 @@ class UsageActivityTest(unittest.TestCase):
 
 class UsageActivityEndpointTest(unittest.TestCase):
     def test_ok(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.activity as api_module
         import analytics.main as main
 
@@ -101,7 +101,7 @@ class UsageActivityEndpointTest(unittest.TestCase):
         with patch.object(
             api_module, "usage_activity_over_time", new=AsyncMock(return_value=buckets)
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/usage/activity",
                 params={
                     "start_time": "2026-01-01T00:00:00Z",
@@ -115,7 +115,7 @@ class UsageActivityEndpointTest(unittest.TestCase):
         self.assertEqual(body["buckets"][0]["active_users"], 5)
 
     def test_invalid_maps_to_422(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.activity as api_module
         import analytics.main as main
 
@@ -124,7 +124,7 @@ class UsageActivityEndpointTest(unittest.TestCase):
             "usage_activity_over_time",
             new=AsyncMock(side_effect=ValueError("start_time must be before end_time.")),
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/usage/activity",
                 params={
                     "start_time": "2026-01-01T02:00:00Z",

@@ -1,6 +1,10 @@
 async function getJson(path, params) {
   const qs = new URLSearchParams(params).toString();
   const res = await fetch(`${path}?${qs}`);
+  if (res.status === 401) {
+    window.location.href = '/login';
+    throw new Error('Session expired — redirecting to sign in.');
+  }
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`${res.status} ${body.slice(0, 160)}`);

@@ -99,10 +99,29 @@ body {
 
 .sidebar-foot {
   margin-top: auto;
-  margin-bottom: 0;
+  margin-bottom: 0.5rem;
   font-size: 0.75rem;
   color: #7fa89e;
   padding: 0 0.25rem;
+}
+
+.sidebar-logout button {
+  background: none;
+  border: none;
+  padding: 0.5rem 0.75rem;
+  width: 100%;
+  text-align: left;
+  color: #c4ddd6;
+  font-weight: 600;
+  font-size: 0.9rem;
+  font-family: inherit;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.sidebar-logout button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 
 .topbar {

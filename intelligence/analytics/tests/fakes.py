@@ -78,3 +78,20 @@ class FakePool:
 
 def run(coro):
     return asyncio.run(coro)
+
+
+def authed_client(app):
+    """TestClient carrying a valid admin session cookie.
+
+    The app requires authentication on every route except /health, /login
+    and /static, so endpoint tests must send a signed token — same as a
+    browser after signing in.
+    """
+    from fastapi.testclient import TestClient
+
+    from analytics.auth import COOKIE_NAME, create_token
+    from analytics.config import settings
+
+    token = create_token("tester", settings.analytics_secret_key, 3600)
+    client = TestClient(app, cookies={COOKIE_NAME: token})
+    return client

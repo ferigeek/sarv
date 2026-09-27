@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 from analytics.db.queries.rankings import most_active_users
-from fakes import FakePool, run
+from fakes import FakePool, authed_client, run
 
 UTC = timezone.utc
 START = datetime(2026, 1, 1, tzinfo=UTC)
@@ -60,7 +60,7 @@ class MostActiveQueryTest(unittest.TestCase):
 
 class MostActiveEndpointTest(unittest.TestCase):
     def test_ok_with_default_limit(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.rankings as api_module
         import analytics.main as main
 
@@ -70,7 +70,7 @@ class MostActiveEndpointTest(unittest.TestCase):
         with patch.object(
             api_module, "most_active_users", new=AsyncMock(return_value=users)
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/users/most-active",
                 params={
                     "start_time": "2026-01-01T00:00:00Z",
@@ -83,10 +83,10 @@ class MostActiveEndpointTest(unittest.TestCase):
         self.assertEqual(body["users"], users)
 
     def test_limit_out_of_range_is_422(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.main as main
 
-        resp = TestClient(main.app).get(
+        resp = authed_client(main.app).get(
             "/users/most-active",
             params={
                 "start_time": "2026-01-01T00:00:00Z",
@@ -97,7 +97,7 @@ class MostActiveEndpointTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 422)
 
     def test_invalid_maps_to_422(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.rankings as api_module
         import analytics.main as main
 
@@ -106,7 +106,7 @@ class MostActiveEndpointTest(unittest.TestCase):
             "most_active_users",
             new=AsyncMock(side_effect=ValueError("start_time must be before end_time.")),
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/users/most-active",
                 params={
                     "start_time": "2026-01-02T00:00:00Z",

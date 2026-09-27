@@ -10,7 +10,7 @@ from analytics.db.queries.viewing_time import (
     viewing_time_over_time,
     viewing_time_summary,
 )
-from fakes import FakePool, run
+from fakes import FakePool, authed_client, run
 
 UTC = timezone.utc
 START = datetime(2026, 1, 1, tzinfo=UTC)
@@ -93,7 +93,7 @@ class ViewingOverTimeTest(unittest.TestCase):
 
 class ViewingEndpointTest(unittest.TestCase):
     def test_without_interval_skips_bucket_queries(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.viewing_time as api_module
         import analytics.main as main
 
@@ -109,7 +109,7 @@ class ViewingEndpointTest(unittest.TestCase):
                 api_module, "viewing_time_over_time", new=AsyncMock()
             ) as over_time,
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/engagement/viewing-time",
                 params={
                     "start_time": "2026-01-01T00:00:00Z",
@@ -122,7 +122,7 @@ class ViewingEndpointTest(unittest.TestCase):
         over_time.assert_not_awaited()
 
     def test_with_interval_and_source(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.viewing_time as api_module
         import analytics.main as main
 
@@ -146,7 +146,7 @@ class ViewingEndpointTest(unittest.TestCase):
                 api_module, "viewing_time_over_time", new=AsyncMock(return_value=buckets)
             ) as over_time,
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/engagement/viewing-time",
                 params={
                     "start_time": "2026-01-01T00:00:00Z",
@@ -161,7 +161,7 @@ class ViewingEndpointTest(unittest.TestCase):
         self.assertEqual(over_time.await_args.args[3], "FEED")
 
     def test_invalid_maps_to_422(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.viewing_time as api_module
         import analytics.main as main
 
@@ -174,7 +174,7 @@ class ViewingEndpointTest(unittest.TestCase):
                 )
             ),
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/engagement/viewing-time",
                 params={
                     "start_time": "2026-01-01T00:00:00Z",

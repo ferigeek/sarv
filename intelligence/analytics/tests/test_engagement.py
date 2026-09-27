@@ -10,7 +10,7 @@ from analytics.db.queries.engagement import (
     engagement_over_time,
     engagement_totals,
 )
-from fakes import FakePool, run
+from fakes import FakePool, authed_client, run
 
 UTC = timezone.utc
 START = datetime(2026, 1, 1, tzinfo=UTC)
@@ -91,7 +91,7 @@ class EngagementOverTimeTest(unittest.TestCase):
 
 class EngagementEndpointTest(unittest.TestCase):
     def test_without_interval_skips_bucket_queries(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.engagement as api_module
         import analytics.main as main
 
@@ -105,7 +105,7 @@ class EngagementEndpointTest(unittest.TestCase):
             patch.object(api_module, "engagement_totals", new=AsyncMock(return_value=totals)),
             patch.object(api_module, "engagement_over_time", new=AsyncMock()) as over_time,
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/users/engagement",
                 params={
                     "start_time": "2026-01-01T00:00:00Z",
@@ -118,7 +118,7 @@ class EngagementEndpointTest(unittest.TestCase):
         over_time.assert_not_awaited()
 
     def test_with_interval_returns_buckets(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.engagement as api_module
         import analytics.main as main
 
@@ -148,7 +148,7 @@ class EngagementEndpointTest(unittest.TestCase):
                 api_module, "engagement_over_time", new=AsyncMock(return_value=buckets)
             ),
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/users/engagement",
                 params={
                     "start_time": "2026-01-01T00:00:00Z",
@@ -162,7 +162,7 @@ class EngagementEndpointTest(unittest.TestCase):
         self.assertEqual(body["buckets"][0]["returning_users"], 25)
 
     def test_invalid_maps_to_422(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.engagement as api_module
         import analytics.main as main
 
@@ -171,7 +171,7 @@ class EngagementEndpointTest(unittest.TestCase):
             "engagement_totals",
             new=AsyncMock(side_effect=ValueError("start_time must be before end_time.")),
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/users/engagement",
                 params={
                     "start_time": "2026-01-01T02:00:00Z",

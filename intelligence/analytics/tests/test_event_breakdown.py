@@ -11,7 +11,7 @@ from analytics.db.queries.event_breakdown import (
     event_breakdown_over_time,
     event_totals,
 )
-from fakes import FakePool, run
+from fakes import FakePool, authed_client, run
 
 UTC = timezone.utc
 START = datetime(2026, 1, 1, tzinfo=UTC)
@@ -74,7 +74,7 @@ class EventBreakdownOverTimeTest(unittest.TestCase):
 
 class EventBreakdownEndpointTest(unittest.TestCase):
     def test_without_interval_returns_totals_only(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.breakdown as api_module
         import analytics.main as main
 
@@ -83,7 +83,7 @@ class EventBreakdownEndpointTest(unittest.TestCase):
             patch.object(api_module, "event_totals", new=AsyncMock(return_value=totals)),
             patch.object(api_module, "event_breakdown_over_time", new=AsyncMock()) as breakdown,
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/events/breakdown",
                 params={
                     "start_time": "2026-01-01T00:00:00Z",
@@ -96,7 +96,7 @@ class EventBreakdownEndpointTest(unittest.TestCase):
         breakdown.assert_not_awaited()
 
     def test_with_interval_returns_buckets(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.breakdown as api_module
         import analytics.main as main
 
@@ -109,7 +109,7 @@ class EventBreakdownEndpointTest(unittest.TestCase):
                 api_module, "event_breakdown_over_time", new=AsyncMock(return_value=buckets)
             ),
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/events/breakdown",
                 params={
                     "start_time": "2026-01-01T00:00:00Z",
@@ -123,7 +123,7 @@ class EventBreakdownEndpointTest(unittest.TestCase):
         self.assertEqual(body["buckets"][0]["counts"], {"LOGIN": 41})
 
     def test_invalid_maps_to_422(self):
-        from fastapi.testclient import TestClient
+        from fakes import authed_client
         import analytics.api.breakdown as api_module
         import analytics.main as main
 
@@ -132,7 +132,7 @@ class EventBreakdownEndpointTest(unittest.TestCase):
             "event_totals",
             new=AsyncMock(side_effect=ValueError("start_time must be before end_time.")),
         ):
-            resp = TestClient(main.app).get(
+            resp = authed_client(main.app).get(
                 "/events/breakdown",
                 params={
                     "start_time": "2026-01-01T02:00:00Z",
