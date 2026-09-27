@@ -106,7 +106,7 @@ Since this subsystem does not maintain persistent internal state, multiple insta
 ---
 ## Analytics Subsystem
 
-The Analytics Subsystem is responsible for processing user behavior data and generating statistical insights for administrators. It is **planned but not yet implemented** — no analytics service exists in the repository yet.
+The Analytics Subsystem is responsible for processing user behavior data and generating statistical insights for administrators. It is **implemented** as an offline Python (FastAPI) service aggregating `event_logs`/`users` — see [8-Analytics.md](./8-Analytics.md).
 
 Unlike the Recommendation System, which operates directly within user-facing workflows, the Analytics Subsystem functions asynchronously and does not affect request response times.
 
@@ -151,6 +151,6 @@ As a result, each category of data is stored in the environment most suitable fo
 | Event logging (`event_logs`) | Implemented — 13 event types incl. `REGISTER` and `QUOTE_POST`; `REQUEST_FEED` with `metadata {feed_type}`; post dwell via `POST /api/posts/{id}/dwell` (`VIEW_POST` with `metadata {duration_ms, source}`) grouped by tab-scoped `session_id` (V8 index) |
 | Feed generation (chronological / smart feed) | Implemented — `GET /api/feed/chronological` and `GET /api/feed/recommended` with `Page<PostResponse>` and graceful fallback |
 | Backend ↔ Recommendation integration | Implemented — `RestClient` (`recommendation.base-url` / `RECOMMENDATION_URL`, 1500 ms timeout), `RecommendationClient` → `GET /feed?user_id=&page=&size=`, hydration via `findAllByIdsFiltered`, healthcheck on `GET /health` |
-| Analytics subsystem | Planned — not started |
+| Analytics subsystem | Implemented — offline FastAPI service: activity, event breakdown, engagement, peak hours, viewing time, most-active leaderboard (see [8-Analytics.md](./8-Analytics.md)) |
 | Monitoring (Prometheus / Grafana) | Implemented — actuator `prometheus` endpoint scraped; dashboards provisioned |
 | Redis (caching / rate limiting) | Declared + running (exporter scraped), unused by application code |
